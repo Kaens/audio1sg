@@ -428,10 +428,39 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOptionT(File.read_ansiString(0xD,24));
             sOptionT(File.read_ansiString(5,8),"id: ")
     }
-    else if(Binary.isHeuristicScan() && extIs("dmf")) {
-        //TODO isDeepScan unpack and look at the signature
+    else if(Binary.compare("'.DelekDefleMask.'")) {
+        //ref https://web.archive.org/web/20150226185703if_/http://www.delek.com.ar:80/soft/deflemask/DMF_SPECS.txt
+        // It's a pretty damn old document though...
         bDetected = 1;
         sName = "DeFleMask module (.DMF)";
+        sVersion = "v"+File.read_uint8(0x10);
+        if(Binary.isVerbose()) {
+            switch(File.read_uint8(0x11)) { //TODO add more new chip versions
+            case 0x01: sVersion += "#YMU759"; ch = 17; break;
+            case 0x02: sVersion += "#Genesis (10ch)"; ch = 10; break;
+            case 0x03: sVersion += "#SMS (4ch)"; ch = 4; break;
+            case 0x04: sVersion += "#GameBoy (4ch)"; ch = 4; break;
+            case 0x05: sVersion += "#PCEngine (6ch)"; ch = 6; break;
+            case 0x06: sVersion += "#NES (5ch)"; ch = 5; break;
+            case 0x07: case 0x47: sVersion += "#C64 (3ch)"; ch = 3; break;
+            case 0x08: sVersion += "#YM2151 (13ch)"; ch = 13; break;
+            default: ch = 4 //just 'cause
+            }
+            sOption(File.read_ucsdString(0x12));
+            l = File.read_uint8(0x12); p = 0x12+l+1;
+            sOption(File.read_ucsdString(p),"by: ");
+            l = File.read_uint8(p); p += l+1+2;
+            tbase = File.read_uint8(p++);
+            tick1 = File.read_uint8(p++); tick2 = File.read_uint8(p++);
+            Hz = File.read_uint8(p++)?"60(NTSC)":"50(PAL)";
+            if(File.read_uint8(p++)) Hz = File.read_uint8(p++)+":"+File.read_uint8(p++)+":"+File.read_uint8(p++);
+            else p+=3;
+            //These have changed over the years it seems, TODO: RE it
+            //p++; _ripm = File.read_uint8(p++);
+            //arptick = File.read_uint8(p++); p += ch*_ripm;
+            //ins = File.read_uint8(p++);
+            sOption("tbase:"+tbase+" tck:"+tick1+":"+tick2+" freq:"+Hz); //+" ins:"+ins+" arp.tick:");
+        }
     }
     else if(Binary.compare("' MUGICIAN/SOFTEYES 1990 '")) {
         bDetected = 1;
@@ -610,13 +639,13 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'FC14'")) {
         bDetected = 1;
-        sName="Future Composer module (.FC)";
-        sVersion="v1.4";
+        sName = "Future Composer module (.FC)";
+        sVersion = "v1.4";
     }
     else if(Binary.compare("'FUCO'C1")) {
         bDetected = 1;
-        sName="Future Composer module (.BSI)";
-        sVersion="ver.BSI";
+        sName = "Future Composer module (.BSI)";
+        sVersion = "ver.BSI";
     }
     else if(Binary.compare("'FMTracker'....'The FM Tracker!'")) {
         bDetected = 1;
@@ -951,8 +980,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sigv = 0;
         switch(File.read_uint8(2)){
-            case 0x4B: sName = "Graoumf Tracker module (.GTK)"; sVersion="Amiga "; sigv=1; break;
-            case 0x32: sName = "Graoumf Tracker 2 module (.GT2)"; sVersion="PC " ;sigv=2;
+            case 0x4B: sName = "Graoumf Tracker module (.GTK)"; sVersion = "Amiga "; sigv=1; break;
+            case 0x32: sName = "Graoumf Tracker 2 module (.GT2)"; sVersion = "PC " ;sigv=2;
         }
         v = File.read_uint8(3); sVersion += "v"+v;
         if (v<6) switch(v){
@@ -1103,7 +1132,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'GTI5'")) {
         bDetected = 1;
-        sName="GoatTracker 2 Instrument (.INS)";
+        sName = "GoatTracker 2 Instrument (.INS)";
     }
     else if(Binary.compare("'IMPM'")) {
         bDetected = 1;
@@ -1366,25 +1395,25 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'GameBoy Music Module'",0x0C)) {
         bDetected = 1;
-        sName="Gameboy Tracker module (.MGB)";
+        sName = "Gameboy Tracker module (.MGB)";
     }
     else if(Binary.compare("'MGT'11BD'MCS'")) {
         bDetected = 1;
-        sName="Megatracker module (.MGT)";
+        sName = "Megatracker module (.MGT)";
         sOptionT(File.read_ansiString(0x3A,0x20))
     }
     else if(Binary.compare("'MThd'00000006")) {
         bDetected = 1;
-        sName="MIDI music (.MID)";
+        sName = "MIDI music (.MID)";
     }
     else if(Binary.compare("'MIX1LeOnArD!")) {
         bDetected = 1;
-        sName="Atari Digi-Mix module (.MIX)";
+        sName = "Atari Digi-Mix module (.MIX)";
         //TODO find the pointer to the floating title
     }
     else if(Binary.compare("'MLEDMODL'")) {
         bDetected = 1;
-        sName="Musicline Editor module (.ML)";
+        sName = "Musicline Editor module (.ML)";
         pv = Binary.findSignature(12,0x100,"'VERS'");
         if(pv>0) {
           sVersion = "v"+File.read_uint8(pv+8)+".";
@@ -1397,7 +1426,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'FORM'........'MMV8SDAT'................'SE'")) {
         bDetected = 1;
-        sName="Music Maker module (.MM8)";
+        sName = "Music Maker module (.MM8)";
         sVersion = "v8";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x1A,0x14));
@@ -1406,15 +1435,15 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'SO31'",0x7C)) {
         bDetected = 1;
-        sName="MultiMedia Sound module (.MMS)";
+        sName = "MultiMedia Sound module (.MMS)";
     }
     else if(Binary.compare("'MO3'")) {
         bDetected = 1;
-        sName="MO3 MOD module (.MO3)";
+        sName = "MO3 MOD module (.MO3)";
     }
     else if(Binary.compare("'M.K.'",0x438) || Binary.compare("'M&K&'",0x438) || Binary.compare("'M!K!'",0x438)) {
         bDetected = 1;
-        sName="Generic MOD module (.MOD)";
+        sName = "Generic MOD module (.MOD)";
         sVersion=File.read_ansiString(0x438,4);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
@@ -1424,7 +1453,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'RASP'",0x438)) {
         // TODO find out what format it was...
         bDetected = 1;
-        sName="Generic module (.MOD)";
+        sName = "Generic module (.MOD)";
         sVersion=File.read_ansiString(0x438,4);
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(0,0x14));
@@ -1432,7 +1461,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(/FA\d\d/.test(File.read_ansiString(0x438,4))) {
         bDetected = 1;
-        sName="Digital Tracker module (.MOD)";
+        sName = "Digital Tracker module (.MOD)";
         sVersion = "v030";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
@@ -1441,7 +1470,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(/^(\dCHN|\d\dCH)$/.test(File.read_ansiString(0x438,4))) {
         bDetected = 1;
-        sName="FastTracker module (.MOD)";
+        sName = "FastTracker module (.MOD)";
         sVersion=File.read_ansiString(0x438,4);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
@@ -1450,7 +1479,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(/^(FLT[48]|EXO4$)/.test(File.read_ansiString(0x438,4))) {
         bDetected = 1;
-        sName="StarTrekker module (.MOD)";
+        sName = "StarTrekker module (.MOD)";
         sVersion=File.read_ansiString(0x438,4);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
@@ -1458,7 +1487,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         }
     }
     else if(/^CD[0-9]1$/.test(File.read_ansiString(0x438,4))) {
-        sName="Octalyser module (.MOD)"; bDetected = 1;
+        sName = "Octalyser module (.MOD)"; bDetected = 1;
         sVersion=File.read_ansiString(0x438,4);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
@@ -1466,7 +1495,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         }
     }
     else if(Binary.compare("000000000000'MTN'000000", 0x5B2)) {
-        sName="SoundTracker module (.MOD)"; sVersion="v2.6"; bDetected = 1;
+        sName = "SoundTracker module (.MOD)"; sVersion = "v2.6"; bDetected = 1;
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
             sOptionT(File.read_ansiString(0x14,0x16),"by: ")
@@ -1474,16 +1503,16 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("AE") && (Binary.isHeuristicScan() || (extIs("mod")))) {
         bDetected = 1;
-        sName="Polly Tracker module (.MOD)";
+        sName = "Polly Tracker module (.MOD)";
     }
     else if( Binary.isHeuristicScan() && extIs("mok")) {
         bDetected = 1;
-        sName="Silmarils module (.MOK)";
+        sName = "Silmarils module (.MOK)";
     }
     else if(Binary.compare("08'MONOTONE'")) {
         //ref https://github.com/MobyGamer/MONOTONE/blob/master/MTSRC/MT_SONG.PAS
         bDetected = 1;
-        sName="MONOTONE module (.MON)";
+        sName = "MONOTONE module (.MON)";
         sVersion = "v"+File.read_uint8(0x5B);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ucsdString(0x09))
@@ -1494,27 +1523,27 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.isHeuristicScan() && Binary.compare("4EFA....4EFA....4EFA")) {
         bDetected = 1;
-        sName="Maniacs of Noise module (.MON)";
+        sName = "Maniacs of Noise module (.MON)";
     }
     else if(/SONG[0-9.]{4}(COMP|NORM)/.test(File.read_ansiString(0,12))) {
         bDetected = 1;
-        sName="Megastation track (.MS)";
-        sVersion="v"+File.read_ansiString(4,5).toLowerCase()
+        sName = "Megastation track (.MS)";
+        sVersion = "v"+File.read_ansiString(4,5).toLowerCase()
     }
     else if(/SNGM[0-9.]{4}(COMP|NORM)/.test(File.read_ansiString(0,12))) {
         bDetected = 1;
-        sName="Megastation MOD module (.MSM)";
-        sVersion="v"+File.read_ansiString(4,5).toLowerCase()
+        sName = "Megastation MOD module (.MSM)";
+        sVersion = "v"+File.read_ansiString(4,5).toLowerCase()
     }
     else if(Binary.compare("'MSOB'00")) {
         bDetected = 1;
-        sName="Medley module (.MSO)";
+        sName = "Medley module (.MSO)";
     }
     else if(Binary.compare("'MTM'")) {
         //ref https://github.com/libxmp/libxmp/blob/master/docs/formats/Mtm-form.txt
         bDetected = 1;
-        sName="Multitracker module (.MTM)";
-        v=File.read_uint8(3); sVersion="v"+(v>>4)+"."+(v & 0x0F);
+        sName = "Multitracker module (.MTM)";
+        v=File.read_uint8(3); sVersion = "v"+(v>>4)+"."+(v & 0x0F);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(4,20));
             trk=File.read_uint16(0x16,_BE); ptn=File.read_uint8(0x18);
@@ -1569,7 +1598,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if((Binary.isHeuristicScan() || extIs("ntp")) 
       && Binary.compare("'MODU'")) {
         bDetected = 1;
-        sName="NovoTrade Packer module (.NTP)";
+        sName = "NovoTrade Packer module (.NTP)";
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(4,16))
     }
@@ -1701,7 +1730,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'OKTASONG'")) {
         bDetected = 1;
-        sName="Oktalyzer module (.OKTA)";
+        sName = "Oktalyzer module (.OKTA)";
         if(Binary.isVerbose()) {
             sOptions=sOptions.append("[Sample names]");
             for(i=0x20;i<=0x100;i+=0x20)
@@ -1710,28 +1739,28 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'Onyx Music File'1A")) {
         bDetected = 1;
-        sName="Onyx Music File (.OMF)";
-        sVersion="";
+        sName = "Onyx Music File (.OMF)";
+        sVersion = "";
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(0x195,0x1F));
     }
     else if(Binary.compare("'Org-02'")) {
         bDetected = 1;
-        sName="Organya module (.ORG)";
-        sVersion="v1";
+        sName = "Organya module (.ORG)";
+        sVersion = "v1";
     }
     else if(Binary.compare("'Org-03'")) {
         bDetected = 1;
-        sName="Organya module (.ORG)";
-        sVersion="v2";
+        sName = "Organya module (.ORG)";
+        sVersion = "v2";
     }
     else if(Binary.compare("'OBISYNTHPACK'")) {
         bDetected = 1;
-        sName="Synth Pack module (.OSP)";
+        sName = "Synth Pack module (.OSP)";
     }
     else if(Binary.compare("'PACG'")) {
         bDetected = 1;
-        sName="SBStudio module (.PAC)";
+        sName = "SBStudio module (.PAC)";
         if(File.read_uint32(4)+8 != File.getSize()) sVersion = "malformed";
         if(Binary.isVerbose()) {
             p = 8; //header skipped
@@ -1752,7 +1781,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'PLM'1A6010")) {
         bDetected = 1;
-        sName="Disorder Tracker 2 module (.PLM)";
+        sName = "Disorder Tracker 2 module (.PLM)";
         sVersion = "v2";
         smp=File.read_uint8(0x5C,_LE); ptn=File.read_uint8(0x5D); ord=File.read_uint16(0x5E);
         sz = 0x61; ofs=0;
@@ -1767,7 +1796,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("FFFFE002E102")) {
         bDetected = 1;
-        sName="POKEYNoise chiptune (.PN)";
+        sName = "POKEYNoise chiptune (.PN)";
     }
     else if(Binary.compare("'PRT'")) {
         bDetected = 1;
@@ -1810,10 +1839,10 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             bDetected = 1;
             sName = "Playstation Sound Format module (.";
             switch(nV) {
-                case 0x01: sName += "PSF,.MINIPSF)"; sVersion="Playstation"; break;
-                case 0x03: sName += "PSF2,.MINIPSF2)"; sVersion="Playstation 2"; break;
-                case 0x11: sName += "SSF,.MINISSF)"; sVersion="Saturn"; break;
-                case 0x12: sName += "DSF,.MINIDSF)"; sVersion="Dreamcast"; break;
+                case 0x01: sName += "PSF,.MINIPSF)"; sVersion = "Playstation"; break;
+                case 0x03: sName += "PSF2,.MINIPSF2)"; sVersion = "Playstation 2"; break;
+                case 0x11: sName += "SSF,.MINISSF)"; sVersion = "Saturn"; break;
+                case 0x12: sName += "DSF,.MINIDSF)"; sVersion = "Dreamcast"; break;
                 case 0x21: sName += "USF,.MINIUSF)"; sVersion='Ultra64'; break;
                 case 0x22: sName += "GSF,.MINIGSF)"; sVersion='Gameboy'; break;
                 case 0x23: sName += "SNSF,.MINISNSF)"; sVersion='Super Nintendo'; break;
@@ -1864,7 +1893,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Epic Megagames MASI module (.PSM)";
         if(Binary.isVerbose()) {
-            pt = Binary.findString(0,50,"MAINSONGTITL");
+            pt = File.findString(0,50,"MAINSONGTITL");
             if(pt>0) {
                 ts = File.read_uint32(pt+12);
                 sOptionT(File.read_ansiString(pt+16,ts));
@@ -1977,7 +2006,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(v1=="T") { var rough = 10; //used for clocking
             sName = "pxtone tune (.PTTUNE)" }
         else {  var rough = 1;
-            sName="pxtone project (.PTCOP)" }
+            sName = "pxtone project (.PTCOP)" }
         dt = File.read_ansiString(10,6);
         if(dt<="050227") { sV = "v.x1x"; nV = 1 }
         else if(dt<="050608") { sV = "v.x2x"; nV = 2 }
@@ -2239,7 +2268,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(extIs("xrnt") && Binary.compare("'PK'0304")) {
         bDetected = 1;
-        sName = "Renoise effect chain (.XRNT)"; sVersion="v<3.0"
+        sName = "Renoise effect chain (.XRNT)"; sVersion = "v<3.0"
     }
     else if(extIs("xrnz") && (File.findString(0,0x100,"<InstrumentPhrase")>=0)) {
         bDetected = 1;
@@ -2288,9 +2317,9 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         _V = Hex(File.read_uint16(0x28,_LE));
         sVersion = "v"+_V.substr(1,1)+"."+_V.substr(2,2);
-        if(_V==="1300") sVersion="v3.00"; else //because they're weird duh
-        if(_V==="1320") sVersion="v3.20"; else
-        if(_V==="1301") sVersion="v3.01";
+        if(_V==="1300") sVersion = "v3.00"; else //because they're weird duh
+        if(_V==="1320") sVersion = "v3.20"; else
+        if(_V==="1301") sVersion = "v3.01";
         switch(_V.substr(0,1)) {
             case "1": sName = "ScreamTracker 3 module (.S3M)"; break;
             case "2": sName = "Imago Orpheus module (.S3M)"; break;
@@ -2392,7 +2421,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'SAP'0D0A")) {
         bDetected = 1;
-        sName="Slight Atari Player module (.SAP)";
+        sName = "Slight Atari Player module (.SAP)";
         if(Binary.isVerbose()) {
             malformed=false; t=""; a=""; dt=""; tp=""; tm="";
             p=File.findSignature(3,File.getSize()-5,"0D0AFFFF");
@@ -2409,7 +2438,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                             case "NAME": if(tagr!='"<?>"') t=tagr.substr(1,tagr.length-2); break;
                             case "AUTHOR": if(tagr!='"<?>"') a=tagr.substr(1,tagr.length-2); break;
                             case "DATE": if(tagr!='"<?>"') dt=tagr.substr(1,tagr.length-2); break;
-                            case "TYPE": sVersion="v."+tagr; break;
+                            case "TYPE": sVersion = "v."+tagr; break;
                             case "TIME": tm=tagr; break
                         }
                     }
@@ -2449,7 +2478,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             if(Binary.isDeepScan()) sOptionT(mn.join(";"));
             else { if(df<0) df=0; sOptionT(mn[df]); }
             sOptionT(a,"by: "); sOptionT(cp,"(c)");
-            if(!ef) sVersion="malformed"
+            if(!ef) sVersion = "malformed"
         }
     }
     else if( (Binary.isHeuristicScan() || extIs("scn"))
@@ -2489,7 +2518,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'PSID'") || Binary.compare("'RSID'")) {
         bDetected = 1;
         v1 = File.read_ansiString(0,1);
-        if(v1 == "P")  sName="PlaySID chiptune (.SID, .PSID)";
+        if(v1 == "P")  sName = "PlaySID chiptune (.SID, .PSID)";
         else sName = "RealSID chiptune (.SID, .RSID)";
         v2 = File.read_uint16(4,_BE);
         sVersion = "v"+Hex(v2);
@@ -2533,18 +2562,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("0100FEFF09000000'ALIM3'")) {
         bDetected = 1;
-        sName="Skale Tracker module (.SKM)";
+        sName = "Skale Tracker module (.SKM)";
         if(Binary.isVerbose()) sOptionT(File.read_ansiString(0x19));
     }
     else if(Binary.compare("'SMOD'")) {
         bDetected = 1;
-        sName="Future Composer module (.SMOD)";
-        sVersion="v1.0~3";
+        sName = "Future Composer module (.SMOD)";
+        sVersion = "v1.0~3";
     }
     else if(Binary.compare("6000000A60000090600000'xM'F900DFF00047FA07FC'=|'000F0096'=|'00FF009E700641EBFFF810FC000051C8FFFA41EB0006'p-'117C00000034117C00000068117C0000009C10FC000051C8FFE87600162B00DF1743FFFB610001E241EBFFFA1082176B00DD00DB08B9000100BFE001'J+'00E1660808F9000100BFE001'NuG'FA078C1740FFFD1740FFFC177C0001FFFE'NuM'F900DFF0007E0347FA07'pK'FA07'l3'EB00D200DFF096'7|'000000D0177C000000DA'Jm'001A661041EB00E6'-H'00A0'=|'000100A4600C'=m'001A00A4'-m'001C00A0'J+'FFF8660E'J+'FFF96604610000B2610001E4DDFC00000010DBFC000000'4Q'CFFFBC33EB00D000DFF096'7|'820000D0'7|'000000D44DF900DFF0007E0347FA06F24BFA06EE'J+'FFF8660461000200610003D8DDFC00000010DBFC000000'4Q'CFFFE46100008C'0+'00D0806B00D233C000DFF096'7k'00D400D2'J+'FFFD6706'S+'FFFD'`4'102BFFFC12000201007F'g('1741FFFD4A006B0C'J+'00D9671A'S+'00D960140C2B004000D96608177C0000FFFC6004'R+'00D9'Nur'007000122BFFFA41EB02E8D1ED000010301800D1FC000004001B70180000'0r'00122B00DEC2C041EB1068D288'+A'0016'Nuv'00162BFFFB142BFFFA122BFFF9102BFFF8'J+'00DA6706122B00DE55015200B02B00DB'f6p'005401B22B00DE'f,r'00B42B00D767045202'` R'03B62B00E06616162B00DF177C0000FFFC176B00DD00DB177C000000D961121743FFFB1742FFFA1741FFF91740FFF8'NuA'EB00E843EB00D6780212F03800D1FC000000'@Q'CCFFF41A'08'0043EB00'1x'03D1FC0000004012B03800D3FC000000'4Q'CCFFEE'J+'FFFE'fRJ'056B08177C0000FFFC")) {
         bDetected = 1;
-        sName="Sound Master II module (.SMPRO)";
-        sVersion="v1";
+        sName = "Sound Master II module (.SMPRO)";
+        sVersion = "v1";
     }
     else if((Binary.isHeuristicScan() || extIs("sm3")) && (Binary.compare("600000..6000....6000")
       && Binary.compare("177C00", 0xEA) && Binary.compare("2BFF", 0x1D9) && Binary.compare("000667", 0x4D4))) {
@@ -2552,7 +2581,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'<track'") && (Binary.findString(6,0x100,"rowhighliohtingminor=")>0)) {
         bDetected = 1;
-        sName="Picatune module v1 (.SMUFI) or v2 (.PT2)";
+        sName = "Picatune module v1 (.SMUFI) or v2 (.PT2)";
         if(Binary.isVerbose()) {
             s = File.read_utf8String(0,0x100);
             t = /.*name="([^"]*)".*/.exec(s);
@@ -2566,11 +2595,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         }
     }
     else if(Binary.compare("'SNGs'")) {
-        bDetected = 1; sName="Sound Club module (.SN)"; sVersion = "v1";
+        bDetected = 1; sName = "Sound Club module (.SN)"; sVersion = "v1";
         if(Binary.isVerbose()) sOptionT(File.read_ansiString(0x0F));
     }
     else if(Binary.compare("'SN2'") && Binary.compare("'NAM'",0x1F)) {
-        bDetected = 1; sName="Sound Club module (.SN)"; sVersion = "v2";
+        bDetected = 1; sName = "Sound Club module (.SN)"; sVersion = "v2";
         if(Binary.isVerbose()) sOptionT(File.read_ansiString(0x26,File.read_uint32(0x22,_LE)));
     }
     else if( (Binary.isHeuristicScan() || extIs("sndh"))
@@ -2598,7 +2627,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(/GTS[25!]/.test(File.read_ansiString(0,4))) {
         bDetected = 1;
-        sName="GoatTracker module (.SNG)";
+        sName = "GoatTracker module (.SNG)";
         if([0x32,0x35].indexOf(File.read_uint8(3))>=0) sVersion = "v2"
         else sVersion = "v1";
         sOptionT(File.read_ansiString(4,0x20));
@@ -2638,8 +2667,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'SNES-SPC700 Sound File Data'")) {
         // ref http://snesmusic.org/files/spc_file_format.txt   and snippets from
         // http://www.alpha-ii.com/Source/SAmp310s.rar/snes/id666.cpp, .h 
-        sName="Nintendo SPC module (.SPC)";
-        sVersion="v0."+File.read_uint8(0x24); bDetected = 1;
+        sName = "Nintendo SPC module (.SPC)";
+        sVersion = "v0."+File.read_uint8(0x24); bDetected = 1;
         if(Binary.isVerbose()) {
             id666inhdr = File.read_uint8(0x23)==0x1A;
             t=""; a=""; c=""; g=""; dumper="";
@@ -2689,13 +2718,13 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'SONG'") && Binary.isDeepScan()) {
         //ref https://github.com/kometbomb/prototracker/blob/master/doc/FORMAT.TXT
         secsz = File.read_uint32(4,_BE);
-        v = File.read_uint8(8); sVersion="v"+v;
+        v = File.read_uint8(8); sVersion = "v"+v;
         trk = File.read_uint8(9); pn=0xA; 
         fxc = 0; if (v >= 17) { fxc = File.read_uint8(pn); pn++ }
         t = File.read_ansiString(pn,0x100);
         if(Binary.compare("'SEQU'",pn+t.length+1+2)) {
             bDetected = 1;
-            sName="ProtoTracker module (.SONG)";
+            sName = "ProtoTracker module (.SONG)";
             sOptions = sOptions.append(t);
             sVersion += " trk:"+trk;
             if(fxc>0) sVersion += " fx:"+fxc
@@ -2703,14 +2732,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
   if(!bDetected) {
     if(Binary.compare("'STK'..'.'..'SONG")) {
-        sName="Starkos module (.SKS)"; sVersion = "v"+File.read_ansiString(3,3); bDetected = 1;
+        sName = "Starkos module (.SKS)"; sVersion = "v"+File.read_ansiString(3,3); bDetected = 1;
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x14,0x20));
             sOptionT(File.read_ansiString(0x0A,0x0A),"by: ")
         }
     }
     if(Binary.compare("'Nu!SOPROL!'", 0x22)) {
-        sName="Sound Programming Language module (.SPL)"; bDetected = 1;
+        sName = "Sound Programming Language module (.SPL)"; bDetected = 1;
         if(Binary.isVerbose()) {
             t=File.read_ansiString(0x58,0x100);
             a=File.read_ansiString(0x58+t.length+1,0x100);
@@ -2720,14 +2749,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     if(Binary.compare("'SPM'0.")) {
         //ref http://aminet.net/mus/edit/stonefree1.lha
-        sName="Stonetracker tune file (.SPM)"; bDetected = 1; sVersion="v"+File.read_uint8(3);
+        sName = "Stonetracker tune file (.SPM)"; bDetected = 1; sVersion = "v"+File.read_uint8(3);
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(4,0x20));
             //TODO find pointer and read the extra stuff
         }
     }
     if(Binary.compare("'SPS'0.0.")) {
-        sName="Stonetracker samples file (.SPS)"; bDetected = 1; sVersion="v"+File.read_uint8(3);
+        sName = "Stonetracker samples file (.SPS)"; bDetected = 1; sVersion = "v"+File.read_uint8(3);
         if(Binary.isVerbose()) {
             smp=File.read_uint8(5);
             sOption(smp,"smp:")
@@ -2766,12 +2795,12 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
     }  moved to the heuristics down the file */
     else if(Binary.compare("'KSA SOFTWARE COMPILATION OF '",0x0A) && (File.getSize()<0x2800)) {
-        sName="Sound Tracker Pro module (.STP)"; sVersion="compiled"; bDetected = 1;
+        sName = "Sound Tracker Pro module (.STP)"; sVersion = "compiled"; bDetected = 1;
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(0x26,0x19)); sOption("tempo: "+File.read_uint8(0))
     }
     else if(Binary.compare("'STP3'")) {
-        sName="Soundtracker Pro II module (.STP)"; bDetected = 1;
+        sName = "Soundtracker Pro II module (.STP)"; bDetected = 1;
     }
     else if(Binary.compare("48E7FFFE4DFA")) {
         bDetected = 1; sName = "SunTronic module (.SUN)";
@@ -3064,7 +3093,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         //ref https://bulba.untergrund.net/Ay_Emul30alpha11.src.7z / Formats.pas
         bDetected = 1; fmode=0;
         sName = "Vortex Project audio (.VTX)";
-        if(File.read_uint8(2)==0) sVersion="1ch"; else sVersion+="2ch";
+        if(File.read_uint8(2)==0) sVersion = "1ch"; else sVersion+="2ch";
         switch (File.read_uint16(0,_LE)) {
             case 0x5941,0x4D59: fmode=1;
             case 0x5941,0x7961: sVersion += " AY-3-8910/12"; break;
@@ -3093,8 +3122,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'Vortex Tracker II 1.0'")) {
         bDetected = 1;
-        sVersion="v"+File.read_ansiString(0x12,3).trim();
-        sName="Vortex Tracker II audio (.VT2)";
+        sVersion = "v"+File.read_ansiString(0x12,3).trim();
+        sName = "Vortex Tracker II audio (.VT2)";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x1E,0x20));
             sOptionT(File.read_ansiString(0x42,0x20),"by: ");
@@ -3103,7 +3132,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("6000") && Binary.compare("48E7FFFE610000",0x04)
         && Binary.compare("4CDF7FFF'Nu'",0x0C)) {
         bDetected = 1;
-        sName="Wally Beben's module (.WB)";
+        sName = "Wally Beben's module (.WB)";
     }
     else if(Binary.compare("'WSRF'",File.getSize()-0x20) && Binary.compare("EA",File.getSize()-0x10)) {
         //ref http://daifukkat.su/docs/wsman/#wsr
@@ -3165,11 +3194,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("3026b2758e66cf11a6d900aa0062ce6c")) {
         bDetected = 1;
-        sName="Windows Media (.WMV/WMA)";
+        sName = "Windows Media (.WMV/WMA)";
     }
     else if(Binary.compare("'XAD!'")) {
         bDetected = 1;
-        sName="Exotic AdLib module (.XAD)";
+        sName = "Exotic AdLib module (.XAD)";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x04,0x24));
             sOptionT(File.read_ansiString(0x28,0x24),"by: ");
@@ -3177,7 +3206,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(Binary.compare("'Extended Module:'")) {
         bDetected = 1;
-        sName="Fast Tracker 2 Extended module (.XM)";
+        sName = "Fast Tracker 2 Extended module (.XM)";
         sVersion = File.read_ansiString(0x26,0x14).trim();
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(0x11,0x14));
@@ -3758,9 +3787,9 @@ if(!bDetected && Binary.isHeuristicScan() && isADXAHX()) {
     else if ([0x10,0x11].indexOf(fmt)>=0)
         sName = "CRI AHX 4-bit ADPCM audio (.AHX)";
     switch(nV) {
-        case 3: sVersion="v3"; break;
-        case 4: sVersion="v4"; break;
-        case 5: sVersion="v4NL"
+        case 3: sVersion = "v3"; break;
+        case 4: sVersion = "v4"; break;
+        case 5: sVersion = "v4NL"
     }
     switch(fmt) {
         case 2: sVersion+=" PPC"; break;
