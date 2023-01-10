@@ -164,8 +164,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if (Binary.isVerbose()) {
             id = File.read_ansiString(4,0x2A);
             p = 0x2E; //header skipped
-            t=''; a=''; d=''; c=''; ord=0;
-            while (p<File.getSize()) {
+            t = ''; a = ''; d = ''; c = ''; ord = 0;
+            while (p < File.getSize()) {
                 hkhd = File.read_ansiString(p,4);
                 hksz = File.read_uint32(p+4,_BE);
                 p+=0x08; //chunk header = 4xfourcc + 4xsize
@@ -352,12 +352,12 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     } // the order is important
     else if(Binary.compare("'JCH'260266")) {
         //ref http://ftp.modland.com/pub/documents/format_documentation/Edlib%20Tracker%20(.edl,%20.d00,%20.d01).txt
-        bDetected = 1; malformed = false;
+        bDetected = 1; malformed = 0;
         sName = "Edlib Tracker module (.D00,.D01)";
         sVersion = "v"+File.read_uint8(7);
-        if(File.read_uint8(6)==4) malformed = true;
-        if(File.read_uint8(10)>0) malformed = true;
-        if(malformed) sVersion += "/malformed";
+        if(File.read_uint8(6) == 4) malformed = 1;
+        if(File.read_uint8(10)) malformed = 2;
+        if(malformed) sVersion += "/malformed"+malformed;
         if(Binary.isVerbose()) {
             sOptionT(File.read_codePageString(0x0B,0x20,"CP850"));
             sOptionT(File.read_codePageString(0x2B,0x20,"CP850"),"by: ");
@@ -616,7 +616,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         }
     }
     else if((File.getSize()>0x24 && Binary.compare('"ETracker (C) BY ESI."',10)) ||
-      (File.getSize()>0x4D4 && Binary.compare("21B384") && Binary.compare('"ETracker (C) BY ESI."',0x4BD))) {
+      (File.getSize()>0x4D4 && Binary.compare("21B384") &&
+       Binary.compare("'ETracker (C) BY ESI.'",File.read_uint16(1,_LE)-0x8000+10))) {
         //kudos to horsicq for helping narrow down the bad samples in modland files 
         bDetected = 1;
         sName = "SAM Coupe E-Tracker file (.ETC)";
@@ -1900,8 +1901,38 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             }
         }
     }
+    else if(Binary.compare("'PSG'1A")) { sName = "fMSX/x128 PSG music log file (.PSG)"; bDetected = 1 }
+    else if(Binary.compare("'EPSG'1A")) {
+        //ref https://web.archive.org/web/20070919070829/http://maxheadroom.no-ip.com/ay/formats_epsg.php
+        sName = "Z80 Stealth Extended PSG music log file (.EPSG)"; bDetected = 1; hw = File.read_uint8(5);
+        switch(hw) {
+        case 0: sVersion = "ZX Spectrum 128k"; break;
+        case 1: "Pentagon"; break; 
+        }
+        if(hw<2 && !File.compare("00000000 000000000000",6)) sVersion += "/malformed"
+    }
+    else if(Binary.compare("'PSG2'")) {
+        //ref https://web.archive.org/web/20070919070829/http://maxheadroom.no-ip.com/ay/formats_epsg.php
+        sName = "PSG2 music log file (.PSG2)"; bDetected = 1; 
+    }
     else if(Binary.compare("'psm1'00", 0x08)) {
-        sName = "Pro Sound Maker module (.PSM)"; bDetected = 1;
+        sName = "Pro Sound Maker module (.PSM)"; sVersion = "compiled"; bDetected = 1; malformed = 0;
+        posp = File.read_uint16(0,_LE); if(posp<0x0D || posp>File.getSize()) malformed = 1;
+        smpp = File.read_uint16(2,_LE); if(smpp<0x0D || smpp>File.getSize()) malformed = 1;
+        ornp = File.read_uint16(0,_LE); if(ornp<0x0D || ornp>File.getSize()) malformed = 1;
+        ptnp = File.read_uint16(0,_LE); if(ptnp<0x0D || ptnp>File.getSize()) malformed = 1;
+        if(Binary.isVerbose()) {
+            t = posp; if(smpp<t) t=smpp; if(ornp<t) t=ornp; if(ptnp<t) t=ptnp;
+            if(t-0x0D) sOptionT(File.read_ansiString(0x0D,Math.min(t-0x0D,128)),"msg: ");
+            ord = 0; t = posp;
+            while(File.read_uint8(t)<0xFF && t<File.getSize()) {
+                ord++; t += 2;
+            }
+            loop=0xFF; if(File.read_uint8(t)==0xFF) loop = File.read_uint8(t+1); else malformed = 2;
+            if(loop==0xFF) loop = "none";
+            sOption("ord:"+ord+" loop:"+loop)
+        }
+        if(malformed) sVersion += "/malformed"+malformed;
     }
     else if(Binary.compare("'PSY'..'SONG")) {
         bDetected = 1;
@@ -2667,7 +2698,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'SNES-SPC700 Sound File Data'")) {
         // ref http://snesmusic.org/files/spc_file_format.txt   and snippets from
         // http://www.alpha-ii.com/Source/SAmp310s.rar/snes/id666.cpp, .h 
-        sName = "Nintendo SPC module (.SPC)";
+        sName = "Nintendo SNES SPC module (.SPC)";
         sVersion = "v0."+File.read_uint8(0x24); bDetected = 1;
         if(Binary.isVerbose()) {
             id666inhdr = File.read_uint8(0x23)==0x1A;
@@ -2694,25 +2725,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                 slen = File.read_ansiString(0xA9,3); lp=File.read_ansiString(0xAC,4);
                 if((slen+lp+dumpdate).length<5) {
                     chnDis = File.read_uint8(0xD1);
-                    if(chnDis==1 && emu == "") bin = true; else bin = preferBin;
+                    if(chnDis == 1 && emu == "") bin = true; else bin = preferBin;
                 } else if( /[0-9/]*/.test(slen+lp+dumpdate) ) { //id666 text format
                     songlen = Number(slen); //in seconds
                     a = File.read_ansiString(0xB1,0x20);
                 } else {
-                    bin=true;
+                    bin = true;
                     //check songlen bitness
                     songlen = File.read_uint8(0xA9)<<16+File.read_uint8(0xAA)<<8+File.read_uint8(0xAB); //in seconds
                     a = File.read_ansiString(0xB0,0x20);
                 }
             }
-            else {
+            else
                 t = File.read_ansiString(0x30,0x14);
-            }
-            if(t!="") sOptions = sOptions.append(t);
-            if(g!="") sOptions = sOptions.append("for: "+g);
-            if(a!="") sOptions = sOptions.append("by: "+a);
-            if(c!="") sOptions = sOptions.append(c);
-            if(emu!="") sVersion+=" "+emu;
+            sOption(t); sOption(g,"for: "); sOption(a,"by: "); sOption(c);
+            if(emu != "") sVersion += " "+emu;
         }
     }
     else if(Binary.compare("'SONG'") && Binary.isDeepScan()) {
@@ -3385,6 +3412,28 @@ if(!bDetected && Binary.isHeuristicScan() && isASC0()) {
     }
 }
 
+function isDMM() {
+    //this detection is based purely on sanity checks
+    //ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/digitalmusicmaker.cpp
+    for(i=0; i<6; i++) if(!(0xC0 <= File.read_uint8(i*2+1) <= 0xFF)) return false;
+    if((File.read_uint8(0x0C,_LE) & 0x87)) return false;
+    ptn = -1; for(i=0; i < 0x32; i++) {
+        j = File.read_uint8(0x0E+i); if(j > 0x17) return false;
+        if(j > ptn) ptn = j;
+    } ptn++;
+    tempo = File.read_uint8(0x40); if(!(3 <= tempo <= 30)) return false;
+    loop = File.read_uint8(0x41); if(loop > 0x32) return false;
+    ord = File.read_uint8(0x43); if(!(1 <= ord <= 0x32)) return false;
+    if(!(2 <- File.read_uint8(0x44) <= 0x38)) return false;
+    return true
+}
+if(!bDetected && Binary.isHeuristicScan() && isDMM()) {
+    sName = "Digital Music Maker"; sVersion = "v1.x"; bDetected = 1;
+    if(Binary.isVerbose()) {
+        sOption("tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" loop:"+loop)
+    }
+}
+
 function isGMC() { //GMC detection is based purely on sanity checks
     ssize = 0; numpat = 0; data = 0;
     for(i = 0; i < 15; i++) {
@@ -3422,7 +3471,7 @@ if(!bDetected && Binary.isHeuristicScan() && isGMC()) {
 }
 
 function isProTracker1() { //PT1 detection is based purely on sanity checks
-    //ref zxtune src\formats\chiptune\aym\
+    //ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker1.cpp
     // & https://bulba.untergrund.net/Ay_Emul29.src.7z/Formats.pas -> FoundPT1
     if(File.getSize() < 0x66) return false;
     tempo = File.read_uint8(0); if((tempo < 2) || (tempo > 15)) return false; //delay
@@ -3462,7 +3511,7 @@ if(!bDetected && Binary.isHeuristicScan() && isProTracker1()) {
 }
 
 function isProTracker2() { //PT2 detection is based purely on sanity checks
-    //ref zxtune src\formats\chiptune\aym\
+    //ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker2.cpp
     tmp = File.read_uint8(0); if((tmp<2)||(tmp>15)) return false;
     len = File.read_uint8(1); if(len==0) return false;
     loop = File.read_uint8(2); if(loop>len) return false;
@@ -3485,7 +3534,7 @@ if(!bDetected && Binary.isHeuristicScan() && isProTracker2()) {
 }
 
 function isProTracker3() { //PT3's detection, ALSO sanity checks because SOME people -_-
-    //ref zxtune src\formats\chiptune\aym\
+    //ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker3_compiled.cpp
     ftn = File.read_uint8(0x63); //0=Pro Tracker, 1=Sound Tracker, 2=ASM or PSC, 3=RealSound.
     tmp = File.read_uint8(0x64); if((tmp<3)||(tmp>63)) return false;
     len = File.read_uint8(0x65); if(len>0x55) return false;
@@ -3518,7 +3567,7 @@ if(!bDetected && Binary.isHeuristicScan() && isProTracker3()) {
 }
 
 function isSoundTrackerProUnp() { //this detection is based purely on sanity checks
-    //ref zxtune src\formats\chiptune\aym\soundtracker.cpp
+    //ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/soundtracker.cpp
     // & https://bulba.untergrund.net/STPDocs.7z -> Xplay79f.txt
     if(File.getSize()<3009+576) //header + patterns
         return false;
@@ -3817,7 +3866,6 @@ if(!bDetected && Binary.isHeuristicScan() && isADXAHX()) {
 //     sName = "TuneFish module (.TF4)"; sVersion  = "v4"; bDetected = 1;
 //     //sOption(len,"ord:"); sOptionT(File.read_ansiString(7,18),"id: ")
 // }
-
 
 function isFLS() {
     //this detection is based purely on sanity checks
