@@ -64,7 +64,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if (Binary.isVerbose())
             sOption(File.read_ansiString(ptitle,0x20));
     }
-    else if(Binary.compare("'AM01'")) {
+    else if(Binary.compare("'AM01'000000") && Binary.compare("'ASD1'00", 0x38)) {
         bDetected = 1;
         sName = "Ace Tracker module (.AM)";
     }
@@ -271,20 +271,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
        && Binary.compare("1027",0x164)) {
         bDetected = 1;
         sName = "BoyScout module (.BSF)";
-    }
-    else if((Binary.isHeuristicScan() || extIs("bp")) && Binary.compare("'V.2'",0x1A)) {
-        bDetected = 1;
-        sName = "BP SoundMon module (.BP)";
-        sVersion = "v2";
-        if (Binary.isVerbose())
-            sOptionT(File.read_ansiString(0,0x19));
-    }
-    else if((Binary.isHeuristicScan() || extIs("bp3")) && Binary.compare("'V.3'",0x1A)) {
-        bDetected = 1;
-        sName = "BP SoundMon module (.BP3)";
-        sVersion = "v3";
-        if (Binary.isVerbose())
-            sOptionT(File.read_ansiString(0,0x19));
     }
     else if(Binary.compare("'NuBEATHOVEN'",0x22)) {
         bDetected = 1;
@@ -3421,6 +3407,41 @@ if(!bDetected && Binary.isHeuristicScan() && isASC0()) {
             sOptionT(t); sOptionT(a,"by: ")
         }
         sOption("delay:"+delay+" len:"+len)
+    }
+}
+
+function isBPSoundMon() {
+    //ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/BP-Soundmonitor.c
+    if(File.getSize() < 0x200) return false;
+    if(!Binary.compare("'V.'3.",0x1A)) return false;
+    for(j=0; j < 15; j++) {
+        if(File.read_uint8(32+j*32) == 0xFF) continue;
+        if(File.read_uint8(63+j*32) > 0x40) return false
+    }
+    allsmpsz = 0;
+    for(k=0; k < 15; k++)
+        if (File.read_uint8(32+32*k) < 0xFF)
+            allsmpsz += (File.read_uint16(56+32*k,_BE))*2;
+    j = File.read_uint8(29);
+    sz = allsmpsz + j*64;
+    j = 0; l = File.read_uint16(30,_BE);
+    if(525+l*16 > File.getSize()) return false;
+    for(k=0; k < l; k++) {
+        p = File.read_uint16(512+16*k,_BE); if(p>j) j = p;
+        p = File.read_uint16(516+16*k,_BE); if(p>j) j = p;
+        p = File.read_uint16(520+16*k,_BE); if(p>j) j = p;
+        p = File.read_uint16(524+16*k,_BE); if(p>j) j = p;
+    }
+    sz += 512 + j*48 + l*16;
+    return true
+}
+if(!bDetected && Binary.isHeuristicScan() && isBPSoundMon()) {
+    bDetected = 1;
+    sName = "BP SoundMon module (.BP)";
+    sVersion = "v"+File.read_ansiString(0x1C,1);
+    if (Binary.isVerbose()) {
+        sOptionT(File.read_ansiString(0,0x19));
+        sOption("sz:"+sz); if(File.getSize() != sz) sVersion += "/malformed"
     }
 }
 
