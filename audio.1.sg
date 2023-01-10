@@ -313,6 +313,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Boom Tracker module (.CFF)";
     }
+    else if(Binary.compare("'CHIPv'3.")) {
+        //ref "chip" from the release
+        bDetected = 1;
+        sName = "Chip Tracker module (.CHI)";
+        sVersion = "v"+File.read_ansiString(5,1)+".x"; if(File.getSize() <= 0x100) sVersion += "/malformed";
+        if(Binary.isVerbose()) {
+            sOptionT(File.read_ansiString(8,0x20));
+            tempo = File.read_uint8(0x28); ord = File.read_uint8(0x29); loop =  File.read_uint8(0x30);
+            ptn=0; for(i=0; i < ord; i++) { p =File.read_uint8(0x100+i); if(p > ptn) ptn = p }
+            sOption("tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" loop:"+loop)
+        }
+    }
     else if(Binary.compare("'CTMF'")) {
         bDetected = 1;
         sName = "Creative Music File (.CMF)";
