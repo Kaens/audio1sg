@@ -31,11 +31,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                 sOption(File.read_ansiString(l+7,r-l-7),"spd:") }
         }
     }
-    else if( (Binary.compare("'if'") || Binary.compare("'JN'")) && (Binary.getSize() > 0x1F1+0x600)
-      && (File.read_uint8(0x6E) <= 0x40) && (File.read_uint8(0x6F) <= 0x80) ) {
-        //TODO strengthen more
-        bDetected = 1; smp = File.read_uint8(0x6E);
+    else if( (Binary.compare("'if'") || Binary.compare("'JN'")) && Binary.getSize()>0x1F1+0x600
+      && File.read_uint8(0x6E)<=0x40 && File.read_uint8(0x6F)<=0x80 && File.read_uint8(0xF0)==0xFF) {
+        bDetected = 1;
         sName = "Composer 669 / UNIS 669 module (.669)";
+        smp = File.read_uint8(0x6E);
         c = 0; for(i = 0; i < smp; i++) c += File.read_uint32(0x01F1+i*0x19+13,_LE);
         c += 0x1F1+(smp*0x19)+smp*0x600;
         if(Binary.isVerbose()) {
@@ -44,14 +44,16 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOptionT(File.read_codePageString(0x02,36,"CP850")); //the seemingly most-used encoding for'em
             sOptionT(File.read_codePageString(0x26,36,"CP850"));
             sOptionT(File.read_codePageString(0x4A,36,"CP850"));
-            sOption("ptn:"+File.read_uint8(0x6F)+" smp:"+smp)
+            sOption("ptn:"+File.read_uint8(0x6F)+" smp:"+smp+" loop:"+File.read_uint8(0x70))
         }
     }
-    else if(Binary.compare("'_A2module'")) {
-        bDetected = 1;
+    else if(Binary.compare("'_A2module_'")) {
+        bDetected = 1; malformed = false;
         sName = "AdLib Tracker II module (.A2M)";
-        sVersion = "v"+File.read_uint8(0x0E);
-        sOption("/┤DLiB TR/┤CK3R ][");
+        nV = File.read_uint8(0x0E); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV;
+        ptn = File.read_uint8(0x0F); if(!ptn || ptn>64) malformed = "PTN";
+        if(malformed) sVersion += " malformed"+malformed;
+        if(Binary.isVerbose() && malformed != "PTN") sOption("ptn:"+ptn);
     }
     else if(Binary.compare("'AERO'")) {
         bDetected = 1;
@@ -312,9 +314,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(4,0x20))
     }
-    else if(Binary.compare("'<CUD-FM-File>'")) {
+    else if(Binary.compare("'<CUD-FM-File>'1ADEE0")) {
+        //ref https://github.com/adplug/adplug/blob/master/src/cff.cpp
         bDetected = 1;
         sName = "Boom Tracker module (.CFF)";
+        sVersion = "v"+File.read_uint8(0x10);
+        if(File.read_uint8(0x13)) sVersion += "/packed";
+        if(File.getSize() != File.read_uint16(0x11,_LE)+0x20)
+            sVersion += " malformed"
     }
     else if(Binary.compare("'CHIPv'3.")) {
         //ref "chip" from the release
@@ -331,6 +338,19 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.compare("'CTMF'")) {
         bDetected = 1;
         sName = "Creative Music File (.CMF)";
+        //ref https://github.com/adplug/adplug/blob/master/src/cmf.cpp
+        nV = File.read_uint16(4,_LE);
+        sVersion = "v"+(nV>>8)+"."+(nV&0xFF); malformed = 0;
+        pins = File.read_uint16(6,_LE); //instruments ptr
+        tp = File.read_uint16(0x0E,_LE); if(tp >= pins) { tp = 0; malformed = 1 }
+        ap = File.read_uint16(0x10,_LE); if(ap >= pins) { ap = 0; malformed = 2 }
+        cp = File.read_uint16(0x12,_LE); if(cp >= pins) { cp = 0; malformed = 3 }
+        if(malformed) sVersion += " malformed"+malformed;
+        if(Binary.isVerbose()) {
+            if(tp) sOptionT(File.read_ansiString(tp,0x100));
+            if(ap) sOptionT(File.read_ansiString(ap,0x100),"by: ");
+            if(cp) sOptionT(File.read_ansiString(cp,0x100));
+        }
     }
     else if(Binary.compare("'NuS.PHIPPS'",0x22)) {
         bDetected = 1;
@@ -1155,11 +1175,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(File.read_uint16(4,_BE),0x20))
     }
-    else if(Binary.compare("'IM10'",0x3C)) {
+    else if(Binary.compare("'IM10'",0x3C) && File.read_uint8(0x30)
+        && File.read_uint8(0x31) >= 0x20 && File.read_uint8(0x32) <= 0x40
+        && File.read_uint8(0x33) >= 4 && File.read_uint8(0x33) < 0x80) {
+        //ref https://sourceforge.net/p/xmp/libxmp/ci/master/tree/src/loaders/imf_load.c
         bDetected = 1;
         sName = "Imago Orpheus module (.IMF)";
-        if(Binary.isVerbose())
-            sOptionT(File.read_ansiString(title,0x20))
+        if(Binary.isVerbose()) {
+            sOptionT(File.read_ansiString(0,0x20));
+            sOption("tempo0:"+File.read_uint8(0x30)+" bpm0:"+File.read_uint8(0x31)
+                +" ord:"+File.read_uint16(0x20,_LE)+" ptn:"+File.read_uint16(0x22,_LE)
+                +" ins:"+File.read_uint16(0x24,_LE));
+        }
     }
     else if(Binary.compare("'GTI5'")) {
         bDetected = 1;
@@ -1812,11 +1839,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "PreTracker module (.PRT)";
         nV = File.read_uint8(3);
-        if(nV<25) sVersion = "v<0.3"; else
-        if(nV==25) sVersion = "v0.3~0.866"; else
-        if(nV==26) sVersion = "v0.87~0.92"; else
-        if(27<=nV<30) sVersion = "v.[0.93~1.5)"; else
-        if(nV==30) sVersion = "v1.5+"; else
+        if(nV < 25) sVersion = "v<0.3"; else
+        if(nV == 25) sVersion = "v0.3~0.866"; else
+        if(nV == 26) sVersion = "v0.87~0.92"; else
+        if(27<=nV && nV<30) sVersion = "v.[0.93~1.5)"; else
+        if(nV == 30) sVersion = "v1.5+"; else
           sVersion = "v.TODO";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x14,0x14));
@@ -3369,17 +3396,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 
 function isADL() {
     //ref https://github.com/adplug/adplug/blob/master/src/adl.cpp
-/*
-(all programs/instruments offsets are relative to the start of _soundData).
-_trackEntries[]      _soundData[]
-+------------------+ +-----------------+--------------------+------//-+
-| subsong->prog.ID | | Program offsets | Instrument offsets | Data... |
-+------------------+ +-----------------+--------------------+------//-+
-v1:   120 bytes           150 words          150 words      @720
-v2/3: 120 bytes           250 words          250 words      @1120
-v4:   250 words           500 words          500 words      @2500
-The versions can be distinguished by inspecting the table entries.
-*/
     if(File.getSize() < 720) return false; //v1 min. size
     p = 0; nV = 4; ofs = 500 /*0x1F4*/; //track entries
     for(i=0; i < 250; i++) { //500=1F4h is the trackentries buffer
@@ -3389,23 +3405,16 @@ The versions can be distinguished by inspecting the table entries.
         }
     }
     p = ofs;
-_log("v"+nV+", p="+Hex(p));
     if(nV < 4) {
         nprogofs = 150; //for v1
         for(i=0; i < nprogofs; i++) {
             w = File.read_uint16(p,_LE); p += 2;
             if(w) {
                  if(w!=0xFFFF && w+ofs>File.getSize()) {
-// _log("v"+nV+", p="+Hex(p-2)+", i="+i+", w="+Hex(w)+"+"+ofs+">"+File.getSize());
                      return false; }
-                if(w < 600) {
-_log("v"+nV+", p="+Hex(p-2)+", i="+i+", w="+Hex(w));
-                    return false;
-                }
+                if(w < 600) return false;
                 if(w < 1000) nV = 1;
-            }
-        }
-    }
+    }}}
     if(nV > 1) {
         if(File.getSize() < 1120) return false; //v2/3 min. size
         nprogofs = 250 /*0xFA*/;
@@ -3414,9 +3423,7 @@ _log("v"+nV+", p="+Hex(p-2)+", i="+i+", w="+Hex(w));
             if(w) {
                 if(w!=0xFFFF && w+ofs>File.getSize()) return false;
                 if(w && w<1000) return false;
-            }
-        }
-    } else { //v4
+    }}} else { //v4
         if(File.getSize() < 2500) return false;
         nprogofs = 500;
         for(i=0; i < nprogofs; i++) { //check the rest of'em
@@ -3424,11 +3431,10 @@ _log("v"+nV+", p="+Hex(p-2)+", i="+i+", w="+Hex(w));
             if(w) {
                 if(w!=0xFFFF && w+ofs > File.getSize()) return false;
                 if(w && w<2000) return false;
-            }
-        }
-    }
+    }}}
     return true
-    //whilst it'd be nice to have subsong detection... it's too much already
+    //whilst it'd be nice to have instruments (same len as prog ptr tbl) subsong detection...
+    //... it's too much already
 }
 if(!bDetected && Binary.isHeuristicScan() && isADL()) {
     sName = "ADL AdLib module (.ADL)"; bDetected = 1;
@@ -3437,6 +3443,13 @@ if(!bDetected && Binary.isHeuristicScan() && isADL()) {
     case 3: sVersion = "v2/v3"; break;
     case 4: sVersion = "v4"
     }
+}
+
+function isIMF() {
+    return extIs("imf") //TODO find an actual detector!
+}
+if(!bDetected && Binary.isHeuristicScan() && isIMF()) {
+    sName = "Apogee AdLib module (.IMF)"; bDetected = 1;
 }
 
 function isASC1() { //basically ASC0 + loop pos
@@ -3775,10 +3788,11 @@ if(!bDetected && Binary.isHeuristicScan() && isSQTracker()) {
 function isST() {
     //ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundST
     if(File.getSize() < 6) return false;
-    tempo = File.read_uint8(0); if((tempo == 0) || (tempo > 0x20)) return false; //delay
+    tempo = File.read_uint8(0); if(tempo == 0 || tempo > 0x20) return false; //delay
     postp = File.read_uint16(1,_LE); if(postp > File.getSize()) return false; //positions pointer
     orntp = File.read_uint16(3,_LE); //ornaments pointer
     ptntp = File.read_uint16(5,_LE); if(ptntp > File.getSize()) return false; //patterns pointer
+//    if(postp < 138 || orntp < 138 || ptntp < 138) return false; //TODO test this one on every file
     ord = File.read_uint8(postp);
     j2 = ptntp - orntp; if(j2 = 0) return false; //j2<0: ST, >0: S_SONIC
     fID = false;
@@ -4047,7 +4061,7 @@ function isHSC() {
         if(bt == 0xFF) break;
         if(ptn < bt) ptn = bt; ord++ }
     if(!i || !ptn || i > 0x32 || ptn > 0x30) return false; //test number of patterns
-_log("1: i="+i+" ptn="+ptn);
+    //_log("1: i="+i+" ptn="+ptn);
     p += 0x33;
     for(i=0; i < ptn; i++) {
         for(j=0; j < 0x40; j++) {
@@ -4057,7 +4071,7 @@ _log("1: i="+i+" ptn="+ptn);
                 if(m > 6 && m < 0x10 && n != 0x80) return false; //test effects 07..0F
                 msn = (m&0xF0)>>4;
                 if(6 < msn && msn < 10) return false; //test effects 7x..9x
-_log("  3: i="+i+" j="+j+" k="+k+" n["+Hex(p+j*9+k*2)+"]="+Hex(n)+" m="+Hex(m)+" msn="+msn);
+                //_log("  3: i="+i+" j="+j+" k="+k+" n["+Hex(p+j*9+k*2)+"]="+Hex(n)+" m="+Hex(m)+" msn="+msn);
             }
         }
         p += 64*9*2
@@ -4065,9 +4079,45 @@ _log("  3: i="+i+" j="+j+" k="+k+" n["+Hex(p+j*9+k*2)+"]="+Hex(n)+" m="+Hex(m)+"
     return true
 }
 if(!bDetected && Binary.isHeuristicScan() && isHSC()) {
-    sname = "HSC Adlib Composer/HSC-Tracker module (.HSC)"; //bDetected = 1;
-    if(Binary.isVerbose()) soption = "ord:"+ord+" ptn:"+ptn;
-    _setResult("audio",sname,"",soption)
+    sName = "HSC Adlib Composer/HSC-Tracker module (.HSC)"; bDetected = 1;
+    if(Binary.isVerbose()) sSption = "ord:"+ord+" ptn:"+ptn;
+}
+
+function isJBM() {
+    //ref https://github.com/adplug/adplug/blob/master/src/jbm.cpp
+    if(File.read_uint16(0,_LE) != 2) return false;
+    if(!Binary.compare("00FF01FF02FF03FF04FF05FF06FF07FF08FF09FF0AFFFD00", 0x36
+)) return false; //just from the files modland has, 'cause the detection's' wonky
+    seqt = File.read_uint16(4,_LE); if(!seqt || seqt < 30 || seqt >= File.getSize()) return false;
+    inst = File.read_uint16(6,_LE); if(!inst || inst <= seqt || inst >= File.getSize()) return false;
+    ins = (File.getSize()-inst) >> 4;
+    _log("fs="+Hex(File.getSize())+", inst="+Hex(inst)+", ins="+ins);
+    mptn = 0xFFFF; ch = 0; trk=[];
+    for(i=0; i < 11; i++) {
+        p = File.read_uint16(10+i*2,_LE); trk[i] = p;
+        if(p) { ch++;
+            if(p <= seqt || p >= inst) return false;
+            if(p < mptn) mptn = p
+        }
+    }
+    _log(trk);
+    ptn = (mptn-seqt) >> 1;
+    _log("("+mptn+"-"+seqt+")/2="+ptn);
+    for(i=0; i < ptn; i++) {
+        if(trk[i]) {
+            p = File.read_uint16(seqt+i*2,_LE);
+            _log(seqt+"["+i+"*2]="+Hex(p));
+            if(File.read_uint16(p-1,_LE) != 0xFDFF) return false;
+            if(p <= seqt || p >= inst) return false;
+        }
+    }
+    i = File.read_uint16(2,_LE); tmr = (1193810.0 / (i ? i : 0xFFFF)).toFixed(2);
+    return true
+}
+if(!bDetected && Binary.isHeuristicScan() && isJBM()) {
+    sName = "Johannes Bjerregaard Adlib module (.JBM)"; bDetected = 1;
+    if(Binary.isVerbose())
+        sOption("tmr:"+tmr+" ch:"+ch+" ptn:"+ptn+" ins:"+ins)
 }
 
 function isDMM() {
@@ -4085,12 +4135,11 @@ function isDMM() {
     if(!(2 <- File.read_uint8(0x44) <= 0x38)) return false;
     return true
 }
-if(Binary.isHeuristicScan() && isDMM()) {
-    sname = "Digital Music Maker module (.DMM)"; sversion = "v1.x"; //bDetected = 1;
+if(!bDetected && Binary.isHeuristicScan() && isDMM()) {
+    sName = "Digital Music Maker module (.DMM)"; sVersion = "v1.x";
     if(Binary.isVerbose()) {
-        soption = "tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" loop:"+loop
+        sOption = "tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" loop:"+loop
     }
-    _setResult("audio",sname,sversion,soption);
 }
 
 function isV2M() {
@@ -4125,10 +4174,9 @@ function isV2M() {
     return true;
 }
 if(!bDetected && Binary.isHeuristicScan() && isV2M()) {
-    sname = "farbrausch V2 Synthesizer module (.V2M)"; // bDetected = 1;
+    sName = "farbrausch V2 Synthesizer module (.V2M)"; bDetected = 1;
     if(Binary.isVerbose())
-        soption = "ch:"+chs+"notes:"+notes+"timediv:"+timediv+"maxtime:"+maxtime;
-    _setResult("audio",sname,"v2",soption);
+        sOption = "ch:"+chs+"notes:"+notes+"timediv:"+timediv+"maxtime:"+maxtime;
 }
 
 function isFLS() {
@@ -4183,9 +4231,8 @@ function isFLS() {
     return true;
 }
 if(!bDetected && Binary.isHeuristicScan() && isFLS()) {
-    sname = "Flash Tracker module (.FLS)"; sversion = "@"+Hex(j); //bDetected = 1;
-    if(Binary.isVerbose()) soption = "sz:"+sz
-    _setResult("audio",sname,"",soption);
+    sName = "Flash Tracker module (.FLS)"; sVersion = "@"+Hex(j); bDetected = 1;
+    if(Binary.isVerbose()) sOption = "sz:"+sz
 }
 
     return result(bShowType,bShowVersion,bShowOptions);
