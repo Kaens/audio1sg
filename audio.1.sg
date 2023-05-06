@@ -600,7 +600,16 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "DreamStation module (.DSS)";
         sVersion = "v1.0";
-        //TODO find out how the text at file end is addressed
+        if(Binary.isVerbose()) {
+            pt = File.findSignature(0,File.getSize()-1,"F0E40001")+4; //the 00/01 at the end is "show info at track load"
+            if(pt < 4) pt = File.findSignature(0,File.getSize()-1,"F0E40000")+4;
+            if(pt >= 4) {
+                pa = File.findSignature(pt,File.getSize()-pt,"0D0A"); t = File.read_ansiString(pt,pa-pt); pa += 2;
+                pc = File.findSignature(pa,File.getSize()-pa,"0D0A"); a = File.read_ansiString(pa,pc-pa); pc += 2;
+                c = File.read_ansiString(pc,File.getSize()-pc);
+                sOption(t); sOption(a,"by: "); sOption(c)
+            }
+        }
     }
     else if(Binary.compare("'DS2F0'....'Default'")) {
         bDetected = 1;
@@ -662,7 +671,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Darius Zendeh's module (.DZ)";
     }
-    else if(Binary.compare("'EAS0'")) {
+    else if(Binary.compare("'EASO'")) {
         bDetected = 1;
         sName = "EarAche module (.EAS)";
     }
@@ -775,9 +784,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Face the Music module (.FTM)";
         if(Binary.isVerbose()) {
-            sOptionT(File.read_ansiString(0x10,0x20));
-            sOptionT(File.read_ansiString(0x30,0x20));
+            sOptionT(File.read_codePageString(0x10,0x20,"CP1250"));
+            sOptionT(File.read_codePageString(0x30,0x20,"CP1250"))
         }
+    }
+    else if(Binary.compare("'FMS!'..000000")) {
+        bDetected = 1;
+        sName = "FamiStudio module (.FMS)";
+        sVersion = "v"+File.read_uint8(4)
     }
     else if(Binary.compare("'FamiTracker Module'")) {
         bDetected = 1;
@@ -1604,6 +1618,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(Binary.isHeuristicScan() && Binary.compare("4EFA....4EFA....4EFA")) {
         bDetected = 1;
         sName = "Maniacs of Noise module (.MON)";
+        //TODO remove the overlap with FredMon
     }
     else if(/SONG[0-9.]{4}(COMP|NORM)/.test(File.read_ansiString(0,12))) {
         bDetected = 1;
@@ -3597,6 +3612,7 @@ function isADL() {
     return true
     //whilst it'd be nice to have instruments (same len as prog ptr tbl) subsong detection...
     //... it's too much already
+    //TODO false positive: modland/pmd/- unknown/Akai suishou no hitomi/ano-s01.m
 }
 if(!bDetected && Binary.isHeuristicScan() && isADL()) {
     sName = "ADL AdLib module (.ADL)"; bDetected = 1;
@@ -3714,6 +3730,41 @@ if(!bDetected && Binary.isHeuristicScan() && isBPSoundMon()) {
         sOption("sz:"+sz); if(File.getSize() != sz) sVersion += "/malformed"
     }
 }
+
+function isFuchs() {
+    //ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/FuchsTracker.c
+    if(File.getSize() < 0xC0) return false;
+    allsmpsz = File.read_uint32(0x0A,_BE);
+    if((allsmpsz<=2) || (allsmpsz>=65535*16)) return false;
+    smpdescs = 0;
+    for(k=0; k<16; k++) {
+        sz = File.read_uint16(0x0E+k*2,_BE);
+        lpst = File.read_uint16(0x4E+k*2,_BE);
+        if(sz < lpst) return false;
+        if(File.read_uint8(0x2E+k*2) > 0x40) return false; //vol
+        smpdescs += sz
+    }
+    if((smpdescs<=2) || (smpdescs>allsmpsz)) return false;
+    k = 0; //last pattern
+    for(j=0; j<40; j++) {
+        pt = File.read_uint8(113+j*2);
+        if(pt>40) return false;
+        if(pt>k) k = pt
+    }
+    k+=1;
+    k*=1024;
+    if(k+200 > File.getSize()) return false;
+    sz = smpdescs+k+204;
+    return true
+}
+if(!bDetected && Binary.isHeuristicScan() && isFuchs()) {
+    bDetected = 1;
+    sName = "FuchsTracker module (.FUCHS)";
+    if(Binary.isVerbose()) {
+        sOption("sz:"+sz); if(File.getSize() != sz) sVersion += "/malformed"
+    }
+}
+
 
 function isGMC() {
     //ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/GMC.c
@@ -4186,7 +4237,7 @@ function isPMD() {
         if(p < 27 || p+1 > File.getSize()) return false }
     return true
 }
-if(!bDetected && Binary.isHeuristicScan() && isPMD() ) {
+if(/*!bDetected && */Binary.isHeuristicScan() && isPMD() ) {
     bDetected = 1;
     sName = "Professional Music Driver module (.M,M2)";
     sVersion = "v"+nV+" t"+Hex(extra_type).substr(0,2)+":"+ttype+" tagptrs:"+Hex(extra);
@@ -4203,9 +4254,13 @@ if(!bDetected && Binary.isHeuristicScan() && isPMD() ) {
         n = File.read_codePageString(File.read_uint16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
         if(n != "") fnames.push("PPC/P86:"+n);
         title = File.read_codePageString(File.read_uint16(extra,_LE)+1,0x100,"Shift_JIS");
+        if(title == "\x1A") title = "";
         artist = File.read_codePageString(File.read_uint16(extra+2,_LE)+1,0x100,"Shift_JIS");
+        if(artist == "\x1A") artist = "";
         arenji = File.read_codePageString(File.read_uint16(extra+4,_LE)+1,0x100,"Shift_JIS");
+        if(arenji == "\x1A") arenji = "";
         rem = File.read_codePageString(File.read_uint16(extra+6,_LE)+1,0x100,"Shift_JIS");
+        if(rem == "\x1A") rem = "";
         sOption(title);
         sOption(artist,"by: ");
         sOption(arenji,"mixed by: ");
@@ -4448,10 +4503,7 @@ if(Binary.isHeuristicScan()) { //parallel block
         _setResult("audio","GT Game Systems module (.DUX)","","")
     }
     if(Binary.compare("4EFA....4EFA....4EFA....4EFA")) {
-        soption = "";
-        if(Binary.isVerbose())
-            soption = File.read_ansiString(4,0x20).trim();
-        _setResult("audio","FredMon module (.GDM)","",soption)
+        _setResult("audio","FredMon module (.FRED)","","")
     }
 
     if(Binary.compare("8400")) {
