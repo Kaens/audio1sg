@@ -3269,12 +3269,13 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         // Kudos to BeRo for the tracker sources
         bDetected = 1;
         sName = "The 0ok Amazing Synth Tracker module (.T0AST)";
-        if(Binary.compare("'0OK'",5)) { nv = 1; sVersion = "v1"; } else
+        if(Binary.compare("'0OK'",5)) { nV = 1; sVersion = "v1"; } else
         if(Binary.compare("010001",5)) { nV = 2; sVersion = "v2"; } else
-        {nV = -1; sVersion = "v.unk"; }
+        { nV = -1; sVersion = "v.unk"; }
         if(File.isVerbose() && nV!=-1) {
             if(nV == 1) p = 0x1DA;
             else if(nV == 2) p = 0x34A;
+            else break;
             drummode = File.read_uint8(p++);
             chipmode = File.read_uint8(p++);
             chs = File.read_uint8(p++); ch = 0;
@@ -4098,7 +4099,6 @@ function isProTracker2() {
     smp0 = File.read_uint16(3,_LE); orn0 = File.read_uint16(0x43,_LE);
     if(orn0-smp0>File.getSize()+2 || orn0<smp0) return false;
     ptnp = File.read_uint16(0x63,_LE); if(ptnp<0x65 || ptnp>File.getSize()) return false;
-    _log("orn0:"+Hex(orn0)+" smp0:"+Hex(smp0)+" ptnp:"+Hex(ptnp));
     for(i=0; i < 0x30; i++) { //sample pointers and ornament pointers
         p = File.read_uint16(3+i*2,_LE);
         if(!p && (/*p < 0x65 ||*/ p > File.getSize()-2)) return false; // Ashnar/HBKSA2.pt2 .___.
@@ -4434,14 +4434,16 @@ function isSoundtrackerMOD() {
         allsmpsz += j;
         if(j > 0xFFFF || m > 0xFFFF || n > 0xFFFF) return false;
         if(n > j+2) return false;
-        if(j && (m >= j)) return false;
+        if(j && m >= j) return false;
         if(m && !n) return false;
-        if(j && (j==m)) return false;
+        if(j && j==m) return false;
         if(m && !j) return false;
-        if(allsmpsz < 8) return false;
     }
+    if(allsmpsz < 8) return false;
     ord = File.read_uint8(470);
-    if(!ord || (ord > 127)) return false;
+    if(!ord) return false;
+    malformed = false;
+    if(ord > 127) malformed = 1; //← - unknown/2010.mod plays just fine with ord = 128, buuut
     k = 0; ord_ = 0;
     for(j=0; j < 128; j++) {
         x = File.read_uint8(472+j);
@@ -4453,25 +4455,28 @@ function isSoundtrackerMOD() {
     if(k*1024+600 > File.getSize()) return false;
     for(j=0; j < k*256; j++) {
         x = File.read_uint8(600+j*4);
-_log("9:"+j);
         if((x&0xF0) > 0x10) return false;
-_log("10:"+j);
+//_log("8:"+Hex(600+j*4)+" x="+Hex(x));
         if((x&0x0F) > 0x03) return false;
-_log("11:"+j);
+//_log("9:");
         x1 = File.read_uint8(601+j*4);
-        l = (x&0x0F)*256+x1;
+        l = (x&0x0F)*256 + x1;
+//_log("10: l="+Hex(l));
         if(l && (l < 0x71)) return false;
-_log("12:"+j);
-        if( (x || x1) && (!(File.read_uint8(602+j*4)&0xF0)) ) return false
+        x2 = File.read_uint8(602+j*4);
+//_log("11: x="+Hex(x)+" x1="+Hex(x1)+ " x2="+Hex(x2));
+        if( (x || x1) && !(x2 & 0xF0) ) malformed = 2; //return false; but 2010.mod breaks this too and still plays!
+//_log("12:");
     }
     sz = allsmpsz+k*1024+600;
     return true;
 }
 if(!bDetected && isSoundtrackerMOD()) {
-        sName = "SoundTracker module (.MOD)"; bDetected = 1;
+        sName = "SoundTracker module (.STK,.MOD)"; bDetected = 1;
+        if(malformed) sVersion = "malformed#"+malformed;
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0,0x14));
-            sOptionT(File.read_ansiString(0x14,0x16),"by: ");
+            //sOptionT(File.read_ansiString(0x14,0x16),"ins0: ");
             sOption("sz:"+sz+" ord:"+ord+"/"+ord_+" ptn:"+k)
         }
     }
