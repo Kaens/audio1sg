@@ -1,9 +1,76 @@
-==== TODO ====
+# How to contribute
+
+This file covers the grand TODO of things, the conventions of informing, and the scan flags.
+
+## TODO
 
 The following formats are to be reversed (or otherwise understood) and most likely sanity check-tested. Or given up on (like if it's a headless OPL or AdLib command dump where you can't sanity-check anything).
 
 This is where you can contribute the most!
 
- - Paul Shields' .PS
- - 
- - 
+ - Paul Shields' `.PS`
+ - Activision Pro `.AVP` (WIP)
+ - PumaTracker `.PUMA`
+ - Dave Lowe New `.DLN`
+ - Flash Tracker `.FTS`
+ - Silmarils `.MOK`
+ - Beni Tracker `.PIS`
+ - SoundControl `.SC`
+ - Sound Master `.SM`
+ - David Whittaker `.DW`
+ - Digital Sonix And Chrome `.DSC`
+ - Sidplayer `.MUS`
+ - Digital Studio `.DST` (Spectrum)
+ - SAM Coupe `.SNG`
+ - Herad Music System (`.AGD`/`.SDB`/`.SQX`)
+ - AdLib `.ADL`
+ - Westwood `.SND`
+ - Vibrants `.VIB` (I just have 1 file of this)
+ - .DMM, `.SQD` - test patterns!
+ - Generic `.MOD` - instead of the existing scattered .mod checks, someone REALLY just needs to copy&inform from what OpenMPT has in load_mod.cpp, and there's a lot of that... thankfully, at least we don't have to play it!
+
+There are also lots of TODO marking their way through the entire `audio.1.sg`, and they want attention as well. Many things that don't have the mark still can be improved by adding and outputting some analysis towards orders/patterns/samples/instruments/tempo/speed or whatever else the format has to offer.
+
+## A word on how sanity checks work
+
+As you can see by scrolling through the latter part of `audio.1.sg`, there are quite a few sanity check-based detectors, which work by assuming the file has this or that format and proceeding to parse the file as such and validate its every byte as pertains:
+
+ - for example, the tempo may be within the range of 3 through 15, so 0..2 and 16+ are invalid and should count as a failed detection;
+ - for another example, if a format only has OPL2 commands in a known block, any bits that can only be set for OPL3 are a no;
+ - or you can require that the pattern block doesn't overlap with the other blocks of data (unless you know of some files that deliberately exploit that by putting pattern data into, say, the song title block to achieve various ends), that no blocks are outside of the file size, etc.
+
+The more tests there are that can easily fail, the "tighter" the detection will be, and the more desirable.
+
+I was principally copying the other people's sanity checks (hello Bul'ba, asle, Vitamin & more!) so I wasn't commenting that code; if you want to grasp some principles, please read the referenced sources. The OpenMPT and ProWizard ones normally have the most comments so those are recommended.
+
+## On sVersion, isVerbose, isDeepScan, isHeuristicScan and conventions
+
+As long as we just want to show what kind of file it is and what version it is, the information should appear either way.
+
+Sometimes the version includes mentioning which chip a chiptune uses, sometimes a word when we want to complain that the tune is malformed. The version always starts with a `v` followed by either a floating-point info like `1.0xx` or, usually for internal format versions, a single number either in decimal or in hexadecimal (in the latter case, output it like `0Eh`: the module `read` has the function `Hex` for that, for simplicity.)
+
+However, if we want to show the user the track title, or the author's rant, or how many different instruments the track has, or whatever else that goes into sOptions, then only add those if `Binary.isVerbose()` is `true`. Very simple.
+
+The common tags and other things have a small convention for themselves (add in this order):
+
+| content | output like this |
+|-|:-:|
+| track name | `Pyllamarama Theme` |
+| tracks in multitrack | `×15` (note the non-ASCII "×") |
+| author | `by: P.J.Summerbottom` |
+| game | `for: Pyllamarama` |
+| system | `on: Seagull Minidrive` |
+| comment | `Hi everyone, just FYI script kiddos suk` |
+
+If there are several tags that say the same in different languages (EN/JP being the most common), output them like this: `title/タイトル` etc. There's a function called `slashtag` that you can use for this.
+
+If you want to output a lot of quick ubiquitous parameters (tempo, initial speed, orders, patterns, instruments, samples, notes), do write them out in a single sOptions addition that goes *after* any customisable tags you want to show and looks like `tempo:AA spd0:BB ord:CC ptn:DD ins:EE smp:FF notes:GGGGG`, you can probably find the other ones you want for reference somewhere in the file. If it's too hard to output that as a single string in one go, give up and output them like `tempo: BB`, `init.speed: BB`, `orders: CC` etc. one at a time.
+
+I additionally follow the rule "don't overload it", like I don't show all sample names of a .MOD just because it's oft-used for info, but just the first couple, enough in case the author's name is in there.
+
+`Binary.isDeepScan()` should mean that a detection that you know takes a lot of time should not run if this flag is off; most sanity checks feature cycles of uncertain iterations, so they only happen with Deep scan flag on.
+
+`Binary.isHeuristicScan()` is meaningful in two cases for this file:
+ - either you just relied on the file extension (and optionally some super generic signature like "PK" at 0 bytes. It's VERY ~~lazy~~ heuristic, doing something like that, but very rarely it's the best you can do),
+ - or you saw just one or two files that are hella broken and you have a player that still manages to play them, but it really breaks the rules of some stuff that can make a detection of the overall format much tighter (for example, just the sample loops are out of bounds and the player simply doesn't loop that sample).  
+ So at the point you want to check for that stuff you first look at this flag, and if it is set, you just output "/malformed" after the version — and if it's unset, you fail the detection.

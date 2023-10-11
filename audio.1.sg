@@ -638,11 +638,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         sName = "DreamStation module (.DSS)";
         sVersion = "v1.0";
         if(Binary.isVerbose()) {
-            pt = File.findSignature(0,File.getSize()-1,"F0E40001")+4; //the 00/01 at the end is "show info at track load"
-            if(pt < 4) pt = File.findSignature(0,File.getSize()-1,"F0E40000")+4;
+            pt = File.findSignature(0,TOEOF,"F0E40001")+4; //the 00/01 at the end is "show info at track load"
+            if(pt < 4) pt = File.findSignature(0,TOEOF,"F0E40000")+4;
             if(pt >= 4) {
-                pa = File.findSignature(pt,File.getSize()-pt,"0D0A"); t = File.read_ansiString(pt,pa-pt); pa += 2;
-                pc = File.findSignature(pa,File.getSize()-pa,"0D0A"); a = File.read_ansiString(pa,pc-pa); pc += 2;
+                pa = File.findSignature(pt,TOEOF,"0D0A"); t = File.read_ansiString(pt,pa-pt); pa += 2;
+                pc = File.findSignature(pa,TOEOF,"0D0A"); a = File.read_ansiString(pa,pc-pa); pc += 2;
                 c = File.read_ansiString(pc,File.getSize()-pc);
                 sOption(t); sOption(a,"by: "); sOption(c)
             }
@@ -1514,8 +1514,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                 }
             } //if pMMD0exp
             if(sig === "MED\x04"){//requires ~special~ crap.
-                fs1 = Math.max(File.getSize()-0x200,0); fs2 = Math.min(File.getSize(),0x200);
-                annot = Binary.findSignature(fs1,fs2,"'ANNO'00");
+                fs1 = Math.max(File.getSize()-0x200,0);
+                annot = Binary.findSignature(fs1,TOEOF,"'ANNO'00");
                 if(annot >= 0) {
                     cs = File.read_uint32(annot+4,_BE);
                     sOptionT(File.read_ansiString(annot+8,cs));
@@ -1732,7 +1732,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Master Tracker Adlib module (.MTR)";
         //TODO
-        // x = readBytes(0,file.findSignature("1A"));
+        // x = readBytes(0,file.findSignature(0,TOEOF,"1A"));
         // tt = File.read_ansiString(5,20).trim();
 
         // if(v!=null) sVersion = "v"+v;
@@ -1761,12 +1761,19 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "MaxTrax module (.MXTX)";
     }
-    else if(Binary.compare("'TWNNSNG'..00")) {
+    else if(Binary.compare("'TWNNSNG1'00")) { // looks like the first ProTrekker was called this
         bDetected = 1;
         sName = "Noise Trekker module (.NTK)";
-        sVersion = "v"+File.read_ansiString(0x7,1);
+        sVersion = "v1";
         if(Binary.isVerbose())
             sOption(File.read_ansiString(9,20))
+    }
+    else if(Binary.compare("'TWNNSNG'..00")) {
+        bDetected = 1;
+        sName = "ProTrekker module (.PTK)";
+        sVersion = "v"+File.read_ansiString(0x7,1);
+        if(Binary.isVerbose()) // this stuff has compression in most versions, TODO?
+            if(sVersion == "v6") sOption(File.read_ansiString(9,20))
     }
     else if(Binary.compare("'NESM'1A") || Binary.compare("'NSFE'")) {
         //ref https://web.archive.org/web/20180817053626/http://wiki.nesdev.com/w/index.php/NSF
@@ -2442,9 +2449,9 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         else if(sV==="018") sVersion+="/RN1.5.2";
         else sVersion+="/RN>1.5.2"
         if(Binary.isVerbose()) {
-            p=8;
-            while (p<File.getSize()) {
-                p = File.findSignature(p+1,File.getSize()-p-20,"'>>> Chunk Start <<<'");
+            p = 8;
+            while (p < File.getSize()) {
+                p = File.findSignature(p+1,TOEOF,"'>>> Chunk Start <<<'");
                 if(p == -1)
                     break;
                 p += 20;
@@ -2467,7 +2474,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                     sz = File.read_uint32(p); sOptionT(File.read_codePageString(p+4,sz,"CP1252"));
                     break;
                 }
-                p = File.findSignature(p+1,File.getSize()-p-20,"''>>>  Chunk End  <<<'");
+                p = File.findSignature(p+1,TOEOF,"''>>>  Chunk End  <<<'");
                 if(p == -1) break
             }
         }
@@ -2666,7 +2673,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         sName = "Slight Atari Player module (.SAP)";
         if(Binary.isVerbose()) {
             malformed = false; t=""; a=""; dt=""; tp=""; tm="";
-            p = File.findSignature(3,File.getSize()-5,"0D0AFFFF");
+            p = File.findSignature(3,TOEOF,"0D0AFFFF");
             if(p == 0) malformed=true;
             else {
                 taghunk = File.read_ansiString(5,p);
@@ -3031,7 +3038,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         }
     }
     else if(Binary.compare("'SPU'00") || Binary.compare("'SPU1'") ||
-        (Binary.findSignature(File.getSize()-6,6,"1D80FF"))>-1) {
+        (Binary.findSignature(File.getSize()-6,TOEOF,"1D80FF"))>-1) {
         bDetected = 1; sName = "Eternal SPU music RAM log (.SPU)";
         if(Binary.compare("'SPU'")) {
             if(!File.read_uint8(3)) sVersion = "v0"; else sVersion = "v1"; }
@@ -3413,40 +3420,28 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         sVersion = "v"+sV.substr(5,1)+"."+sV.substr(6,2);
         if(Binary.isVerbose()) {
             tags = []; //11 of them
-            //te="";tj="";ge="";gj="";se="";sj="";ae="";aj="";ymd="";pr="";c="";
             gd3p = File.read_uint32(0x14,_LE)+0x14;
-            if(gd3p>0x14)
-            if(File.read_ansiString(gd3p)=="Gd3 ") {
-                taglen=File.read_uint32(gd3p+4,_LE); gd3p+=8;
-                i=0;
-                while(i<11 && gd3p<File.getSize()) {
-                    tpos = File.findSignature(gd3p,taglen,"0000");
+            if(gd3p > 0x14)
+            if(File.read_ansiString(gd3p,4) == "Gd3 ") {
+                sVersion += "/Gd3 v"+(readBytes(gd3p+4,4).join("")/100);
+                taglen = File.read_uint32(gd3p+8,_LE); gd3p += 12;
+                if(gd3p+taglen > File.getSize()) malformed = true;
+                i = 0;
+                while(i < 11 && gd3p <= File.getSize()) {
+                    tpos = File.findSignature(gd3p,TOEOF,"0000");
                     if(tpos >= 0) {
-                        tags[i] = File.read_utf16String(gd3p,tpos); //TODO debug utf16! seems to break off at any 0
-                        gd3p += tpos
+                        tags[i] = File.read_unicodeString(gd3p,taglen); //TODO rename to read_utf16String
+                        gd3p += tags[i].length*2+2;
                     }
-                    else tags[i] = "";
-                    i++
+                    else {
+                        tags[i] = ""; gd3p += 2
+                    }
+                    i++;
                 }
                 if(i < 11) malformed = true; else tagn = Math.max(0,i-1);
-                function slashtag(a,b) {
-                    if(a != "" && b == "")
-                        return tags[a];
-                    else if(a == "" && b != "")
-                        return tags[b];
-                    else if(a != "" && b != "")
-                        return tags[a]+"/"+tags[b];
-                    else return ""
-                }
-                sOption(slashtag(0,1)); sOption(slashtag(6,7),"by: ");
-                sOption(slashtag(2,3),"for: "); sOption(slashtag(4,5),"on: ");
-                for(j=8; j <= 10; j++) {
-                    switch(j) {
-                    case 8: sOption(tags[j],"date: "); break;
-                    case 9: sOption(tags[j],"ripper: "); break;
-                    case 10: sOption(tags[j],"notes: "); break;
-                    }
-                }
+                sOption(slashTag(tags[0],tags[1])); sOption(slashTag(tags[6],tags[7]),"by: ");
+                sOption(slashTag(tags[2],tags[3]),"for: "); sOption(slashTag(tags[4],tags[5]),"on: ");
+                sOption(tags[8],"date: "); sOption(tags[9],"ripper: "); sOption(tags[10],"notes: ")
             }
             psgclk = File.read_uint32(0x0C,_LE); //TODO add a chip list?
             ym2413clk = File.read_uint32(0x10,_LE);
@@ -3460,7 +3455,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                 else sOption("+extra data")
         }
         dataofs = File.read_uint32(0x34,_LE);
-        if((sV>="v1.50") && (!dataofs)) malformed = true;
+        if((sV >= "v1.50") && (!dataofs)) malformed = true;
         if(malformed) sVersion+= "/malformed";
     }
     else if(Binary.compare("00'3T1'")) {
@@ -3476,7 +3471,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         bDetected = 1;
         sName = "Creative Voice audio (.VOC)";
     }
-    else if(Binary.findSignature(File.getSize()-0x20,0x1F,"'VSS0'00") > -1) {
+    else if(Binary.findSignature(File.getSize()-0x20,TOEOF,"'VSS0'00") > -1) {
         bDetected = 1;
         sName = "Voodoo Supreme Synthesizer audio (.VSS)";
     }
@@ -3621,14 +3616,14 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
             if(p>=File.getSize()) malformed = 4;
             else {
                 t = p;
-                t_ = File.findSignature(p,File.getSize()-p-8,"00")-p;
+                t_ = File.findSignature(p,TOEOF,"00")-p;
                 if(t_ >= 0) {
                     p += t_+1; a = p;
-                    a_ = File.findSignature(p,File.getSize()-p-7,"00")-p;
+                    a_ = File.findSignature(p,TOEOF,"00")-p;
                     p += a_+1; c = p;
-                    c_ = File.findSignature(p,File.getSize()-p-6,"00")-p;
+                    c_ = File.findSignature(p,TOEOF,"00")-p;
                     p += c_+1;
-                    if(["YM5","YM6"].indexOf(sV)>=0) {
+                    if(["YM5","YM6"].indexOf(sV) >= 0) {
                         frm = File.read_uint32(0x0C,_BE);
                         if(frm<<4 != File.getSize()-p-4) {
                             malformed = 5; sOption("frm/frames: "+(frm<<4)+"/"+(File.getSize()-p-4)) }
@@ -3658,12 +3653,12 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                 p+=8; if(File.read_uint16(p-8,_BE)==0) break;
             }
             t=p;
-            t_=File.findSignature(p,File.getSize()-p-8,"00")-p;
+            t_=File.findSignature(p,TOEOF,"00")-p;
             if(t_>=0) {
                 p+=t_+1; a=p;
-                a_=File.findSignature(p,File.getSize()-p-7,"00")-p;
+                a_=File.findSignature(p,TOEOF,"00")-p;
                 p+=a_+1; c=p;
-                c_=File.findSignature(p,File.getSize()-p-6,"00")-p;
+                c_=File.findSignature(p,TOEOF,"00")-p;
                 //p+=c_+1 //unused
                 if(Binary.isVerbose()) {
                     sOptionT(File.read_ansiString(t,t_));
@@ -4302,6 +4297,7 @@ function isSoundtrackerMOD() {
         m = File.read_uint16(46+k*30,_BE);
         n = File.read_uint16(48+k*30,_BE);
         allsmpsz += j;
+//_log("4:k="+k+" j="+j+" m="+m+" n="+n);
         if(j > 0xFFFF || m > 0xFFFF || n > 0xFFFF) return false;
         if(n > j+2) return false;
         if(j && m >= j) return false;
@@ -4309,8 +4305,10 @@ function isSoundtrackerMOD() {
         if(j && j==m) return false;
         if(m && !j) return false;
     }
+//_log("5:allsmpsz="+allsmpsz);
     if(allsmpsz < 8) return false;
     ord = File.read_uint8(470);
+//_log("6:ord="+ord);
     if(!ord) return false;
     malformed = false;
     if(ord > 127) malformed = 1; //← - unknown/2010.mod plays just fine with ord = 128, buuut
@@ -4322,6 +4320,7 @@ function isSoundtrackerMOD() {
         if(x > 127) return false;
     }
     k++; ord_++;
+//_log("7:k="+k+" ord_="+ord_);
     if(k*1024+600 > File.getSize()) return false;
     for(j=0; j < k*256; j++) {
         x = File.read_uint8(600+j*4);
@@ -4647,13 +4646,13 @@ function isMXDRV() {
     // ref ditto / SRC/MDX2MUS.ASM
     // useful links: https://gorry.haun.org/mx/index_e.html
     if(File.getSize() < 4+2+9*2 || File.getSize() > 0xFFFF) return false; //minimum header
-    da1 = File.findSignature(0,File.getSize(),"0D0A1A"); // TODO maxsize=1024 when DiE supports that
+    da1 = File.findSignature(0,Math.max(1024,File.getSize()),"0D0A1A");
     if(da1 < 0) return false;
     for(i=0; i<da1; i++) {
         c = File.read_uint8(i,1); if((c < 0x20) && (c != 0x1B)) return false;
     }
     t = File.read_codePageString(0,da1,"SJIS");
-    p = File.findSignature(da1,1024,"00"); if(p < 0) return false;
+    p = File.findSignature(da1,Math.max(1024,File.getSize()-da1),"00"); if(p < 0) return false;
     if(da1+3 != p)
         pdxfn = File.read_ansiString(da1+3,p);
     else pdxfn = "";
@@ -4889,6 +4888,12 @@ if(Binary.isHeuristicScan()) { //parallel block
             freq = "700Hz";
         _setResult("audio","id/Apogee Music Format chiptune (.IMF)","","freq: "+freq);
     }
+    else if(extIs("svar") && Binary.compare("'PK'")) { //TODO detect in-zip
+        _setResult("audio","SVArTracker module (.SVAR)","","");
+    }
+    else if(extIs("aks") && Binary.compare("1F8B")) { //TODO detect in-zip
+        _setResult("audio","ArkosTracker module (.AKS)","","");
+    }
 
     if(Binary.compare("0002",0x0E) && Binary.compare("0002",0x26)
         && Binary.compare("0002",0x32) && Binary.compare("0040",0x46)) {
@@ -5045,7 +5050,7 @@ if(!bDetected && Binary.isHeuristicScan() && isADL()) {
         //ref https://web.archive.org/web/20081006053424/http://amore68k.netfirms.com/amore_v1.01a_007.zip
         // の中のhippel.txt
         //TODO sz is always incorrect and much bigger
-        a1_ = File.findSignature(7,File.getSize()-7,"0071007100710071 007100710071");
+        a1_ = File.findSignature(7,TOEOF,"0071007100710071 007100710071");
         if(a1_ < 0) return false;
         a1 = File.findSignature(a1_+0x0C,0x100,"'TFMX'");
         if(a1 < 0) return false;
@@ -5096,6 +5101,46 @@ if(!bDetected && Binary.isHeuristicScan() && isADL()) {
         if(sz > File.getSize()) sversion = "no panning effects"; else sversion = "";
         if(Binary.isVerbose()) soption = "trk:"+numtracks+" notes:"+numnotes; else soption = "";
         _setResult("audio","Ken's Digital Music module (.KDM)",sversion,soption);
+    }
+
+    function isSQDigitalTracker() {
+        //from https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/sqdigitaltracker.cpp
+        for(i=0; i < 8; i++) {
+            if(File.read_uint8(0xC0+i*4)) return false;
+            q = File.read_uint8(0xC0+i*4+1); if(q < 0x80 || q > 0xC0) return false;
+            q = File.read_uint8(0xC0+i*4+2); if(q < 0x58 || q > 0x5F) return false;
+            q = File.read_uint8(0xC0+i*4+3); if(!q || q > 0x80) return false;
+        }
+        for(i=0; i < 0x20; i++) {
+            t_ = File.read_uint8(0x100+i);
+            if(t_[i] < 0x20 || t_[i] > 0x7F) return false
+        }
+        t = File.read_ansiString(0x100,0x20);
+        ptn = -1;
+        for(i=0; i < 100; i++) {
+            q = File.read_uint8(0x1A0+i); if(q > 0x1F) return false;
+            if(ptn < q) ptn = q;
+        } ptn++;
+        if(File.read_uint8(0x204) != 0xFF) return false;
+        _log(1);
+        tempo = File.read_uint8(0x210);
+        _log("tempo:"+tempo);
+        if(tempo < 2 || tempo > 10) return false;
+        len = File.read_uint8(0x212);
+        _log("len:"+len);
+        if(!len || len > 0x64) return false; len++;
+        loop = File.read_uint8(0x211);
+        _log("loop:"+loop);
+        if(loop >= len) return false;
+        return true
+    }
+    if(Binary.isDeepScan() && isSQDigitalTracker()) {
+        soption = "";
+        if(Binary.isVerbose()) {
+            soption = soption.append(t.trim());
+            soption = soption.append("tempo:"+tempo+" ord:"+len+" ptn:"+ptn+" loop:"+loop);
+        }
+        _setResult("audio","SQ Digital Tracker module (.SQD,.M)","",soption)
     }
 
 } //isHeuristicScan parallel block
