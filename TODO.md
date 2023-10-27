@@ -6,28 +6,64 @@ This file covers the grand TODO of things, the conventions of informing, and the
 
 The following formats are to be reversed (or otherwise understood) and most likely sanity check-tested. Or given up on (like if it's a headless OPL or AdLib command dump where you can't sanity-check anything).
 
-This is where you can contribute the most!
+This is where you can contribute the most! (sorted by extension)
 
- - Paul Shields' `.PS`
+ - Herad Music System `.AGD`/`.SDB`/`.SQX`
  - Activision Pro `.AVP` (WIP)
- - PumaTracker `.PUMA`
- - Dave Lowe New `.DLN`
- - Flash Tracker `.FTS`
- - Silmarils `.MOK`
- - Beni Tracker `.PIS`
- - SoundControl `.SC`
- - Sound Master `.SM`
- - David Whittaker `.DW`
+ - Buzzic `.BUZ`
+ - Compoz `.CPZ`
+ - Megadrive `.CYM`
+ - Edlib `.D00` and .`EDL`
+ - Paul Robotham's `.DAT`/`.SSD`
+ - Dave Lowe's New `.DLN`
+ - Twin TrackPlayer `.DMO`
+ - Special FX ST `.DODA`
+ - Delta Packer `.DP`
  - Digital Sonix And Chrome `.DSC`
- - Sidplayer `.MUS`
+ - Desire `.DSR`
  - Digital Studio `.DST` (Spectrum)
- - SAM Coupe `.SNG`
- - Herad Music System (`.AGD`/`.SDB`/`.SQX`)
- - AdLib `.ADL`
+ - Infogrames `.DUM`
+ - David Whittaker's `.DW`
+ - Pixel Painters `.FMF`, `.FTF`
+ - Flash Tracker `.FTS`
+ - Images Music System `.IMS`
+ - Jason Brooke's `.JB`
+ - Special FX `.JD`
+ - Jesper Olsen's `.JO`
+ - Kris Hatlelid's `.KH`
+ - Loudness Sound System `.LDS`
+ - PMD `.M`
+ - Ultima 6 `.M`
+ - Silmarils `.MOK`
+ - Sidplayer `.MUS`
+ - Startrekker AM's `.NT` info files
  - Westwood `.SND`
- - Vibrants `.VIB` (I just have 1 file of this)
+ - SAM Coupe `.SNG`
+ - Paul Summers's `.SNK`
+ - Beni Tracker `.PIS`
+ - Paul Shields's `.PS`
+ - Powertracker `.PT`
+ - PumaTracker `.PUMA`
+ - Peter Verswyvelen's `.PVP`
+ - Quartet ST `QTS.`
+ - Speedy A1 System `.SAS`
+ - SoundControl `.SC`
+ - Sean Connolly's `.SCN`
+ - SCUMMVM `.SCUMM`
+ - Synth Dream `SDR.`
+ - Tomy Tracker `.SG`
+ - Scott Johnston's SoundPlayer `SJS.`
+ - Sound Master `.SM`
+ - Pierre Adane Packer `.PAP`
+ - Stereo Sidplayer `.STR`
  - .DMM, `.SQD` - test patterns!
+ - Tunefish `.TF2I`/`.TF2M`
+ - TFM Music Maker `.TFE`
+ - Thomas Hermann's `THM.`
+ - Sound Images `.TW`
+ - Vibrants `.VIB` (I just have 1 file of this)
  - Generic `.MOD` - instead of the existing scattered .mod checks, someone REALLY just needs to copy&inform from what OpenMPT has in load_mod.cpp, and there's a lot of that... thankfully, at least we don't have to play it!
+ - Optionally (desirably), various sample formats
 
 There are also lots of TODO marking their way through the entire `audio.1.sg`, and they want attention as well. Many things that don't have the mark still can be improved by adding and outputting some analysis towards orders/patterns/samples/instruments/tempo/speed or whatever else the format has to offer.
 
