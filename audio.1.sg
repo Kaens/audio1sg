@@ -2764,7 +2764,9 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
             }//switch sV
         }//isVerbose
     }
-    else if(Binary.compare("'SOARV1.0'")) {
+    else if(Binary.compare("'SOARV1.0STBL'")) {
+        //TODO unify all SAs, rewrite the check, and extract the lengths using this source:
+        // https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Sonic_Arranger/Sonic Arranger_v1.asm
         sName = "Sonic Arranger module (.SA)"; bDetected = 1;
         sVersion = "v1.0"
     }
@@ -5002,6 +5004,74 @@ if(!bDetected && Binary.isDeepScan() && isADL()) {
     }
 }
 
+function isPuma() {
+    //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/PumaTracker/src/PumaTracker_v2.asm
+    //ref http://lclevy.free.fr/amiga/exotic/puma_str.txt
+    if(File.read_uint8(12)) return false;
+    ord = File.read_uint8(13)+1;
+    a0 = 0x50+ord*14; //patterns table
+    if(a0 >= File.getSize()) return false;
+    if(!File.compare("'patt'",a0)) return false; a0 += 4;
+    d1 = 32;
+    while(a0 < File.getSize()) {
+        t = File.read_uint8(a0+3); if(!t) return false;
+        d1 -= t; if(d1 < 0) return false; if(!d1) break;
+        a0 += 4
+    }
+    if (!File.compare("'patt'",a0+4)) return false; //Check2 finishes here
+    a0 = smp = d0 = d4 = 0;
+    ptn = File.read_uint16(0xE,_BE);
+    synsmp = File.read_uint16(0x10,_BE); //"number of sound data"
+    loop = File.read_uint16(0x12,_BE);
+    a1 = 0x14; //+moduleptr = smp start offsets
+    for(d2 = 0; d2 < 10; d2++) { //NextSamp
+        smpp = File.read_uint32(a1,_BE); a1 += 4;
+        if(!smpp) continue; //-> NoSamp
+        else smp++;
+        if(!d4 || smpp >= d4) d4 = smpp; //d4 <- maxsmpp
+    } //NoSamp
+    a1 = 0; //moduleptr
+    if(!d4) { //jump to .Samples it if d4 != 0
+        d1 = synsmp;
+        a1 += 80;
+        while (d1 >= 0) { // .FindSample
+            if(a1 > File.getSize())
+                if(Binary.isHeuristicScan())
+                    { sz = -1; malformed = true; return true } //too short
+                else return false;
+            t = File.compare("'in'",a1); a1 += 2; if(!t) continue;
+            t = File.compare("'st'",a1); a1 += 2; if(!t) continue;
+            d1--;
+        }
+        sz = a1
+    } else { // .Samples
+        a2 = a1+0x3C; //0x3C is the ofs of samples lengths in words
+        a1 += 0x14;
+        sz = 0; //max smp end
+        for(d2 = 0; d2 < 10; d2++) {// .FindSize
+            smpsz = File.read_uint32(a1,_BE); a1 += 4;
+            d1 = File.read_uint16(a2,_BE); a2 += 2;
+            if(d1&1) d1 --;
+            d1 += d1+smpsz;
+            if(sz < d1) sz = d1;
+        }
+    }
+    if(sz > File.getSize())
+        if(Binary.isHeuristicScan()) { malformed = true; return true } //too short
+        else return false;
+    songsz = d4;
+    return true;
+}
+if(!bDetected && Binary.isDeepScan() && isPuma()) {
+    sName = "PumaTracker module (.PUMA)"; sVersion = "v1.1"; bDetected = 1;
+    if(malformed) sVersion += "/malformed";
+    if(Binary.isVerbose()) {
+        sOption(File.read_ansiString(0,0x0C).trim());
+        sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" synsmp:"+synsmp
+            +" lp:"+loop+" sz:"+sz)
+    }
+}
+
 function isFLS() {
     //this detection is based purely on sanity checks
     //  AND a tiiiiiny ~bruteforce~ of membase, which is why it comes in last
@@ -5076,11 +5146,6 @@ if(Binary.isHeuristicScan()) { //parallel block
     }
     else if(extIs("mok")) { //TODO
         _setResult("audio","Silmarils module (.MOK)","","")
-    }
-    else if(extIs("puma")) { //TODO
-        if(Binary.isVerbose())
-            _setResult("audio","Pumatracker module (.PUMA)","",File.read_ansiString(0,0x0C).trim());
-        else _setResult("audio","Pumatracker module (.PUMA)","","")
     }
     else if(extIs("imf") || extIs("wlf")) { //a detector is quite impossible to produce...
         if(extIs("imf"))
@@ -5338,7 +5403,6 @@ if(Binary.isHeuristicScan()) { //parallel block
     if(Binary.isDeepScan() && isMON()) {
         _setResult("audio","Maniacs of Noise module (.MON)","","")
     }
-
 
 } //isHeuristicScan parallel block
 
