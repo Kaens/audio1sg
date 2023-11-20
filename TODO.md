@@ -43,7 +43,6 @@ This is where you can contribute the most! (sorted by extension)
  - Beni Tracker `.PIS`
  - Paul Shields's `.PS`
  - Powertracker `.PT`
- - PumaTracker `.PUMA`
  - Peter Verswyvelen's `.PVP`
  - Quartet ST `QTS.`
  - Speedy A1 System `.SAS`
