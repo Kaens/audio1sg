@@ -1314,11 +1314,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         bDetected = 1;
         sName = "Jochen Hippel's COSO module (.HIPC,.SOC)";
     }
-    else if(Binary.compare("'mpl1'")||Binary.compare("'mpl2'")||Binary.compare("'mpl3'")) {
-        bDetected = 1;
-        sName = "Anders 'Zonix' 0land's Music & Player module (.HOT)";
-        sVersion = "v"+File.read_ansiString(3,1);
-    }
     else if(Binary.compare("'HVL'00") || Binary.compare("'HVL'01")) {
         bDetected = 1;
         sName = "Hively Tracker module (.HVL)";
@@ -1407,6 +1402,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         sName = "JayTrax module (.JXS)";
         if(Binary.isVerbose())
             sOptionT(File.read_ansiString(0xA6,0x40));
+    }
+    else if(File.getSize() >= 1984+256 && Binary.compare("'KRIS'",0x3B8)) {
+        //from //ref https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
+        sName = "Krister Wombell's ChipTracker module (.KRIS,.MOD)"; bDetected = 1;
+        if(Binary.isVerbose()) {
+            sOption(File.read_ansiString(0,16));
+            ptn = 0;
+            a1 = 0x3BE;
+            ord = File.read_uint8(0x3BC);
+            for(i=0; i < (ord << 2); i++) {
+                t = File.read_uint8(a1); a1 += 2;
+                if(ptn < t) ptn = t
+            }
+            ptn++; sOption("ord:"+ord+" ptn:"+ptn);
+        }
     }
     else if(Binary.compare("00000000000000FD..FFFE",0x04) && Binary.compare("F0F0F0F0F0F0F0",0x14)
     && Binary.compare("000000000000010101",0x25) && Binary.compare("'2222222'",0x44)) {
@@ -2068,7 +2078,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         sName = "Professional Sound Artists module (.PSA)";
         if(Binary.isVerbose()) {
             sOptionT(File.read_ansiString(0x4,0x14));
-            //ref https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/PSA\PSA_v2.asm
+            //ref https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/PSA/PSA_v2.asm
             d2 = File.read_uint32(0x28,_BE);
             x = (d2-56) >> 3; if(x > 1) sOption(x,"×");
             d3 = File.read_uint32(0x2C,_BE); d0 = File.read_uint32(0x30,_BE);
@@ -3817,9 +3827,42 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                 }
             }
         }
-    //signature-enabled detection end
     }
 }
+
+function isAnders0land() {
+    //ref https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Anders0land/SRC_Anders0land/Anders 0land_v1.asm
+    if(!File.compare("'mpl'")) return false; //Check2
+    p = File.read_uint32(4,_BE); if(p > File.getSize() || (p&1)) return false;
+    songp = p+8;
+    if(!File.compare("'mdt'",p)) return false;
+    p += File.read_int32(p+4,_BE); if(p > File.getSize() || (p&1)) return false;
+    if(!File.compare("'msm'",p)) return false;
+    p += File.read_int32(p+4,_BE); if(p < File.getSize()) return false;
+    sz = p;
+    smpp = songp+File.read_int32(songp-4,_BE);
+    smpsz = File.read_int32(smpp-4,_BE);
+    smp = (File.read_int16(songp+20,_BE) - File.read_int16(songp+18,_BE)) >> 2;
+    songsz = songp-8;
+    x = (File.read_int16(songp+4,_BE) - File.read_int16(songp+2,_BE)) >> 2;
+    p = File.read_int16(songp,_BE);
+    ord = File.read_int16(songp+6,_BE)-p-File.read_int32(songp+p+12,_BE);
+    return true
+}
+if(!bDetected && isAnders0land()) {
+    bDetected = 1;
+    sName = "Anders 'Zonix' 0land's Music & Player module (.HOT)";
+    sVersion = "v"+File.read_ansiString(3,1);
+    if(Binary.isVerbose()) {
+        if(x > 1) sOption(x,"x");
+        sOption("ord:"+ord+" smp:"+smp+" songsz:"+Hex(songsz)+" smpsz:"+Hex(smpsz));
+        if(sz === File.getSize()) sOption("sz:"+sz);
+        else sOption("sz:"+sz+" (actual:"+File.getSize()+")")
+    }
+}
+
+//signature-enabled detection end
+
 
 // AND NOW,
 // THE HEAVIEST STUFF GOES DOWN HERE
@@ -4951,6 +4994,159 @@ if(!bDetected && Binary.isDeepScan() && isBenDaglish()) {
         else sOption("smp:"+smp1+"+"+smp2+" sz:"+sz)
     }
 }
+
+function isAndrewParton() {
+    //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Andrew Parton/SRC_AndrewParton/Andrew Parton_v2.asm
+    if(!File.compare("'BANK'")) return false;
+    for(i=0; i < 20; i++)
+        if(File.read_uint32(4+(i<<2),_BE) >= 0x200000) return false;
+    for(i=0; i < 40; i++)
+        if(File.read_uint32(0x54+(i<<2),_BE) >= 0x10000) return false;
+    p = 0x54; q = 4; smp = 0;
+    smpt = [];
+    s = 0x1E4;
+    for(i=0; i < 20; i++) {
+        t = File.read_uint32(q,_BE); q += 4;
+        if(t) {
+            smpt.push(File.read_ansiString(s,16).trim());
+            smp++; s += 16 + File.read_uint32(p,_BE);
+        }
+        p += 4
+    }
+    smpsz = s;
+    malformed = false;
+    while(s < File.getSize()) {
+        t = File.read_uint8(s); s += 1;
+        if(t === 0xFF) break;
+    }
+    if(s > File.getSize())
+        if(Binary.isHeuristicScan()) malformed = true;
+        else return false;
+    if(File.read_uint8(s) === 0x2F) { sz = s+1; songsz = sz-smpsz }
+    else {sz = s; malformed = true }
+    return true
+}
+if(!bDetected && Binary.isDeepScan() && isAndrewParton()) {
+    sName = "Andrew Parton's module (.BYE)"; sVersion = "v1.2"; bDetected = 1;
+    if(malformed) sVersion += "/malformed";
+    if(Binary.isVerbose())
+        sOption("smp:"+smp+" songsz:"+songsz+" smpsz:"+smpsz+" sz:"+sz)
+}
+
+function isAshleyHogg() {
+    //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Ashley Hogg/SRC_AshleyHogg/Ashley Hogg_v1.asm
+    p = 0;
+    for(i=0; i < 4; i++) {
+        if(!File.compare("6000",p)) return false; p += 2;
+        d2 = File.read_int16(p,_BE); if(d2 <= 0 || (d2&1)) return false; p += 2
+    }
+    if(File.compare("6000",p)) { //new check
+        p += 2;
+        d2 = File.read_int16(p,_BE); if(d2 <= 0 || (d2&1)) return false; p += 2;
+        if(!File.compare("6000",p)) return false; p += 2;
+        d2 = File.read_int16(p,_BE); if(d2 <= 0 || (d2&1)) return false;
+        p += d2; 
+        if(!File.compare("48E7FFFE 6100",p)) return false; p += 6;
+        p += File.read_int16(p,_BE);
+        if(!File.compare("4DF9 00DFF000",p)) return false;
+        sV = "new";
+    } else //old check
+        if(File.compare("303C0000 662233C0",p))
+            sV = "old";
+        else return false;
+
+    if(sV === "new") { //new format
+        a2 = special = 0x1C;
+        a0 = File.read_int16(2,_BE);
+        title = File.read_ansiString(special,File.findString(special,a0-a2,"  ")-a2).trim();
+        //skipped a cycle that replaces twin spaces with enters in the info
+        do {
+            t = File.read_uint16(a0,_BE); a0 += 2;
+        } while(t != 0x45FA || a0 > File.getSize());
+        a2 = a0; a0 += File.read_int16(a0,_BE);
+        if(a0 > File.getSize()-2)
+            if(Binary.isHeuristicScan()) malformed = true; else return false;
+        d0 = File.read_int16(a0,_BE);
+        x = d0 >> 2;
+        a0 += d0 + File.read_int16(a0-2,_BE);
+        do {
+            if(a0 > File.getSize()-2)
+                if(Binary.isHeuristicScan()) malformed = true; else return false;
+            t = File.read_int16(a0,_BE); a0 += 2;
+        } while(t != 0x03F2);
+        sz = a0;
+        info = 'title: "'+title+'" sz:'+sz
+    }
+    else { //old format
+        special = 0;
+        a2 = 16;
+        a0 = 2; a0 += File.read_uint16(a0,_BE);
+        do { t = File.read_int16(a0,_BE); a0 += 2; } while(t != 0x1970 || a0 > File.getSize());
+        a1 = a0-4; a1 += File.read_int16(a1,_BE);
+_log("2: a0:"+Hex(a0)+" a1:"+Hex(a1));
+        do { t = File.read_int16(a0,_BE); a0 += 2; } while(t != 0x41FA || a0 > File.getSize());
+        a0 += File.read_int16(a0,_BE);
+_log("3: a0:"+Hex(a0));
+        x = (a1-a0) >> 4;
+        do { t = File.read_uint16(a2,_BE); a2 += 2; } while(t != 0xC2FC || a0 > File.getSize());
+        a2 += 4; smpip = a2+File.read_uint16(a2,_BE);
+        do { t = File.read_uint16(a2,_BE); a2 += 2; } while(t != 0x47FA || a0 > File.getSize());
+        a0 = a2; a2 += File.read_uint16(a2,_BE);
+        songsz = a2;
+        do { t = File.read_uint16(a0,_BE); a0 += 2; } while(t != 0x49FA || a0 > File.getSize());
+        do { t = File.read_uint16(a0,_BE); a0 += 2; } while(t != 0x49FA || a0 > File.getSize());
+        a0 += File.read_uint16(a0,_BE);
+        smp = (a0-smpip)/0x2C;
+        d1 = 0; a1 = smpip;
+        a3 = 0x54F3; //value copied from a debugging session ¯\(。⊿°)/¯
+        do { //NextInfo
+            d2 = File.read_int32(a1+0x20,_BE);
+            if(d2 >= 0 && d1 <= d2) { d1 = d2; a3 = a1 }
+            a1 += 0x2C
+        } while(a0 > a1);
+        d0 = File.read_uint16(a3+0x28,_BE);
+        d1 += d0+d0;
+        smpsz = d1;
+        sz = songsz+smpsz;
+        info = "smp:"+smp+" songsz:"+Hex(songsz)+" smpsz:"+Hex(smpsz)+" sz:"+sz
+    }
+    return true
+}
+if(!bDetected && Binary.isDeepScan() && isAshleyHogg()) {
+    sName = "Ashley Hogg's module (.ASH)"; sVersion = sV; bDetected = 1;
+    if(malformed) sVersion += "/malformed";
+    if(Binary.isVerbose()) {
+        if(x > 1) sOption(x,"x");
+        sOption(info)
+     }
+}
+
+function isCinemaware() {
+    //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Cinemaware/Cinemaware.asm
+    if(!File.compare("'IBLK'")) return false;
+    d2 = File.read_uint8(4);
+    if(!d2 || d2 > 0x80) return false;
+    a1 = 0x16+0x8A*d2;
+    aseq = File.findSignature(a1,0x104,"'ASEQ'");
+    if(aseq < 0 || (aseq&1)) return false;
+    p = aseq+4; sz = 0; malformed = false;
+    do {
+        sz += 5;
+        if(sz+p > File.getSize())
+            if(File.isHeuristicScan()) { malformed = true; break }
+            else return false;
+    } while(!File.compare("102F00",sz+p-3));
+    sz += p; ord = Math.floor((sz-p)/100);
+    return true
+}
+if(!bDetected && Binary.isDeepScan() && isCinemaware()) {
+    sName = "Cinemaware module (.CIN)"; bDetected = 1;
+    if(malformed) sVersion = "malformed";
+    if(Binary.isVerbose()) {
+        sOption("ord:"+ord+" sz:"+sz+ " (sans ext.samples)")
+    }
+}
+
 
 // function isTuneFish4() {
 //     // taken from tunefish src\tunefish4\source\synth\tfrecorder.cpp
