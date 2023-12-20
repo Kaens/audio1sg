@@ -3,7 +3,7 @@
 
 Even counting how many formats it covers would be tiring, but basically I've been working over the entirety of http://modland.com/pub/modules/ .
 
-Please use the latest build of DiE!
+Please use [the latest build](https://github.com/horsicq/Detect-It-Easy/releases/tag/Beta) of DiE!
 
 I've made this separate from DiE for the sake of flexibility, as DiE releases are rather slow per se, and keeping its sources cloned is very storage-heavy.
 
