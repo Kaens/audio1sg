@@ -53,7 +53,6 @@ This is where you can contribute the most! (sorted by extension)
  - Pierre Adane Packer `.PAP`
  - Stereo Sidplayer `.STR`
  - .DMM, `.SQD` - test patterns!
- - Tunefish `.TF2I`/`.TF2M`
  - TFM Music Maker `.TFE`
  - Thomas Hermann's `THM.`
  - Sound Images `.TW`
