@@ -13,7 +13,7 @@ This is where you can contribute the most! (sorted by extension)
  - Buzzic `.BUZ`
  - Compoz `.CPZ`
  - Megadrive `.CYM`
- - Edlib `.D00` and .`EDL`
+ - Edlib .`EDL`
  - Paul Robotham's `.DAT`/`.SSD`
  - Twin TrackPlayer `.DMO`
  - Special FX ST `.DODA`
@@ -57,7 +57,6 @@ This is where you can contribute the most! (sorted by extension)
  - Thomas Hermann's `THM.`
  - Sound Images `.TW`
  - Vibrants `.VIB` (I just have 1 file of this)
- - Generic `.MOD` - instead of the existing scattered .mod checks, someone REALLY just needs to copy&inform from what OpenMPT has in load_mod.cpp, and there's a lot of that... thankfully, at least we don't have to play it!
  - Optionally (desirably), various sample formats
 
 There are also lots of TODO marking their way through the entire `audio.1.sg`, and they want attention as well. Many things that don't have the mark still can be improved by adding and outputting some analysis towards orders/patterns/samples/instruments/tempo/speed or whatever else the format has to offer.
