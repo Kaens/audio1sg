@@ -61,6 +61,9 @@ This is where you can contribute the most! (sorted by extension)
 
 There are also lots of TODO marking their way through the entire `audio.1.sg`, and they want attention as well. Many things that don't have the mark still can be improved by adding and outputting some analysis towards orders/patterns/samples/instruments/tempo/speed or whatever else the format has to offer.
 
+The test files may be found in this gigantic collection, I presume: https://archive.org/download/amiga-back-2-roots-ftp . And in this one http://oakvalley.textfiles.com/oakvalley/
+
+
 ## A word on how sanity checks work
 
 As you can see by scrolling through the latter part of `audio.1.sg`, there are quite a few sanity check-based detectors, which work by assuming the file has this or that format and proceeding to parse the file as such and validate its every byte as pertains:
