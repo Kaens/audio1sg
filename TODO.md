@@ -74,7 +74,7 @@ As you can see by scrolling through the latter part of `audio.1.sg`, there are q
 
 The more tests there are that can easily fail, the "tighter" the detection will be, and the more desirable.
 
-I was principally copying the other people's sanity checks (hello Bul'ba, asle, Vitamin & more!) so I wasn't commenting that code; if you want to grasp some principles, please read the referenced sources. The OpenMPT and ProWizard ones normally have the most comments so those are recommended.
+I was principally copying the other people's sanity checks (hello Bul'ba, asle, Vitamin, Neumann & more!) so I wasn't commenting that code; if you want to grasp some principles, please read the referenced sources. The OpenMPT and ProWizard ones normally have the most comments so those are recommended.
 
 ## On sVersion, isVerbose, isDeepScan, isHeuristicScan and conventions
 
