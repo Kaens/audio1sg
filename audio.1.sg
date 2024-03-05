@@ -51,9 +51,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(malformed) sVersion += " malformed"+malformed;
         if(File.isVerbose() && malformed != "PTN") sOption("ptn:"+ptn);
     }
-    else if(File.compare("48E7FFFE4BF900DFF00041FA....43FA....45FA....20180C80'EXITgB '18201820182F18201024C94AA80004660A558006A80000000200042200D28924C1D0A8000424C0D1DF2018D1D82018D1D82018201812D804800000000166F660B4610000'H|'017E01610000'Z|'027E02610000'R|'037E03610000'JL'DF7FFF'NuH'E7FFFE7E01610000AC7E02610000A67E03610000A04CDF7FFF'Nu`'0A602260000092600000'~A'FA....4BF900DFF000'p0;|'000000AA0440001064F4'NuK'F900DFF0003007C0FC00'@A'FA")
-      && File.compare("'EXIT'",File.getSize()-4)) {
-        bDetected = 1; sName = "Art and Magic module (.AAM)"
+    else if(File.compare("'EXITgB'2018201820182F18201024C94AA80004660A558006A80000000200042200D28924C1D0A8000424C0D1DF2018D1D82018D1D82018201812D804800000000166F660B4610000'H|'017E01610000'Z|'027E02610000'R|'037E03610000'JL'DF7FFF'NuH'E7FFFE7E01610000AC7E02610000A67E03610000A04CDF7FFF'Nu`'0A602260000092600000'~A'FA....4BF900DFF000'p0;|'000000AA0440001064F4'NuK'F900DFF0003007C0FC",0x1A) //check D0h bytes
+        ) {
+        bDetected = 1; sName = "Art and Magic module (.AAM)";
+        if(File.isVerbose()) {
+            t = File.findSignature(0x8000,Math.min(0xFFFF,File.getSize()),"'EXIT'");
+            if(t >= 0) sOption("sz:"+(t+4));
+            else sVersion = "malformed!short"
+        }
     }
     else if(File.compare("'ADLIB'01")) {
         sName = "Martin Fernandez's Adlib module (.ADLIB)"; bDetected = 1;
@@ -488,12 +493,81 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(File.compare("'DMF'0E")) {
         sName = "Delusion Module Format track (.DMF)"; bDetected = 1
     }
-    else if(File.compare("'DDMF'") && File.compare("'CMSG'", 0x42)) {
+    else if(File.compare("'DDMF'") && File.read_uint8(4) && File.read_uint8(4) <= 10
+        && File.read_uint16(0x3F) && File.compare("'CMSG'", 0x42)) {
+        //ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_dmf.cpp
         sName = "X-Tracker module (.DMF)"; bDetected = 1;
-        sVersion = "v"+File.read_uint8(4);
-        if(File.isVerbose())
-            sOptionT(File.read_ansiString(0xD,24));
-            sOptionT(File.read_ansiString(5,8),"id: ")
+        nV = File.read_uint8(4); sVersion = "v"+nV;
+        p = 0x42; hkhd = hksz = end = lpst = ch = ord = ptn = smp = sz = ptntotallen = 0; lped = 0xFFFF;
+        while(hkhd != "ENDE" && p < File.getSize()) {
+            hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4); p += 8;
+//_log("@"+Hex(p-4)+" "+hkhd+" ["+Hex(p)+" -> "+Hex(p+hksz)+"]");
+            switch(hkhd) {
+            case "SEQU": ord = 0;
+                if(nV == 3) p += 2; else if(nV == 4) p += 4; 
+                u = p;
+                if(nV >= 3) { lpst = File.read_uint16(u); u += 2 }
+                if(nV >= 4) { lpst = File.read_uint16(u); u += 2 }
+                if(nV === 4 & !lped) lped = 0xFFFF;
+                ord = (p+hksz-u)>>1; break;
+            case "PATT":
+                var ptnhdsz = nV < 3 ? 9 : 8; u = p;
+                ptn = File.read_uint16(u); trk = File.read_uint8(u+2); u += 3;
+                ch = trk; if(ch < 1) ch = 1; if(ch > 32) ch = 32;
+                for(i = 0; i < ptn; i++) {
+                    u += ptnhdsz-4;
+                    var ptnlen = File.read_uint32(u); ptntotallen += ptnlen; u += ptnlen;
+                }
+                break;
+            case "SMPI": u = p; smp = File.read_uint8(u++); var smptotallen = 0;
+                for(i = 0; i < smp; i++) {
+                    var snamelen = nV < 2 ? 30 : File.read_uint8(u++);
+                    var sname = File.read_codePageString(u,snamelen,"CP437").trim(); u += snamelen;
+                    var slen = File.read_uint32(u); smptotallen += slen;
+//_log("slen @"+Hex(u)+" = "+Hex(slen));
+                    u += 4+4+4+2;
+                    var svol = File.read_uint8(u++), sf = File.read_uint8(u++);
+//_log("smp["+i+"] "+sname+" length:"+Hex(slen)+" total:"+Hex(smptotallen)+(svol?"":" ignored"));
+                    if(nV >= 8) { var libname = File.read_codePageString(u,8,"CP437"); u += 8 }
+                    u += nV > 1 ? 6 : 2;
+                }
+                break;
+            case "SMPD":
+                if(!File.compare("'ENDE'",p+hksz)) {
+                    // Simply search for it. It's unique enough.
+                    // The multiplier of 3 is chosen for stereo + white noise "compression"
+                    t = File.findSignature(p,Math.min(File.getSize()-p, smptotallen*3),"'ENDE'");
+                    if(t < 0) { sVersion += "/malformed!noeof"; hkhd = "ENDE"; break }
+                    else {
+                        hksz = t-p;
+//_log("SMPD length should be "+Hex(hksz));
+                    }
+                }
+                break;
+            case "ENDE": p -= 4+hksz; break;
+            }
+            sz = p;
+            p += hksz;
+        }
+        if(hkhd != "ENDE") sVersion += "/malformed!short"; else sz = p;
+        if(File.isVerbose()) {
+            sOptionT(File.read_codePageString(0xD,30,"CP437"));
+            sOptionT(File.read_codePageString(0x2B,20,"CP437"),"by: ");
+            yy = File.read_uint8(0x41);
+            if(yy < 80) yyyy = "20"; else yyyy = "19"; yyyy += yy.padStart(2,'0');
+            sOptionT(yyyy+"-"+File.read_uint8(0x40).padStart(2,'0')+
+                "-"+File.read_uint8(0x3F).padStart(2,'0'),"on: ");
+            sOptionT(File.read_ansiString(5,8),"in: ");
+            cmt = ""; cnt = File.read_uint32(0x46)-1; var linelen = 40, readpos = 0x4B;
+            while(cnt) {
+                var readlen = Math.min(cnt,linelen,0x200);
+                var curline = File.read_codePageString(readpos,readlen,"CP437");
+                if(curline != "") cmt = cmt.append(curline,'\n');
+                cnt -= readlen; readpos += readlen;
+            }
+            sOption(addEllipsis(cmt,0x100,0x80));
+            sOption("ch:"+ch+"+1 ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+(sz==File.getSize() ? sz : sz+" vs. "+File.getSize()))
+        }
     }
     else if(File.compare("'.DelekDefleMask.'")) {
         //ref https://web.archive.org/web/20150226185703if_/http://www.delek.com.ar:80/soft/deflemask/DMF_SPECS.txt
@@ -1543,17 +1617,20 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(nV == 0 && trk != 1) malformed = 2;
         sz = p = 0x0E; txt = by = title = lyr = "";
         for(i=0; i < trk; i++) {
-            var readmore = 20; //mostly enough to catch the info messages; set to 4294967295 for all of 'em
+            var readmore = 20; //mostly enough to catch the info messages; set to 0xFFFFFFFF for all of 'em
             if(!File.compare("'MTrk'",p) || (i && !File.compare("FF2F00",p-3))) { malformed += "!badtrk"; break }
             len = File.read_uint32(p+4,_BE); p += 8; sz = p;
             while(readmore && p < sz+len && p < File.getSize()) {
-                readmore--; dt = readVarUInt(p); p += dt[0];
+                readmore--; dt = readVarUInt(p);
+//logpart1="@"+Hex(p)+" on "+dt+": ";
+                p += dt[0];
                 switch(File.read_uint8(p++)) {
                 case 0xF0: case 0xF7: t = readVarUInt(p); p += t[0]+t[1]; break;
                 case 0xFF: a = File.read_uint8(p++);
+//_log(logpart1+"["+readVarUInt(p)+"] meta event "+Hex(a));
                     switch(a) {
                         case 0: if(File.read_uint8(p++) != 2) readmore = 0; else p += 4; break;
-                        case 3: t = readVarUInt(p); p += t[0]; _log("title @"+Hex(p))
+                        case 3: t = readVarUInt(p); p += t[0];
                             title = title.append(File.read_codePageString(p,t[1],"CP1252")); p += t[1];
                             break;
                         case 2: t = readVarUInt(p); p += t[0];
@@ -1564,15 +1641,22 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                             lyr = lyr.append(File.read_codePageString(p,t[1],"CP1252","-")); p += t[1];
                             break;
                         case 4: case 6: case 7: t = readVarUInt(p); p += t[0]+t[1]; break; //ins., lyrics, markers, cues
-                        case 0x20: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 1) { readmore = 0; malformed += "!badprefix" } break
-                        case 0x2F: t = readVarUInt(p); p += t[0]+t[1]; if(t[1]) malformed += "badEoTtag"; readmore = 0; break;
-                        case 0x51: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 3) { readmore = 0; malformed += "badtempo" } break;
-                        case 0x54: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 5) { readmore = 0; malformed += "badSMPTE" } break;
-                        case 0x58: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 4) { readmore = 0; malformed += "badtime" } break;
-                        case 0x59: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 2) { readmore = 0; malformed += "badkey" } break;
-                        default: t = readVarUInt(p); p += t[1]
+                        case 0x20: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 1) {
+                            readmore = 0; malformed += "!badprefix@"+(p-t[0]-t[1]) } break
+                        case 0x2F: t = readVarUInt(p); p += t[0]+t[1]; if(t[1])
+                            malformed += "!badEoTtag@"+(p-t[0]-t[1]); readmore = 0; break;
+                        case 0x51: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 3) {
+                            readmore = 0; malformed += "!badtempo@"+(p-t[0]-t[1]) } break;
+                        case 0x54: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 5) {
+                            readmore = 0; malformed += "!badSMPTE@"+(p-t[0]-t[1]) } break;
+                        case 0x58: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] < 2 || t[1] > 4) {
+                            readmore = 0; malformed += "!badtime@"+(p-t[0]-t[1]) } break;
+                        case 0x59: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 2) {
+                            readmore = 0; malformed += "!badkey@"+(p-t[0]-t[1]) } break;
+                        default: t = readVarUInt(p); p += t[0]+t[1]
                     } break;
                 default: //p += readVarUInt(p)[0];
+//_log(logpart1+"default...");
                 }
                 if((txt != "" && by != "" && title != "") || p-sz > 0x200) readmore = 0;
             }
@@ -2648,7 +2732,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
             for (i=0; i < ptn; i++) {
                 var p1 = File.read_uint16(p+i*2) << 4;
                 if(!p1) continue;
-                if (p1 > max) { max = p1; sz = max + File.read_uint16(p1+1) }
+                if (p1 > max) { max = p1; sz = max + File.read_uint16(p1) }
             }
             if(sz%16) sz += 16-(sz%16);
             p = 0x60+ord;
@@ -2662,6 +2746,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                         if(ssz%16) ssz += 16-ssz%16; //the padding might be important
                         max = sofs; if(sz < max+ssz) sz = max+ssz;
                     }
+//_log("sofs:"+Hex(sofs)+" ["+Hex(ssz)+"] -> "+Hex(sofs+ssz)+", max="+Hex(max))
                 }
             }
 
@@ -4135,7 +4220,7 @@ function isIT() {
     malformed = 0;
     if(File.compare("'IMPM'")) type = "it";
     else if(File.compare("'tpm.'")) type = "mpt";
-    else /*if(File.isHeuristicScan()) { type = "alike"; malformed = 1 } else*/ return false;
+    else return false;
     ord = File.read_uint16(0x20,_LE);
     ins = File.read_uint16(0x22,_LE); if(ins > 0x63) malformed++;
     smp = File.read_uint16(0x24,_LE); if(smp > 255) malformed++;
@@ -4153,16 +4238,18 @@ function isIT() {
     pwd = File.read_uint8(0x35);
     nreserved = File.read_uint32(0x3C,_LE); sreserved = File.read_ansiString(0x3C,4);
     tracker = auth = ""; mVlsw = mVcw = sV ="?"; ch = 1; cord = 0; sz = -1;
-    var mptp = 0, lastsmpofs = 0; type = "it";
+    var mptp = lastsmpofs = 0; type = "it"; chnm = []; smpnlst = [];
     if(File.isDeepScan()) {
         //The DeepScan part of the crazily complex Impulse Tracker/MPTM detection
         //Would be much easier if we didn't have to calculate the size! But we do, so there we go.
-        const ITInstrumentSz = 0x22A; const ITInstrumentExSz = 0x2A2;
-        const ITSampleSz = 0x50; const ITHistorySz = 8; const verLoadLimit = 0x1000;
-        const sEmbedMsg = 1; const sEditHistory = 2; const sEmbedPtnHL = 4; const sEmbedMIDIC = 8;
-        const fEmbedMIDIC = 0x80; const fEFR = 0x1000;
-        var interpretModPlugMade = false;
-        //this↓ part is not ripper-friendly but thankfully also likely unnecessary:
+        const ITSampleSz = 0x50, ITHistorySz = 8, verLoadLimit = 0x1000;
+        const sEmbedMsg = 1, sEditHistory = 2, sEmbedPtnHL = 4, sEmbedMIDIC = 8;
+        const fEmbedMIDIC = 0x80, fEFR = 0x1000;
+        var interpretModPlugMade = false; var FFchnpan = File.findSignature(0x40,0x40,"FF") >= 0;
+        var mptV = 0;
+        function itV(v) { return v.slice(0,1)+'.'+v.slice(1,3)+'.'+v.slice(3,5)+'.'+v.slice(5,7) }
+
+        //TODO this↓ part is not ripper-friendly but thankfully also likely unnecessary:
         if(File.compare("'tpm.'")) { type = "mpt";
             p = File.getSize()-4; mptp = File.read_uint32(p,_LE);
             if(!File.compare("'228'04'mptm'",mptp)) mptp = 0;
@@ -4171,22 +4258,23 @@ function isIT() {
                 p = File.getSize()-4; mptp = File.read_uint32(p,_LE);
                 if(0x100 <= mptp < File.getSize()-4)
                     if(File.compare("'228'04'mptm'",mptp)) {
-                        type = "mpt"; if(cwtv >= verLoadLimit) { sV = "incompat."; return true }
+                        type = "mpt"; if(cwtv >= verLoadLimit) {
+                            sV = "future"; charset = "UTF8"; extsmp = 0;  return true }
                     } else mptp = 0;
+                //if the above fails, there's a near-zero chance the ords will be misread and everything goes oof
+                //that's expected behaviour, as the v1.17.02.46 format was experimental :)
             }
             //detecting made-with, part 1 of 3496987
-            var mptV = 0;
-            function itV(v) { return v.slice(0,1)+'.'+v.slice(1,3)+'.'+v.slice(3,5)+'.'+v.slice(5,7) }
             if(type === "it") {
                 if((cwtv & 0xF000) === 0x5000) {
                     mptV = (cwtv&0xFFF) << 16;
                     if(File.compare("'OMPT'",0x3C)) interpretModPlugMade = true;
-                    else if(mptV > 0x01290000) mptV |= File.read_uint16(0x3C,_LE); //uint32 & 0xFFFF
-                    mVlsw = itV(Hex(mptV));
-                } else if(cmwt === 0x888 || cwtv === 0x888) {
+                    else if(mptV >= 0x01290000) mptV |= nreserved & 0xFFFF;
+                    mVlsw = itV(mptV.toString(16).toUpperCase().padStart(7,'0'));
+                } else if(cwtv === 0x888 || cmwt === 0x888) {
                     interpretModPlugMade = true; mVlsw = "1.17.00.00";
                 } else if(cwtv === 0x214 && cmwt === 0x202 && !nreserved) {
-                    mVlsw = "1.09.00.00"; tracker = "ModPlug tracker b3.2 - 1.09";
+                    mVlsw = "1.09.00.00"; tracker = "ModPlug Tracker b3.2 - 1.09";
                     interpretModPlugMade = true
                 } else if(cwtv === 0x300 && cmwt === 0x300 && !nreserved
                             && ord === 256 && sep === 128 && !pwd) {
@@ -4194,24 +4282,30 @@ function isIT() {
                 }
             }
         }
-        var weirdord = -1;
+        var b32ord = -1, lastord = 0;
+        // 32bit orders: a deprecated format. OpenMPT 1.17.02.46 - 1.17.02.48.
         if(type === "mpt" && 0x88A < cwtv && cwtv <= 0x88D) {
             p = 0xC0; if(File.read_uint16(p,_LE)) return false; p += 4;
-            weirdord = File.read_uint32(p,_LE); p += 4;
-            if(weirdord > 256 || File.getSize() < p+weirdord*4) return false
+            b32ord = File.read_uint32(p,_LE); p += 4;
+            if(b32ord > 256 || File.getSize() < p+b32ord*4) return false
         } else p = 0xC0;
-        if(weirdord >= 0) ord = weirdord;
+        if(b32ord >= 0) ord = b32ord;
         for(i=0; i < ord; i++)
-            if(weirdord < 0) { o = File.read_uint8(p++); if(o < 0xFE) cord++ }
-            else { o = File.read_uint32(p,_LE); p += 4; if(o < 0xFFFF) cord++ }
+            if(b32ord < 0) { o = File.read_uint8(p++);
+                if(o === 0xFF) lastord = 0xFFFF; else if(o === 0xFE) lastord = 0xFFFE; else cord++ }
+            else { o = File.read_uint32(p,_LE); p += 4; lastord = o; if(o < 0xFFFF) cord++ }
 
 //_log("read pointers & find the smallest @"+Hex(p));
+        //TODO maybe, at some point in the future, audodetect b32ord
+        //by making sure these pointers actually lead to intended things, and trying the b32 way if not
         minp = 0xFFFFFFFF;
         var insp = []; for(i=0; i < ins; i++) { t = File.read_uint32(p,_LE); p += 4;
             if(t <= p || t > File.getSize()) return false;
             if(sz < t) sz = t;  if(t < minp) minp = t; insp.push(t) }
         var smpp = []; for(i=0; i < smp; i++) { t = File.read_uint32(p,_LE); p += 4;
             if(t > File.getSize()) { if(malformed.indexOf("!short") < 0) malformed += "!short" }
+            if(!(special & sEmbedMsg)) {
+                q = File.read_ansiString(t+0x14,26).trim(); if(q != "") smpnlst.push(q) }
             if(sz < t) sz = t; if(t < minp) minp = t; smpp.push(t) }
         var ptnp = []; for(i=0; i < ptn; i++) { t = File.read_uint32(p,_LE); p += 4;
             if((t > 0x1E && t <= p) || t > File.getSize()) return false;
@@ -4242,18 +4336,32 @@ function isIT() {
         var hasMIDIC = (flags & fEmbedMIDIC) || (special & sEmbedMIDIC);
         if(hasMIDIC) p += 0x1320; if(p > File.getSize()) return false;
 //_log("chunks expected @"+Hex(p));
-        var isBeroTracker = false, hasPluginChunks = false;
+        var isBeroTracker = hasPluginChunks = hasMPTM = false;
         while(p+9 < File.getSize()) {
             hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4,_LE);
 //_log(hkhd+":"+Hex(p));
             if(hkhd === "MODU") isBeroTracker = true;
-            else if(hkhd === "CNAM") ch = hksz/20;
+            else if(hkhd === "CNAM") { ch = hksz/20; u = p+8; hasMPTM = true;
+                for(i = 0; i < ch; i++) {
+                    t = File.read_ansiString(u,20).trim(); u += 20;
+                    if(t != "") chnm.push(t);
+                }
+            }
+            else if(hkhd === "PNAM") hasMPTM = true;
             else if(hkhd === "CHFX" || /F[X0-9]\d\d/.test(hkhd)) hasPluginChunks = true;
             if(["IMPI","IMPS","XTPM","STPM"].indexOf(hkhd) >= 0
-              || p+8+hksz > File.getSize() || p === msgofs)
+              || p+8+hksz > File.getSize() || p >= msgofs)
                 break;
-            //PNAM/CNAM may have fun info but that's for when someone feels less tedium otherwise
+            //PNAM may have fun info but that's for when someone feels less tedium otherwise
             else p += 8+hksz
+        }
+        if(cwtv === 0x217 && cmwt === 0x200 && !nreserved && !isBeroTracker) {
+            if(hasMPTM || (ord > 0 && lastord == 0xFFFF) || FFchnpan) {
+                mVlsw = "1.16.00.00"; tracker = "ModPlug Tracker 1.09 - 1.16";
+            } else {
+                mVlsw = "1.17.00.00"; tracker = "OpenMPT 1.17 (compat.export)";
+            }
+            interpretModPlugMade = true
         }
 
         var lastsmpofs = (smp > 0 ? smpp[smp-1]+ITSampleSz : p); var lastsmpco = false;
@@ -4267,7 +4375,8 @@ function isIT() {
         extsmp = []; var possibleXMconv = false;
         Ss = []; //for gathering all info
         maxsmpofs = -1;
-        for(i=0; i < smp; i++) { if(!smpp[i]) continue;
+        for(i=0; i < smp; i++) {
+            if(!smpp[i]) continue;
             if(smpp[i] > File.getSize()) {
                 if(malformed.indexOf("!short") < 0) malformed += "!short"; continue }
             if(!File.compare("'IMPS'",smpp[i]))
@@ -4395,7 +4504,7 @@ function isIT() {
                                 while(clen && p < File.getSize()) { //:357
                                     if(w > defW) {
                                         _log("! @"+Hex(p)+" w="+Hex(w)+" > "+defW+" rs:"+rs+" clen:"+Hex(clen)+" cend:"+Hex(cend));
-                                        rs = 0; break }
+                                        malformed += "badITsmp"; rs = 0; break }
                                     v = readBits(w); topbit = 1<<(w-1);
                                     if(w < 7) { //mode A
                                         if(v == topbit) {
@@ -4430,7 +4539,7 @@ function isIT() {
                         var srcsz = File.read_uint32(p); S["length"] = 4+srcsz
                     } else if(S["codec"] === "DMF" && S["chn"] == 1 && S["bps"] <= 16) {
                         sOption("\n!!! Please send this file to the detector dev!!! Poor fella hasn't any to test on")
-                        //TODO DMFUnpack
+                        //TODO DMFUnpack, or not to do
                     } else if((S["codec"] === "uLaw" || S["codec"] === "aLaw") /*TODO && mono or stereoInterleaved */ && S["bps"] == 16) {
                         S["length"] = S["slen"]*S["chn"]
                     }
@@ -4477,13 +4586,13 @@ function isIT() {
                     case 1: v = File.read_uint8(p); break; case 2: v = File.read_uint16(p,_LE); break;
                     case 3: v = File.read_uint24(p,_LE); break; case 8: v = File.read_uint64(p,_LE); break;
                     default: v = File.read_uint32(p,_LE) }
-                    mVcw = itV(Hex(v)); break;
+                    if(v) mVcw = itV(v.toString(16).toUpperCase().padStart(7,'0')); break;
                 case "VWSL": var v = 0;
                     switch(prsz) {
                     case 1: v = File.read_uint8(p); break; case 2: v = File.read_uint16(p,_LE); break;
                     case 3: v = File.read_uint24(p,_LE); break; case 8: v = File.read_uint64(p,_LE); break;
                     default: v = File.read_uint32(p,_LE) }
-                    if(v) mVcw = itV(Hex(v)); break;
+                    if(v) mVlsw = itV(v.toString(16).toUpperCase().padStart(7,'0')); break;
                 case "AUTH":
                     auth = File.read_codePageString(p,prsz,"UTF8"); break;
                 }
@@ -4491,14 +4600,83 @@ function isIT() {
             }
             if(sz < p) sz = p;
         }
-// Load_it.cpp:1141
+
+        if(File.compare("'228'04'mptm'",p)) {
+            if(!mptp) mptp = p;
+// Load_it.cpp:1299
+            function readaintle(bits) { //ReadAdaptiveInt32LE et al.
+                var b = 0, add = 0, r = 0, oldp = p;
+                if(p+1 < File.getSize()) {  b = File.read_uint8(p++);
+                    if(bits == 16) add = b & 1;  else if(bits == 32) add = b & 3;
+                    else if(bits == 64) add = (1<<(b&3))-1;  else return 0;
+                    if(bits == 16) r = b >> 1;  else r = b >> 2;
+                    for(var i=0; i < add; i++) {  b = 0;
+                        if(p+1 < File.getSize()) { b = File.read_uint8(p++); r |= b << ((i+1)*8-2);
+                        } else return 0 }
+                } else return 0;
+                return r
+            }
+// serialization_utils.cpp:399
+            function mptBeginRead() {
+                if(!File.compare("'228'",p)) return false; posstart = p; p += 3; 
+                var l = File.read_uint8(p++); h = File.read_ansiString(p,l); p += l;
+                flagbyte = 0; hd = File.read_uint8(p++);
+                idbytes = ((hd & 3) === 3) ? 4 : (hd & 3); twochar = hd&(1<<6);
+                hsz = readaintle(32);
+                if(hsz > 1) { t = File.read_uint8(p++); if(!t) flagbyte = File.read_uint8(p); p += hsz-1 }
+                if(hd & (1<<4)) t = readaintle(64); var srlV = itV(t.toString(16).toUpperCase().padStart(7,'0'));
+                if(mVlsw === "?") mVlsw = srlV+"[mptinfo]";
+                if(hd & (1<<5)) p += File.read_uint8(p++); //:477
+                if(flagbyte & 1) { t = File.read_uint8(p++);
+                    if(t&1) idbytes = 65535; else idbytes = t >> 1 }
+                fes = 0; if(flagbyte & (1<<1)) fes = readaintle(32); //:496
+                hasstartpos=hd&(1<<2); hassz=hd&(1<<3); hasid=idbytes; hasdesc=hd&(1<<7);
+                hasmap = hasid || hasstartpos || hassz || hasdesc;
+                if(flagbyte&(1<<2)) { t = readaintle(16); //:512
+//_log("  @"+Hex(p)+" desc["+t+"]:"+(twochar ? File.read_codePageString(p,t,"UTF8") : File.read_ansiString(p,t)));
+                   p += t*(twochar ? 2 : 1) }
+                if(flagbyte&(1<<3)) p += 5; //:517
+                entries = readaintle(64); //if(entries > 16000) break;
+                if(hasmap) t = readaintle(64); if(p > File.getSize()) return false; //:533
+                //endOfHdrData = rposEndOfHdrData = p-posstart;
+                rposMapBegin = hasmap ? t : p-posstart;
+                return true
+            }
+
+            if(mptBeginRead()) {
+// serialization_utils.cpp:558
+//I've left the pieces of map code intact in case there's fun in finding out what MPT-only tweaks there are
+                if(hasmap || fes) {
+                    p = posstart+rposMapBegin; if(p > File.getSize()) break;
+                    //var idArray = [], mapdata = [];
+                    for(i=0; i < entries; i++) {
+                        var idsz = idbytes;
+                        if(idsz == 65535) idsz = readaintle(16);
+                        // md = {"idlen":idsz, "idpos":oldEnd, "id:":"", "rposst":0, "rposend":0, "sz":-1 }
+                        // var oldEnd = mapdata.length; if(idsz) md["id"] = File.read_ansiString(p,idsz);
+                        p += idsz;
+                        if(hasstartpos) /*md["rposst"] =*/ readaintle(64);
+                        if(!fes) { if(hassz) /*md["sz"] =*/ readaintle(64) } //else md["sz"] = fes
+                        // if(md["sz"] >= 0 && !hasstartpos)
+                        //     md["rposst"] = !i ? 0 : mapdata[i-1]["rposst"] + mapdata[i-1]["sz"];
+                        if(hasdesc) { t = readaintle(16); p += t*(twochar ? 2 : 1) }
+                        //mapdata.push(md)
+                    }
+                } //posmapend = p
+            }
+            if(sz < p+4) sz = p+4; if(File.read_uint32(p,_LE) != mptp) malformed += "!mptptr";
+        } //if 228.mptm
+
+// Load_it.cpp:1158
         if(mVlsw === "?" && cwtv === 0x888) mVlsw = "1.17.00.00";
         if(mVlsw != "?" && tracker === "") {
             tracker = "OpenMPT";
             //not sure how many people care about these but...
-            if(sreserved === "OMPT" && (cwtv&0xF000) === 0x5000) tracker += " (compat. export)";
+            isCompatX = (cwtv&0xF000) === 0x5000;
+            if(mVlsw === "1.17.00.00" && sreserved != "OMPT") isCompatX = false;
+            if(isCompatX) tracker += " (compat. export)";
             else if((mVlsw > "1.17.02.54" && mVlsw < "1.18.02.00" && mVlsw != "1.18.00.00")
-              || (mVlsw > "1.18.02.00" && mVlsw.slice(mVlsw.length-2,mVlsw.length-1) != "00"))
+              || (mVlsw > "1.18.02.00" && mVlsw.slice(mVlsw.length-2,mVlsw.length) != "00"))
                 tracker += " (test build)"
         }
         else {
@@ -4550,72 +4728,6 @@ function isIT() {
             case 0xD: tracker = "spc2it";
             }
         }
-
-        if(File.compare("'228'04'mptm'",p)) {
-            if(!mptp) mptp = p;
-// Load_it.cpp:1299
-            function readaintle(bits) { //ReadAdaptiveInt32LE et al.
-                var b = 0, add = 0, r = 0, oldp = p;
-                if(p+1 < File.getSize()) {  b = File.read_uint8(p++);
-                    if(bits == 16) add = b & 1;  else if(bits == 32) add = b & 3;
-                    else if(bits == 64) add = (1<<(b&3))-1;  else return -1;
-                    if(bits == 16) r = b >> 1;  else r = b >> 2;
-                    for(var i=0; i < add; i++) {  b = 0;
-                        if(p+1 < File.getSize()) { b = File.read_uint8(p++); r |= b << ((i+1)*8-2);
-                        } else return -2 }
-                } else return -3;
-                return r
-            }
-// serialization_utils.cpp:399
-            function mptBeginRead() {
-                if(!File.compare("'228'",p)) return false; posstart = p; p += 3; 
-                var l = File.read_uint8(p++); h = File.read_ansiString(p,l); p += l;
-                flagbyte = 0; hd = File.read_uint8(p++);
-                idbytes = ((hd & 3) === 3) ? 4 : (hd & 3); twochar = hd&(1<<6);
-                hsz = readaintle(32);
-                if(hsz > 1) { t = File.read_uint8(p++); if(!t) flagbyte = File.read_uint8(p); p += hsz-1 }
-                if(hd & (1<<4)) t = readaintle(64); var srlV = itV(Hex(t)); if(mVlsw === "?") mVlsw = srlV;
-//else if(srlV != mVlsw) _log("srlztn version mismatch: "+mVlsw);
-                if(hd & (1<<5)) p += File.read_uint8(p++); //:477
-                if(flagbyte & 1) { t = File.read_uint8(p++);
-                    if(t&1) idbytes = 65535; else idbytes = t >> 1 }
-                fes = 0; if(flagbyte & (1<<1)) fes = readaintle(32); //:496
-                hasstartpos=hd&(1<<2); hassz=hd&(1<<3); hasid=idbytes; hasdesc=hd&(1<<7);
-                hasmap = hasid || hasstartpos || hassz || hasdesc;
-                if(flagbyte&(1<<2)) { t = readaintle(16); //:512
-//_log("  @"+Hex(p)+" desc["+t+"]:"+(twochar ? File.read_codePageString(p,t,"UTF8") : File.read_ansiString(p,t)));
-                   p += t*(twochar ? 2 : 1) }
-                if(flagbyte&(1<<3)) p += 5; //:517
-                entries = readaintle(64); //if(entries > 16000) break;
-                if(hasmap) t = readaintle(64); if(p > File.getSize()) return false; //:533
-                //endOfHdrData = rposEndOfHdrData = p-posstart;
-                rposMapBegin = hasmap ? t : p-posstart;
-                return true
-            }
-
-            if(mptBeginRead()) {
-// serialization_utils.cpp:558
-//I've left the pieces of map code intact in case there's fun in finding out what MPT-only tweaks there are
-                if(hasmap || fes) {
-                    p = posstart+rposMapBegin; if(p > File.getSize()) break;
-                    //var idArray = [], mapdata = [];
-                    for(i=0; i < entries; i++) {
-                        var idsz = idbytes;
-                        if(idsz == 65535) idsz = readaintle(16);
-                        // md = {"idlen":idsz, "idpos":oldEnd, "id:":"", "rposst":0, "rposend":0, "sz":-1 }
-                        // var oldEnd = mapdata.length; if(idsz) md["id"] = File.read_ansiString(p,idsz);
-                        p += idsz;
-                        if(hasstartpos) /*md["rposst"] =*/ readaintle(64);
-                        if(!fes) { if(hassz) /*md["sz"] =*/ readaintle(64) } //else md["sz"] = fes
-                        // if(md["sz"] >= 0 && !hasstartpos)
-                        //     md["rposst"] = !i ? 0 : mapdata[i-1]["rposst"] + mapdata[i-1]["sz"];
-                        if(hasdesc) { t = readaintle(16); p += t*(twochar ? 2 : 1) }
-                        //mapdata.push(md)
-                    }
-                } //posmapend = p
-            }
-            if(sz < p+4) sz = p+4; if(File.read_uint32(p,_LE) != mptp) malformed += "!mptptr";
-        } //if 228.mptm
     } //if isDeepScan
     if(mVlsw != "?") { charset = "CP1252"; if(mVcw == "?") sV = mVlsw; else if(mVcw != mVlsw) sV = "cw:"+mVcw+"/lsw:"+mVlsw; else sV = mVcw }
     else { charset = "CP437"; if(mVcw != "?") sV = mVcw }
@@ -4633,10 +4745,14 @@ if(!bDetected && isIT()) {
             sOption(tracker,"in: ");
             sOptionT(auth,"by: ")
             if(extsmp.length)
-                sOption("ext.smp: \""+extsmp.join(", ")+"\"");
+                sOption("ext.smp: \""+addEllipsis(extsmp.join(", "),0x40,0x30)+"\"");
+            if(chnm.length)
+                sOption("ch.names: \""+addEllipsis(chnm.join(", "),0x40,0x30)+"\"")
         }
-        if(special&1)
-            sOptionT(addEllipsis(File.read_codePageString(msgofs,Math.min(msglen,0x100),"charset"),0x100),"msg: ");
+        if(special & 1)
+            sOptionT(addEllipsis(File.read_codePageString(msgofs,Math.min(msglen,0x100),"CP437"),0x100),"msg: ");
+        else if(smpnlst.length)
+            sOption("smps: \""+addEllipsis(smpnlst.join(" "),0x40,0x30)+"\"");
         if(File.isDeepScan())
             sOption("ch:"+ch+" ord:"+ord+"("+cord+") ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0+" sz:"+sz)
         else
@@ -6170,11 +6286,15 @@ function isDavidWhittaker() {
     malformed = ""; fmt = 0xFF;
     function _uadetect() {
         function _dw() {
+            if(File.compare(//snow strike.dw :|
+              "48E7F1FE 610003B8 4CDF7F8F 4E7548E7 00106100 02FC4CDF 08004E75 48E74110"+
+              "6100035A 4CDF0882 4E7548E7 F1FE6100 0E344CDF 7F8F4E75 48E70010 61000320"))
+                return true;
             d1 = a1+0x80; do { t = File.compare("6100",a1); a1 += 2 } while(!t && a1 < d1);
             if(!t) return false;
             a1 += File.read_int16(a1,_BE); //@e43c
             if(File.compare("48E7F1FE",0)) { //@e440
-                a1 += 4; t = File.compare("6100",a1); a1 += 2; if(!t) return false;
+                t = File.compare("6100",a1+4); a1 += 6; if(!t) return false;
                 a1 += File.read_int16(a1,_BE)
             }
             d1 = a1+0x80;
@@ -6183,9 +6303,9 @@ function isDavidWhittaker() {
                 if(File.compare("2F0B",a1) || File.compare("00DFF0C8",a1)) return true;
                 a1 += 2;
             } while(a1 < d1);
-            return false }
+            return false } //end of _dw
 
-        if(File.compare("48E7F1FE",0)) {
+        if(File.compare("48E7F1FE")) {
             if(!File.compare("6100",4)) return false;
             a1 = 6+File.read_int16(6,_BE); d1 = a1+20; //@ec3a
             do { t = File.compare("47FA",a1); a1 += 2 } while(!t && a1 < d1);
@@ -6208,8 +6328,8 @@ function isDavidWhittaker() {
             if(File.compare("00BFE001",a1)) if(_dw()) { fmt = 1; return true }
         }
         return false
-    }
-    //if(!_uadetect()) return false;
+    } // end of uade detector
+    if(!_uadetect()) return false;
     //and now for the NP routine ExtractInfoFromInitFunction
     sz = x = ch = smp = 0;
     function _npdetect() {
@@ -7006,13 +7126,11 @@ function isMXDRV() {
     // ref ditto / SRC/MDX2MUS.ASM
     // useful links: https://gorry.haun.org/mx/index_e.html
     if(File.getSize() < 4+2+9*2 || File.getSize() > 0xFFFF) return false; //minimum header
-    da1 = File.findSignature(0,Math.min(1024,File.getSize()),"0D0A1A");
+    da1 = File.findSignature(0,Math.min(0x400,File.getSize()),"0D0A1A"); //the longest name encountered on modland was 99 bytes long
     if(da1 < 0) return false;
-    for(i = 0; i < da1; i++) {
-        c = File.read_uint8(i); if(c < 0x20 && c != 0x1B) return false;
-    }
+    for(i = 0; i < da1; i++) { c = File.read_uint8(i); if(c < 0x20 && c != 9 && c != 0x1B) return false }
     t = File.read_codePageString(0,da1,"SJIS");
-    p = File.findSignature(da1,Math.min(1024,File.getSize()-da1),"00"); if(p < 0) return false;
+    p = File.findSignature(da1+3,Math.min(15,File.getSize()-da1),"00"); if(p < 0) return false;
     if(da1+3 != p)
         pdxfn = File.read_ansiString(da1+3,p);
     else pdxfn = "";
@@ -7021,22 +7139,25 @@ function isMXDRV() {
     if(File.read_ansiString(ofs+4,4) == "LZX ") {
         lzxsz = File.read_uint32(ofs+0x12,_BE);
         //_log("ofs="+ofs+", lzxsz = "+lzxsz+" += "+(ofs+lzxsz));
-        if(lzxsz)
-        comp = true; return true; // stop right there because omg no
+        if(lzxsz) comp = true;
+        return true; // stop right there because omg no
     }
 
-    vd = File.read_uint16(ofs,_BE);
-    if(vd+p > File.getSize()) return false;
-    var chn = File.read_uint16(p+2,_BE)+ofs;
-    if(chn <= p+2 || chn > File.getSize()-2) return false;
-    if(File.read_uint8(chn) == 0xE8) ch = 16;
-    else ch = 9;
+    vd = File.read_uint16(ofs,_BE)+ofs;
+    if(vd > File.getSize()) return false;
     p += 2;
-    for(k=1; k<ch; k++) { //check the rest of channels
+    var chn = File.read_uint16(p,_BE)+ofs;
+    if(chn < p+2 || chn > File.getSize()-2) return false;
+    ch = (chn-p)>>1;
+    if(ch != 16 && ch != 9) return false;
+    oldchn = chn;
+    for(k=1; k < ch; k++) { //check the rest of channels
         p += 2; if(p > File.getSize()-2) return false;
         chn = File.read_uint16(p,_BE)+ofs;
-        if(chn < p+2 || chn > File.getSize()-2) return false;
+        if(chn < oldchn || chn > File.getSize()-2) return false;
+        oldchn = chn
     }
+    if(vd < chn) return false;
     return true;
 }
 if(!bDetected && File.isDeepScan() && isMXDRV()) {
