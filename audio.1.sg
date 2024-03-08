@@ -1797,12 +1797,66 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOption("trk:"+(trk+1)+" ord:"+(ord+1)+" ptn:"+(ptn+1)+" smp:"+nos)
         }
     }
-    else if(File.compare("'MT20'")) {
-        sName = "MadTracker 2 module (.MT2)"; bDetected = 1;
-        v = /[0-9.]{3,5}$/.exec(File.read_ansiString(0x0A,0x20).trim());
-        if(v!=null) sVersion = "v"+v;
-        if(File.isVerbose())
-            sOptionT(File.read_ansiString(0x2A,0x40))
+    else if(File.compare("'MT20'") && File.getSize() >= 0x184 && File.read_uint8(9) == 2
+      && File.read_uint16(0x70) < 64 && File.read_uint16(0x6A) <= 0x100) {
+        //ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mt2.cpp
+        sName = "MadTracker 2 module (.MT2)"; nV = File.read_uint8(9); bDetected = 1;
+        sVersion = "v"+nV.toString(16)+"."+File.read_uint8(8).toString(16);
+        if(File.isVerbose()) {
+            sOptionT(File.read_ansiString(0x2A,0x40));
+            ord = File.read_uint16(0x6A); loop = File.read_uint16(0x6C);
+            ptn = File.read_uint16(0x6E); trk = File.read_uint16(0x70); flags = File.read_uint32(0x6C);
+            ins = File.read_uint16(0x7A); smp = File.read_uint16(0x7C);
+            hasdrums = File.read_uint16(0x17E) != 0;
+            if(hasdrums) dptn = File.read_uint16(0x180); // this one line's :789
+_log("dptn:"+dptn);
+            p = 0x184+0x112; //:477
+            var addp = p+File.read_uint32(p-4); msg = ""; vst2 = 0;
+_log("add @"+Hex(p)+" -> "+Hex(addp));
+            while(p < addp) { //:578
+                hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4); p += 8;
+                switch(hkhd) {
+                    case "MSG": showmsg = File.read_uint8(p);
+                        msg = File.read_codePageString(p+1,hksz-1,"CP1252").trim(); break;
+                    case "SUM": artist = File.read_codePageString(p+6,hksz-6,"CP1252");
+                        if(artist == "Unregistered") artist == ""; break;
+                    case "VST2": vst2 = File.read_uint32(p); break;
+                }
+                p += hksz
+            }
+            if(p > File.getSize()) sVersion += "malformed!short";
+            else {
+                for(i=0; i < ptn && p < File.getSize(); i++) {
+_log("ptn["+i+"] @"+Hex(p)+" -> "+Hex(File.read_uint32(p+2)));
+                    p += 6+File.read_uint32(p+2); if(p%2) p++
+                }
+                if(hasdrums) { //:786
+                    for(i=0; i < dptn && p < File.getSize(); i++) { //:811
+_log("dptn["+i+"] @"+Hex(p)+" ["+File.read_uint16(p)+" rows] -> "+Hex(p+2+32*File.read_uint16(p)));
+                        p += 2+File.read_uint16(p)*32 }
+                }
+_log("autn. @"+Hex(p));
+                if(flags & 2) { //automation; 8 is drum autn., 0x10 is master autn.
+                    env = ((flags & 8) ? trk+8 : trk) + ((nV >= 0x50)? vst2 : 0) + ((flag&0x10) ? 1 : 0);
+                    for(q = 0; q < ptn; q++)
+                        for(e = 0; e < env && p < FIle.getSize(); e++) {
+                            if(nV >= 3) { fl = File.read_uint32(p); p += 8 }
+                            else { fl = File.read_uint16(p); p += 4 }
+                            while(fl) { if(fl&1) p += 0x104; f >>=1 }
+                        }
+                }
+_log("instr. @"+Hex(p));
+            }
+            if(p > File.getSize()) sVersion += "malformed!short";
+            else {
+                //
+            }
+            if(msg != "")
+                if(showmsg) sOption(addEllipsis(msg,0x80),"msg: ");
+                else sOption("("+addEllipsis(msg,0x80)+")","msg: ");
+            sOption("ord:"+ord+" loop:"+loop+" ptn:"+ptn+" ins:"+ins+" smp:"+smp
+              +" trk:"+trk+(hasdrums?"+8":"")+(vst2?("vst2:"+vst2):"")+" sz:"+Hex(p));
+        }
     }
     else if(File.compare("'MTRAC'")) {
         sName = "Master Tracker Adlib module (.MTR)"; bDetected = 1;
@@ -2995,7 +3049,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         if(File.isVerbose()) sOptionT(File.read_ansiString(0x26,File.read_uint32(0x22,_LE)));
     }
     else if(File.compare("'SNDH'", 0x0C)) {
-        sName = "Atari ST chiptune (.SNDH)"; sVersion = "unpacked"; bDetected = 1;
+        sName = "Atari ST chiptune (.SND,.SNDH)"; sVersion = "uncompressed"; bDetected = 1;
         if(File.isVerbose()) {
             p = 0x10; t=""; a="";
             for(i=0; i < 8; i++) {
@@ -4285,7 +4339,7 @@ function isIT() {
         var b32ord = -1, lastord = 0;
         // 32bit orders: a deprecated format. OpenMPT 1.17.02.46 - 1.17.02.48.
         if(type === "mpt" && 0x88A < cwtv && cwtv <= 0x88D) {
-            p = 0xC0; if(File.read_uint16(p,_LE)) return false; p += 4;
+            p = 0xC0; if(File.read_uint16(p,_LE)) return false; p += 2;
             b32ord = File.read_uint32(p,_LE); p += 4;
             if(b32ord > 256 || File.getSize() < p+b32ord*4) return false
         } else p = 0xC0;
@@ -4572,7 +4626,7 @@ function isIT() {
             while(p+7 < File.getSize()) {
                 t = File.read_ansiString(p,4); it = File.read_uint32(p);
                 prsz = File.read_uint16(p+4,_LE);
-                if(t === "228\x04") { mptp = p; break; }
+                if(t === "228\x04" || t == "228\x02") { mptp = p; break; } //TODO check for 228\x02TC!
                 if((it&0x80808080) || !(it&0x60606060) || p+6+prsz > File.getSize()) break;
                 p += 6;
                 switch(t) {
@@ -4601,7 +4655,24 @@ function isIT() {
             if(sz < p) sz = p;
         }
 
-        if(File.compare("'228'04'mptm'",p)) {
+        tunings = 0;
+        if(File.compare("'HSCT'",p)) { //the first-ever way of storing the tunings in an mptm
+//tuningCollection.cpp
+            var skip = false; var v = File.read_int32(p+4,_LE); p += 8;
+            if(v == 1) { //can't find any files to test  this
+                sOption("Please send this file to the detection author!!! This is ultra-rare, how did you make it?!");
+                p += File.read_uint32(p); p += 4+Math.min(256,l)
+            } else if( v == 2 ) {
+//_log("tunings text: "+File.read_ucsdString(p));
+                p += 1+File.read_uint8(p);
+            } else { skip = true; malformed += "!badtuningver" }
+            if(!skip) {
+                tunings = File.read_uint32(p+2); p += 6;
+                t = File.findSignature(p,0x1000,"'FSCT'"); if(t >= p) p = t+4;
+            }
+            if(sz < p) sz = p;
+        }
+        else if(File.compare("'228'04'mptm'",p)) { //TODO there can be old-ass tunings instead here 
             if(!mptp) mptp = p;
 // Load_it.cpp:1299
             function readaintle(bits) { //ReadAdaptiveInt32LE et al.
@@ -4664,7 +4735,7 @@ function isIT() {
                     }
                 } //posmapend = p
             }
-            if(sz < p+4) sz = p+4; if(File.read_uint32(p,_LE) != mptp) malformed += "!mptptr";
+            if(sz < p+4) sz = p+4; if(File.read_uint32(p,_LE) != mptp) malformed += "!badmptptr";
         } //if 228.mptm
 
 // Load_it.cpp:1158
@@ -4754,7 +4825,7 @@ if(!bDetected && isIT()) {
         else if(smpnlst.length)
             sOption("smps: \""+addEllipsis(smpnlst.join(" "),0x40,0x30)+"\"");
         if(File.isDeepScan())
-            sOption("ch:"+ch+" ord:"+ord+"("+cord+") ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0+" sz:"+sz)
+            sOption("ch:"+ch+" ord:"+ord+"("+cord+") ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0+(tunings?"tunings:"+tunings:"")+" sz:"+sz)
         else
             sOption("ch:"+ch+" ord:"+ord+" ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0)
     }
@@ -7468,9 +7539,10 @@ if(File.isHeuristicScan()) { //parallel block
             _setResult("audio","NovoTrade Packer module (.NTP)","",File.read_ansiString(4,16));
         else _setResult("audio","NovoTrade Packer module (.NTP)","","")
     }
-    else if(File.compare("'Ice!'") || File.compare("'ICE!'")) {
+    else if((File.compare("'Ice!'") || File.compare("'ICE!'"))) {
     //TODO find a sanity check to narrow it down, then move it to the other sanities
-        _setResult("audio","Atari ST chiptune (.SNDH)","compressed","")
+        dsize = File.read_uint32(8,_BE);
+        _setResult("audio","Atari ST module (.SND,.SNDH)","compressed","orig.sz:"+dsize+" sz:"+File.read_uint32(4,_BE))
     }
     else if( ([0x5941,0x4D59,0x7961,0x6D79].indexOf(File.read_uint16(0,_LE)) > 0) &&
         (1980 < File.read_uint16(0x0A,_LE) < 2050)) {
