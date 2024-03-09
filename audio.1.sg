@@ -3048,23 +3048,34 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         sName = "Sound Club module (.SN)"; sVersion = "v2"; bDetected = 1;
         if(File.isVerbose()) sOptionT(File.read_ansiString(0x26,File.read_uint32(0x22,_LE)));
     }
-    else if(File.compare("'SNDH'", 0x0C)) {
-        sName = "Atari ST chiptune (.SND,.SNDH)"; sVersion = "uncompressed"; bDetected = 1;
+    else if(File.compare("6000............6000....'SNDH'")) {
+        //ref https://sndh.atari.org/files/sndhv21.txt
+        sName = "Atari ST module (.SND,.SNDH)"; sVersion = "uncompressed"; bDetected = 1;
         if(File.isVerbose()) {
-            p = 0x10; t=""; a="";
-            for(i=0; i < 8; i++) {
-                x = File.read_ansiString(p,File.getSize()-p);
-                if(x.length > 4) {
-                    tag = x.substr(4,x.length);
-                    switch(x.substr(0,4)) {
-                        case "##01": i=100; break;
-                        case "TITL": if(tag.substr(0,7) != "Unknown") t = tag; break;
-                        case "COMM": if(tag.substr(0,7) != "Unknown") a = tag; break
+            p = 0x10; title=artist=yr=""; totaltime = i = 0; x = 1;
+            while(i < 10 && p < File.getSize()) {
+                t = File.read_ansiString(p,4); if(t === "TIME") {
+                    _log("time!")
+                    for(j=0; j < x; j++) totaltime += File.read_uint16(p+4+j*2,_BE);
+                    tlen = 4+x*2-1; if((p+tlen+1)%1) tlen++;
+                }
+                else { t = File.read_ansiString(p,Math.min(File.getSize()-p),0x100); tlen = t.length }
+                if(tlen >= 4) {
+                    hd = t.substr(0,4); tag = t.substr(4,tlen);
+                    switch(hd) {
+                        case "TITL": if(tag.substr(0,7) != "Unknown") title = tag; break;
+                        case "COMM": if(tag.substr(0,7) != "Unknown") artist = tag; break;
+                        case "YEAR": yr = tag; break;
+                        case "HDNS": i = 8; break;
+                        default: if(/##\d\d/.test(hd)) x = hd.slice(2,4);
+                            else if(/#!\d\d/.test(hd)) if((p+tlen+1)%1) tlen++;
+                            break;
                     }
                 }
-                p += x.length+1
+                p += tlen+1; i++
             }
-            sOptionT(t); sOptionT(a,"by: ")
+            sOptionT(title); if(x > "01") sOption(x,"x"); sOptionT(artist,"by: "); sOptionT(yr,"'");
+            if(totaltime) sOption(Math.floor(totaltime/60)+":"+(totaltime%60).padStart(2,'0'),"time: ");
         }
     }
     else if(File.compare("'FMC!'")) {
