@@ -105,5 +105,17 @@ I additionally follow the rule "don't overload it", like I don't show all sample
 
 `Binary.isHeuristicScan()` is meaningful in two cases for this file:
  - either you just relied on the file extension (and optionally some super generic signature like "PK" at 0 bytes. It's VERY ~~lazy~~ heuristic, doing something like that, but very rarely it's the best you can do),
- - or you saw just one or two files that are hella broken and you have a player that still manages to play them, but it really breaks the rules of some stuff that can make a detection of the overall format much tighter (for example, just the sample loops are out of bounds and the player simply doesn't loop that sample).  
- So at the point you want to check for that stuff you first look at this flag, and if it is set, you just output "/malformed" after the version — and if it's unset, you fail the detection.
+ - or you saw just one or two files that are hella broken and you have a player that still manages to play them, but it really breaks the rules of some stuff that can make a detection of the overall format much tighter (for example, just the sample loops are out of bounds and the player simply doesn't loop that sample). So at this point you want to check for that stuff you first look at this flag, and if it is set, you just append "/malformed" after the version (or without a slash if there's no version to tell) — and if it's unset, you fail the detection.
+
+It's generally nice to report files that are clearly of the detected format but are broken in some way, anyway. Two functions are there in "read" script to facilitate that: appendS and addIfNone. Quicker shown than explained, the code would look like this:
+ ```js
+bad = ""; ...
+if(globalvolume > 0x40) bad = bad.addIfNone("!badgvol");
+...
+
+numericVersion = File.read_uint8(4);
+if(numericVersion > 0) sVersion = "v"+numericVersion;
+if(bad != "") sVersion.appendS("malformed"+bad,"/");
+```
+And if `numericVersion` is 2 and globalvolume's malformed, the version line would look like this:
+`v2/malformed!badgvol`
