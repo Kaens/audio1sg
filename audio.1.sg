@@ -4085,18 +4085,14 @@ if(!bDetected && isMOD()) {
 }
 
 function isOctaMed() {
-//from http://fileformats.archiveteam.org/wiki/OctaMED_module_(MED)
-    if(!/MED[2-4\x02-\x04]/.test(File.read_ansiString(0,4))) return false;
+    //from http://fileformats.archiveteam.org/wiki/OctaMED_module_(MED)
+    // & https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/ModuleConverters/ModuleConverter/Formats/Med4Format.cs
+    // & https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/Med/MedWorker.cs
+    if(!/MED[\x02-\x04]/.test(File.read_ansiString(0,4))) return false;
     nV = File.read_uint8(3); sig = File.read_ansiString(0,4); bDetected = 1;
-    switch(sig) {
-        //TODO find the non-\x04 files to test on
-        case "MED2": case "MED\x02": sname = "OctaMED module (.MED)"; sversion = "v1.12"; break;
-        case "MED3": sname = "OctaMED module (.MED)"; sversion = "v2.00"; break;
-        case "MED4": case "MED\x03": sname = "OctaMED module (.MED)"; sversion = "v2.10"; break;
-        case "MED\x04": sname = "OctaMED module (.MED)"; sversion = "v3.20"; break;
-    }
     x = 1; sz = 0;
-    var smpbmp0 = File.read_uint8(4); smp = 0; p = 5; smps = [];
+    //going through the sample info
+    var smpbmp0 = File.read_uint8(4); smp = realsmp = 0; p = 5; smps = [];
     while(smpbmp0) {
         if(smpbmp0&1) { var smpbmp = File.read_uint8(p++);
             while(smpbmp) { smp += smpbmp&1; smpbmp >>= 1 } }
@@ -4109,27 +4105,35 @@ function isOctaMed() {
         if(!(fl&0x30)) svol = File.read_uint8(p++); if(svol > 0x40) return false;
         if(!(fl&0x40)) p++;
     }
+    for(i = 62; i >= 0; i--) if(smps[i] && smps[i].length) {realsmp = i+1; break }
+    bad = "";
     ptn = File.read_uint16(p,_BE); ord = File.read_uint16(p+2,_BE); if(!ord || ord > 0x100) return false;
     p += 4; for(i=0; i < ord; i++) if(File.read_uint8(p++) > ptn) return false;
     extsmp = !(File.read_uint8(p+3)&8);
-    tmp0 = File.read_uint16(p,_BE)+"/"+File.read_uint16(p+4,_BE); p += 26;
+    tmp0 = File.read_uint16(p,_BE)+"//"+File.read_uint16(p+4,_BE); p += 26;
     for(i=0; i < 16; i++) if(File.read_uint8(p++) > 0x40) return false;
     mvol = File.read_uint8(p++); if(mvol > 0x40) return false;
     if(p > File.getSize()) return false;
-    bad = "";
     trk = 0;
     for(i=0; i < ptn; i++) {
-        var hdsz = File.read_uint8(p); var ptntrk = File.read_uint8(p+1); if(trk < ptntrk) trk = ptntrk;
-        var rows = File.read_uint8(p+2); var hksz = File.read_uint16(p+3,_BE);
-_log("ptn["+i+"] @"+Hex(ptnhdp)+": ("+Hex(hdsz)+")+"+Hex(hksz)+"], rows:"+rows+" trk:"+ptntrk);
-        // no no we'll do our best not to parse the bitmaps here
-        p += hdsz+hksz; 
+        var hdsz = File.read_uint8(p++);
+        var ptntrk = File.read_uint8(p); if(trk < ptntrk) trk = ptntrk;
+        var rows = File.read_uint8(p+1), hksz = File.read_uint16(p+2,_BE);
+ _log("ptn["+i+"] @"+Hex(p)+": ("+Hex(hdsz)+") -> "+Hex(p+hdsz+hksz)+"], rows:"+rows+" trk:"+ptntrk);
+        p += hdsz+hksz;
     }
     sz = p;
     return true
 }    
 if(!bDetected && isOctaMed()) {
-    sName = sname; sVersion = sversion; bDetected = 1;
+    sName = "OctaMED module (.MED)";
+    switch(nV) {
+        //TODO find the non-\x04 files to test on
+        case 2: sVersion = "v1.12"; break;
+        case 3: sVersion = "v2.00"; break;
+        case 4: sVersion = "v2.10+"; break;
+    }
+    bDetected = 1;
     if(File.isVerbose()) {
         if(x > 1) sOption(x,"x");
 
@@ -4139,9 +4143,9 @@ if(!bDetected && isOctaMed()) {
             sOptionT(File.read_ansiString(annot+8,cs));
         }
 
-        if(smps.length)
-            sOption("["+smps.join(",")+"]","smps:");
-        sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" trk:"+trk+" tmp0:"+tmp0+" mvol:"+mvol+" sz:"+sz)
+        if(smps.length) sOption("["+smps.join(",")+"]","smps:");
+        sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+(realsmp != smp ? "("+realsmp+")" : "")
+          +" trk:"+trk+" tmp0:"+tmp0+" mvol:"+mvol+" sz:"+sz)
     }
 } 
 
@@ -6459,7 +6463,7 @@ if(!bDetected && File.isDeepScan() && isDesire()) {
 
 function isDavidWhittaker() {
     // from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/DavidWhittaker/DavidWhittakerWorker.cs
-    // <space>sfx.dw not detected, -sfx.dw may be detected sometimes 
+    // <space>sfx.dw not detected, -sfx.dw may be detected sometimes
     if(File.getSize() < 2048) return false;
     const sl = Math.min(File.getSize(), 0x4000); //search buffer length
     //and now for the NP routine ExtractInfoFromInitFunction
@@ -6829,17 +6833,17 @@ if(!bDetected && File.isDeepScan() && isTuneFish4()) {
 
 function isJH() {
     //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Jochen_Hippel_ST/Jochen Hippel_v1.asm
-    //TODO find some JH modules that are supposed to be MCMD. and test that
-    a0 = 0;
+    a0 = 0; tfmx = 0;
     if(File.compare("48E7FFFE")) {
         fmt = -1; a0 += 4; d1 = 0;
         if(!File.compare("61",a0)) return false;
-        d1 = File.read_uint8(a0+1); if(d1 || (d1&1)) return false; a0 += d1+2;
+        d1 = File.read_uint8(a0+1); if(!d1 || (d1&1)) return false; a0 += d1+2;
         if(!File.compare("2F006100",a0)) return false; a0 += 4+File.read_int16(a0+4,_BE);
         if(!File.compare("41FA",a0)) return false;
         if(!File.compare("41FA",a0+0x12)) return false;
-        a0 += 0x16; a0 += File.read_int16(a0,_BE);
+        a0 += 0x14; a0 += File.read_int16(a0,_BE);
         if(!File.compare("'MCMD'",a0)) return false;
+        tfmx = a0
     } else { // NoMCMD
         fmt = 0;
         if(!File.compare("60",a0++)) return false;
@@ -6873,8 +6877,8 @@ function isJH() {
         d2 = File.read_int16(a0,_BE); if(!d2) return false;
         d2 *= 2; if(d2 != File.read_int32(a0+0x1A,_BE)) return false;
     }
-    sz = a0 = 0; x = 1;  a1 = 2+a0; if(fmt != 0) a1 += 2; playptr = a1;
-    a1 = a0+tfmx; if(fmt < 0) { d0 = 0; d1 = 0x12 } else { d0 = 2; d1 = 0x20 }
+    sz = a0 = 0; x = 1; a1 = a0+tfmx;
+    if(fmt < 0) { d0 = 0; d1 = 0x12 } else { d0 = 2; d1 = 0x20 }
     d0 += File.read_int16(a1+4,_BE)+File.read_int16(a1+6,_BE); d0 <<= 6;
     d0 += d1; if(fmt < 0) d1 = 0; else d1 = 1;  d1 += File.read_int16(a1+8,_BE); ptn = d1;
     d1 *= File.read_int16(a1+0x0C,_BE); d0 += d1;  if(fmt < 0) d1 = 0; else d1 = 1;
