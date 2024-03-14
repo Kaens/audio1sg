@@ -2249,14 +2249,83 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         sV = File.read_ansiString(3,1); sVersion = "v"+sV;
         if(File.isVerbose()) {
             switch(sV) {
+                case "0": case "1":
+                    sOptionT(File.read_codePageString(0x08,0x20,"CP1252"));
+                    sOptionT(File.read_codePageString(0x28,0x20,"CP1252"),"by: ");
+                    sOptionT(File.read_codePageString(0x48,0x80,"CP1252")); break;
                 case "2":
                 //ref https://sourceforge.net/p/psycle/code/HEAD/tree/trunk/psycle-core/src/psycle/core/psy2filter.cpp
                     sOptionT(File.read_codePageString(0x08,0x20,"CP1252"));
                     sOptionT(File.read_codePageString(0x28,0x20,"CP1252"),"by: ");
                     sOptionT(File.read_codePageString(0x48,0x80,"CP1252"));
-                    bpm = File.read_int32(0xC8,_LE);
-                    ord = File.read_int32(0x0191,_LE);
-                    sOption("bpm:"+bpm+" ord:"+ord);
+                    bpm = File.read_int32(0xC8); ord = File.read_int32(0x191);
+                    trk = File.read_int32(0x195); ptn = File.read_int32(0x199);
+                    p = 0x19D;
+                    if(File.isDeepScan()) {
+                        inss = []; vsts = []; macs = []; waves = mach = 0; bad = "";
+                        for(i=0; i < ptn; i++) { rows = File.read_int32(p); p += 0x24+0xA0*rows }
+                        p += 4; inss = [];
+                        for(i=0; i < 0xFF; i++) { t = File.read_codePageString(p,0x20,"CP1252").trim();
+                            if(t != "" && t != "empty") inss.push(t); p += 0x20 }
+                        p += 0x37CC; //_log("waves @"+Hex(p))
+                        if(p > File.getSize()) bad = bad.addIfNone("!short");
+                        else for(i=0; i < 0xFF && p < File.getSize(); i++)
+                            for(w=0; w < 0x10 && p < File.getSize(); w++) { t = File.read_uint32(p); p += 4;
+//if(t || p+t*2 > File.getSize()) _log("wave["+i+","+w+"] @"+Hex(p)+" ["+Hex(t)+"]: "+File.read_codePageString(p,0x20,"CP1252").trim());
+                                if(t) { if(!w) waves++; p += 0x2D; var st = File.read_uint8(p++)+1; p += t<<st }
+                            }
+//_log("vsts @"+Hex(p));
+                        if(p > File.getSize()) bad = bad.addIfNone("!short");
+                        else for(i=0; i < 0x100; i++) {
+                            t = File.read_uint8(p++); if(t) {
+//_log("vst["+i+"] @"+Hex(p));
+                                t = File.read_codePageString(p,0x80,"CP1252").trim(); if(t != "") vsts.push(t);
+                                p += 0x80; t = File.read_int32(p); p += 4+t*4;
+                            }
+                        }
+//_log("mach @"+Hex(p));
+                        m = []; for(i = 0; i < 128; i++) { t = File.read_uint8(p++); if(t) mach++; m[i] = t }
+                        t = oldt = 0;
+                        const mtMa=0,mtRM=1,mtDi=2,mtSa=3,mtDe=4,mtF2=5,mtGa=6,mtFl=7,mtPl=8,
+                          mtVI=9,mtVF=10,mtSc=11,mtAB=12,mtA1=13,mtA2=14,mtA21=15,mtDu=255;
+                        for(i=0; i < 128; i++) if(m[i]) {
+                            t = File.read_int32(p+8); p += 12;
+                            tn = File.read_ansiString(t===mtPl?p+0x100:p, 0x10);
+                            tpn = t === mtPl ? File.read_ansiString(p,0x100) : ""; ts = tn+tpn;
+//_log("ts: "+ts+", oldt = "+oldt);
+                            nonascii = false; for(q=0; q < ts.length; q++)
+                                if(ts[q] < " " || ts[q] > "~" || /[\"\+\?\*]/.test(ts[q])) {nonascii = true; break }
+                            if(((15 < t && t < 255) || ts.length < 2 || nonascii) && oldt === mtPl) {
+                                bad = bad.addIfNone("!pluginDefinedDataSize"); break
+                            }
+                            else if(15 < t && t < 255) { bad = bad.addIfNone("!badMachineType"); break }
+                            oldt = t;
+                            switch(t) {
+                            case mtPl: macs.push(tn);
+                                t = File.read_int32(p+0x110); p += 0x114+4*t;
+//_log("   ["+macs[macs.length-1]+"] post-"+Hex(t)+" vals @"+Hex(p));
+                                p += 0x181; break;
+                            case mtVI: case mtVF: vsts.push(tn); p += 0x197; break;
+                            default: macs.push(File.read_ansiString(p,0x10)); p += 0x191
+                            }
+                        }
+                        if(p > File.getSize()) bad = bad.addIfNone("!short");
+//_log("patch 0 @"+Hex(p));
+                        p += 5*0xFF; //patch 0
+                        if(p > File.getSize()) bad = bad.addIfNone("!noP0");
+//_log("patch 1 @"+Hex(p));
+                        p += 0x40;
+                        if(p > File.getSize()) bad = bad.addIfNone("!noP1");
+//_log("patch 2 @"+Hex(p));
+                        if(p < File.getSize() && FIle.read_uint8(p++))
+                            p += 4+File.read_uint32(p);
+                        if(bad != "") sVersion += "/malformed"+bad;
+                        if(inss.length) sOption("inss: ["+inss.join(",")+"]");
+                        if(vsts.length) sOption("vsts: ["+vsts.join(",")+"]");
+                        if(macs.length) sOption("mcn: ["+macs.join(",")+"]");
+                        sOption("ord:"+ord+" ptn:"+ptn+" trk:"+trk+" bpm:"+bpm+" mach:"+mach+" smp:"+waves+" sz:"+p);
+                    } //isdeep
+                    else sOption("ord:"+ord+" ptn:"+ptn+" trk:"+trk+" bpm:"+bpm);
                     break;
                 case "3":
                 //ref https://sourceforge.net/p/psycle/code/HEAD/tree/trunk/psycle-core/src/psycle/core/psy3filter.cpp
@@ -2321,7 +2390,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                     }
                     sOptionT(t); sOptionT(a,"by: "); sOptionT(c);
                     sOption("bpm:"+bpm+" trk:"+trk+" ptnlns:"+ptnlns+
-                        " mac:"+mac+" ptn:"+ptn+"/idx:"+_idx+" ins:"+ins+" eins:"+eins);
+                        " mac:"+mac+" ptn:"+ptn+"/idx:"+_idx+" ins:"+ins+" eins:"+eins+" sz:"+p);
                     break;
                 case "4":
                 //ref https://sourceforge.net/p/psycle/code/HEAD/tree/trunk/psycle-core/src/psycle/core/psy4filter.cpp
@@ -2353,7 +2422,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                 default: p=0x14
             }
             t = ""; c = ""; bclock = 0; bnum = 0; btempo = 0; bps = 0; bEnd = false;
-            while((!bEnd) && (p<File.getSize())) {
+            while(!bEnd && p < File.getSize()) {
                 hkhd = File.read_ansiString(p,8); hksz = File.read_uint32(p+8,_LE);
                 switch (hkhd) {
                     case "PROJECT=":
@@ -2363,8 +2432,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                         bnum = File.read_int16(p+0x22,_LE);
                         break;
                     case "evenMAST":
-                        if(File.read_uint16(p+12,_LE)!=3)
-                            sVersion+= "/unk";
+                        if(File.read_uint16(p+12,_LE) != 3)
+                            sVersion += "/unk";
                         else {
                             var p_ = File.findSignature(p+3,0x100,"'textNAME'")-12;
                             if(p_ > -12) p = p_-hksz;
@@ -2379,10 +2448,10 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                         bnum = File.read_int8(p+14);
                         btempo = File.read_float32(p+15,_LE).toFixed(0);
                         break;
-                    case "Event V5": //this is so incredibly slow!!! And yet, no way around it
+                    case "Event V5":
                         var evtn = File.read_uint32(p+12,_LE);
                         hksz = 4;
-                        for(e=0; e<evtn; e++) { //hksz is broken in this chunk so it's like this 
+                        for(e=0; e < evtn; e++) { //hksz is broken in this chunk so it's like this 
                             for(i=0; i < 5; i++) { hksz++; if(File.read_uint8(p+11+hksz) < 0x80) break }
                             hksz += 2;
                             for(i=0; i < 5; i++) { hksz++; if(File.read_uint8(p+11+hksz) < 0x80) break }
@@ -2391,7 +2460,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                     case "textNAME":
                         t = File.read_codePageString(p+12,hksz,"Shift_JIS"); break;
                     case "textCOMM":
-                        c = File.read_codePageString(p+12,hksz,"Shift_JIS"); break;
+                        c = addEllipsis(File.read_codePageString(p+12,hksz,"Shift_JIS"),0xA0); break;
                     case "END=====": case "pxtoneND":
                         bEnd = true; break
                 }
@@ -2399,14 +2468,16 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             }
             if(t != "no name") sOption(t);  sOptionT(c);
             if(bclock+btempo+bnum > 0)
-                sOption("btempo:"+btempo+" bclock:"+bclock+" bnum:"+bnum)
+                sOption("btempo:"+btempo+" bclock:"+bclock+" bnum:"+bnum);
+            sOption(p,"sz:")
         }
     }
     else if(File.compare("'PTNOISE-'")) {
         sName = "pxtone Noise instrument (.PTNOISE)"; bDetected = 1
     }
     else if(File.compare("'PTVOICE-'")) {
-        sName = "pxtone Voice instrument (.PTVOICE)"; bDetected = 1
+        sName = "pxtone Voice instrument (.PTVOICE)"; bDetected = 1;
+        if(File.isVerbose()) sOption("sz:"+(File.read_uint32(0x0C)+0x10))
     }
     else if(File.compare("'PTMF'",0x2C) && File.compare("1A",0x1C)) {
         // ref  https://web.archive.org/web/20151027135201if_/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Poly%20Tracker%20module%20format.cp437.txt.utf-8.txt
@@ -3823,7 +3894,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         //ref https://github.com/cpcsdk/libstsound/blob/master/Ymload.cpp
         bDetected = 1; bad = 0; frm = 0; smp = 0; voc = 0; loop = 0; ddn = 0;
         sName = "ST-Sound chiptune (.YM)";
-        sV = File.read_ansiString(0,4).replace(/!/,"");
+        sV = File.read_ansiString(0,4).replace(/!/g,"");
         switch(sV) {
         case "YM1": sVersion = "YM1"; break;
         case "YM2": sVersion = "MADMAX specific"; break;
@@ -4490,15 +4561,15 @@ function isIT() {
         minp = 0xFFFFFFFF;
         var insp = []; for(i=0; i < ins; i++) { t = File.read_uint32(p,_LE); p += 4;
             if(t <= p || t > File.getSize()) return false;
-            if(sz < t) sz = t;  if(t < minp) minp = t; insp.push(t) }
+            if(sz < t) sz = t;  if(t && t < minp) minp = t; insp.push(t) }
         var smpp = []; for(i=0; i < smp; i++) { t = File.read_uint32(p,_LE); p += 4;
             if(t > File.getSize()) bad = bad.addIfNone("!short");
             if(!(special & sEmbedMsg)) {
                 q = File.read_ansiString(t+0x14,26).trim(); if(q != "") smpnlst.push(q) }
-            if(sz < t) sz = t; if(t < minp) minp = t; smpp.push(t) }
+            if(sz < t) sz = t; if(t && t < minp) minp = t; smpp.push(t) }
         var ptnp = []; for(i=0; i < ptn; i++) { t = File.read_uint32(p,_LE); p += 4;
             if((t > 0x1E && t <= p) || t > File.getSize()) return false;
-            if(sz < t) sz = t; if(t < minp) minp = t; ptnp.push(t) }
+            if(sz < t) sz = t; if(t && t < minp) minp = t; ptnp.push(t) }
         if(special & sEmbedMsg) { minp = Math.min(minp,msgofs);
             if(sz < msgofs+msglen) sz = msgofs+msglen }
         var possiblyUNMO3 = cmwt === 0x214 && (!cwtv || cwtv === 0x0214)
@@ -4513,7 +4584,7 @@ function isIT() {
         if(special & sEditHistory) {
             //is edit history stored?
             var nflt = File.read_uint16(p);
-            if(File.getSize() > p+nflt*8 && p+nflt*8 < minp) {
+            if(File.getSize() > p+nflt*8 && p+nflt*8 <= minp) {
                 p += 2+nflt*8;
                 if(possiblyUNMO3 && !nflt)
                     if(special & sEmbedPtnHL) tracker = "UNMO3 <= 2.4.0.1";
