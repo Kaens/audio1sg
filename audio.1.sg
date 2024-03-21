@@ -748,10 +748,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         else if(File.compare("0C00",0xC)) sVersion = "type 3";
     }
     else if(File.getSize() >= 0x500 && File.compare("48E778F0 41FA.... 4CD80600 0C0000FF")) {
-        sName = "Darius Zendeh module (.DZ)"; sVersion = "strange"; bDetected = 1
-    }
-    else if(File.getSize() >= 0x500 && File.findSignature(0x200,0x200,"'.ZADS89.'") >= 0) {
-        sName = "Mark II Sound System module (.MK2)"; bDetected = 1;
+        sName = 'Darius "Mark II" Zendeh module (.DZ)'; sVersion = "strange"; bDetected = 1
     }
     else if(File.compare("'EASO'")) {
         sName = "EarAche module (.EAS)"; bDetected = 1;
@@ -7603,6 +7600,31 @@ if(!bDetected && File.isDeepScan() && isADL()) {
     case 4: sVersion = "v3"
     }
 }
+
+// function isMkII() {
+//     //ref reversing of the UADE player
+//     //File.findSignature(0x200,0x200,"'.ZADS89.'") >= 0 ← would be too easy? Some zero-fill it
+//     if(File.getSize() < 0x500) return false;
+//     if(!File.compare("41FA",4)) return false;
+//     p = 0; i = 0x120;
+//     do { t = File.compare("E742",p); p += 2; if(t) break; i-- } while(i); if(!i) return false;
+//     do { t = File.compare("41FA",p); p += 2; if(t) break; i-- } while(i); if(!i) return false;
+//     a3 = p; p += File.read_int16(p,_BE); d5 = File.read_int16(a3+2,_BE);
+//     i = 0x18; do { t = File.compare("D1FA",a3); a3 += 2; if(t) break; i-- } while(i);
+// _log("mkII D1FA search: i="+i+" @"+a3)
+//     if(!i) {
+//         if(d5 == 0x3770) return false; d5 = 0; a5 = a3-0x1C; i = 0x10;
+//     } else { a5 = a3; a3 += File.read_int16(a3,_BE) }
+// _log("mkII: 3770 and a5 + a3skip")
+//     do { t = File.compare("41FA",a5); a5 -= 2; if(t) break; i-- } while(i);
+// _log("mkII: 5, i="+i+" @"+Hex(a5))
+//     return i
+// }
+// if(isMkII()) {
+//     _setResult("audio","Mark II Sound System module (.MK2)","","","")
+//     //sName = "Mark II Sound System module (.MK2)"; sVersion = ""; bDetected = 1;
+// }
+
 
 function isFLS() {
     //this detection is based purely on sanity checks
