@@ -44,7 +44,6 @@ This is where you can contribute the most! (sorted by extension)
  - Quartet ST `QTS.`
  - Speedy A1 System `.SAS`
  - SoundControl `.SC`
- - Sean Connolly's `.SCN`
  - SCUMMVM `.SCUMM`
  - Synth Dream `SDR.`
  - Tomy Tracker `.SG`

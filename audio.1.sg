@@ -420,13 +420,33 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOption(File.read_uint16(0x71,_LE)+2,"sz:")
         }
     }
-    else if(File.compare("'DBM0'")) {
+    else if(File.compare("'DBM0'........'NAME'") && File.compare("'INFO'",0x3C)
+      && File.compare("'SONG'",0x4E) && File.read_uint8(4) < 4) {
         sName = "Digi Booster Pro module (.DBM)"; bDetected = 1;
+        sVersion = "v"+File.read_uint8(4)+"."+File.read_uint8(5);
+        p = 8; done = false; if(File.isVerbose()) ord = []; titles = [];
+        while(!done && p < File.getSize()) {
+            hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4,_BE); p += 8;
+            switch(hkhd) {
+            case "INFO": if(!File.isVerbose()) break; x = File.read_uint16(p+4,_BE);
+                info = "ch:"+File.read_uint16(p+8,_BE)+" ptn:"+File.read_uint16(p+6,_BE)
+                +" ins:"+File.read_uint16(p,_BE)+" smp:"+File.read_uint16(p+2,_BE);
+                break;
+            case "SONG": if(!File.isVerbose()) break; q = 0;
+                while(q+44 < hksz) { t = File.read_codePageString(p+q,44,"CP1250").trim(); titles.push(t);
+                    q += 44; ord.push(File.read_uint16(p+q,_BE)); q += 2+ord[ord.length-1]*2 }
+                break;
+            case "SMPL": done = true
+            }
+            p += hksz;
+        }
+        if(!done || p > File.getSize()) sVersion += "/malformed!short";
         if(File.isVerbose()) {
-            title = File.read_ansiString(0x10,42).trim();
-            if(title == "") title = File.read_ansiString(0x56,42).trim();
-            if(title == "") title = File.read_ansiString(0xD8,28).trim();
-            sOptionT(title)
+            title = File.read_ansiString(0x10,42).trim(); sOption(title);
+            sOption(titles.join("; "),(!title && title.length == 1 ? "songs:" : ""));
+            if(title == "" && !titles.length) sOptionT(File.read_ansiString(0xD8,28));
+            if(x > 1) sOption(x,"×");
+            info = "ord:"+ord.join("+")+" "+info; sOption(info+" sz:"+p)
         }
     }
     else if(File.compare("'DFM'1A")) {
@@ -1499,9 +1519,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     }
     else if(File.compare("D040D0404EFB")) {
         sName = "Mark Cooksey's module (.MC)"; sVersion = "new"; bDetected = 1
-    }
-    else if(File.compare("'MCMD'")) {
-        sName = "MCMD module (.MCMD)"; bDetected = 1
     }
     else if(File.compare("'TFMX-SONG'")) {
         //TODO deal with the tags, because sometimes the field is "by blahblah",
@@ -3521,11 +3538,16 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
       && File.compare("FFFF001000000030000000", 0x181)) {
         sName = "The Musical Enlightenment module (.TME)"; bDetected = 1
     }
-    else if(File.compare("'TRK01/TV.ES.'")) {
+    else if(File.getSize() >= 0x3000 && File.compare("'TRK01/TV.ES.'")) {
         sName = "RamTracker module (.TRK)"; bDetected = 1;
         if(File.isVerbose()) {
             sOptionT(File.read_codePageString(0x0F,0x20,"CP850"));
             sOptionT(File.read_codePageString(0x2F,0x20,"CP850"),"by: ");
+            p = 0x453; ptn = -1; ord = 0;
+            for(;;) { t = File.read_uint8(p++); if(t >= 0xFE || p > File.getSize()) break;
+                ord++; if(ptn < t) ptn = t }
+            ptn++;
+            sOption("ord: "+ord+" ptn:"+ptn)
         }
     }
     else if(File.compare("'S'8F'NG.'")) {
@@ -7607,6 +7629,19 @@ if(!bDetected && File.isDeepScan() && isComposer670()) {
     if(File.isVerbose()) sOption("spd:"+spd+" ord:"+ord)
 }
 
+function isSeanConnolly() {
+    //from UADE player check RE
+    if(!File.compare("6000.... 6000.... 6000")) return false;
+    a0 = 2+File.read_int16(2,_BE);
+    if(File.compare("48E77FFE E98841FA",a0)) v = 2;
+    else if(File.compare("48E740F0 4A006B0A",a0)) v = 3;
+    else return false;
+    return true
+}
+if(!bDetected && isSeanConnolly()) {
+    sName = 'Sean "Odie" Connolly\'s module (.SCN)'; sVersion = "v"+v; bDetected = 1
+}
+
 function isADL() {
     //ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
     if(File.getSize() < 720 || File.getSize() > 0xFFFF) return false; //v1 min. size
@@ -7828,10 +7863,6 @@ if(File.isHeuristicScan()) { //parallel block
         _setResult("audio","Vortex Project audio (.VTX)",sversion,soption)
     }
     // everyone's fave let's-detect-by-Amiga-init-block ones grouped in here. TODO
-    else if(File.compare("6000.... 6000.... 6000") && File.compare("6000", 0x0C)
-      && File.compare("003000", 0x722) && File.compare("FAF1", 0x1051))  {
-        _setResult("audio","Sean Connolly's module (.SCN)")
-    }
     else if(File.compare("600000..6000....6000") && File.compare("177C00", 0xEA)
       && File.compare("2BFF", 0x1D9) && File.compare("000667", 0x4D4)) {
         bDetected = 1; sName = "Sound Master II module (.SM3)"; sVersion = "v3"
