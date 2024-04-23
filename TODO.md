@@ -9,7 +9,6 @@ The following formats are to be reversed (or otherwise understood) and most like
 This is where you can contribute the most! (sorted by extension)
 
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
- - Activision Pro `.AVP` (WIP)
  - Buzzic `.BUZ`
  - Compoz `.CPZ`
  - Megadrive `.CYM`
@@ -23,13 +22,11 @@ This is where you can contribute the most! (sorted by extension)
  - Infogrames `.DUM`
  - Pixel Painters `.FMF`, `.FTF`
  - Flash Tracker `.FTS`
- - Images Music System `.IMS`
  - Jason Brooke's `.JB`
  - Special FX `.JD`
  - Jesper Olsen's `.JO`
  - Kris Hatlelid's `.KH`
  - Loudness Sound System `.LDS`
- - PMD `.M`
  - Ultima 6 `.M`
  - Silmarils `.MOK`
  - Sidplayer `.MUS`
