@@ -1419,23 +1419,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(File.isVerbose())
             sOptionT(File.read_ansiString(0xA6,0x40));
     }
-    else if(File.getSize() >= 1984+256 && File.compare("'KRIS'",0x3B8)) {
-        //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
-        sName = "Krister Wombell's ChipTracker module (.KRIS,.MOD)"; bDetected = 1;
-        if(File.isVerbose()) {
-            sOption(File.read_ansiString(0,16));
-            ptn = 0;
-            a1 = 0x3BE;
-            ord = File.read_uint8(0x3BC);
-            for(i=0; i < (ord << 2); i++) {
-                t = File.read_uint8(a1); a1 += 2;
-                if(ptn < t) ptn = t
-            }
-            ptn++; sOption("ord:"+ord+" ptn:"+ptn);
-        }
-    }
     else if(File.compare("00000000000000FD..FFFE",0x04) && File.compare("F0F0F0F0F0F0F0",0x14)
-    && File.compare("000000000000010101",0x25) && File.compare("'2222222'",0x44)) {
+      && File.compare("000000000000010101",0x25) && File.compare("'2222222'",0x44)) {
         sName = "Ken Silverman's Adlib module (.KSM)"; bDetected = 1
     }
     else if(File.compare("'cyd!song'") ) {
@@ -3298,7 +3283,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                     else if(x >= 0x60)
                         switch(x & 0xF) {
                         case 0: pfvol = true; pfpitch = false; pvol = 0xF - File.read_uint8(p++);
-                            if(pvol < 0) { bad = bad.addIfNone("!badptnvol0"); i = ptn; p = pp+psz; break;
+                            if(pvol < 0) { bad = bad.addIfNone("!badptnvol0"); i = ptn; p = pp+psz; break; }
                         case 1: pfvol = false; pfpitch = true; ppitch = - File.read_uint8(p++); break;
                         case 2: pfvol = pfpitch = true;  pvol = 0xF - File.read_uint8(p++);
                             if(pvol < 0) { bad = bad.addIfNone("!badptnvol2"); i = ptn; p = pp+psz }
@@ -4188,6 +4173,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
 function isProtoTracker() {
     if(!File.compare("'SONG'") ) return false;
     //ref https://github.com/kometbomb/prototracker/blob/master/doc/FORMAT.TXT
+    //TODO tighten somewhat
     secsz = File.read_uint32(4,_BE);
     v = File.read_uint8(8); trk = File.read_uint8(9); p = 0xA; 
     fxc = 0; if(v >= 17) { fxc = File.read_uint8(p); p++ }
@@ -4324,9 +4310,50 @@ if(!bDetected && isMOD()) {
     sVersion = File.read_ansiString(0x438,4);
     if(File.isVerbose()) {
         sOptionT(File.read_codePageString(0,0x14,"IBM850"));
-        sOptionT(addEllipsis(smps.join(" "),200),"smp/msg:",'"');
+        sOptionT(addEllipsis(smps.join(" "),200),'smp/msg:\"','"');
         sOption(tracker,"in:");
         sOption("chn:"+chn+" ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(sz))
+    }
+}
+
+function isKRIS() {
+    //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
+    // & https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
+    if(File.getSize() < 0x7C0+0x100 || !File.compare("'KRIS'",0x3B8)) return false;
+    ord = File.read_uint8(0x3BC); if(ord > 0x80) return false;
+    loop = File.read_uint8(0x3BD); if(loop > 0x7F) return false;
+    const ibtrsh = 40; //typical threshold for invalid bytes (in samples); _FRAGILE is 1
+    p = 0x16; var totalsmpsz = ib = synwf = 0; smps = [];
+    for(var i=0; i < 31; p += 0x1E, ++i)
+        if(!File.read_uint8(p)) {
+            var maxwf = Math.max(File.read_uint8(p+1),File.read_uint8(p+5),File.read_uint8(p+10),File.read_uint8(p+19));
+            if(maxwf+1 > synwf) synwf = maxwf+1;
+        } else {
+            t = File.read_codePageString(p,20,"IBM850").trim(); if(t != "" && t != "\x01") smps.push(t);
+            var ssz = File.read_uint16(p+0x16,_BE)*2; //length
+            totalsmpsz += ssz;
+            var sft = File.read_uint8(p+0x18);
+            if(sft & 0xF0) ib++; //finetune <= 15
+            var svol = File.read_uint8(p+0x19); if(svol > 0x40) ib++; //volume <= 64
+            if(File.read_uint16(p+0x1A,_BE)*2 > ssz) ib++;
+            if(ib > ibtrsh) return false;
+        }
+    ptn = 0; p = 0x3BE;
+    ord = File.read_uint8(0x3BC);
+    for(i=0; i < (ord << 2); i++) {
+        t = File.read_uint8(p); p += 2;
+        if(ptn < t) ptn = t
+    }
+    ptn++;
+    sz = 0x7C0+(synwf<<6)+(ptn<<8)+totalsmpsz;
+    return true;
+}
+if(!bDetected && isKRIS()) {
+    sName = "Krister Wombell's ChipTracker module (.KRIS,.MOD)"; bDetected = 1;
+    if(File.isVerbose()) {
+        sOption(File.read_ansiString(0,16));
+        sOptionT(addEllipsis(smps.join(" "),200),'smp/msg:\"','"');
+        sOption("ord:"+ord+" ptn:"+ptn+" sz:"+outSz(sz));
     }
 }
 
