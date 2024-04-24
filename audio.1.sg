@@ -240,6 +240,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOptionT(misc);
         }
     }
+    else if(File.compare("'BMF1.1'")) {
+        sName = "The Brain's Easy Adlib chiptune (.BMF)"; sVersion = "v1.1"; bDetected = 1;
+        if(File.isVerbose()) {
+            p = 6; f = File.findSignature(p,-1,"00"); if(f > 0) {
+            t = File.read_ansiString(p,f-p); p += t.length+1;
+            f = File.findSignature(p,-1,"00"); if(f > 0) {
+            c = File.read_ansiString(p,f-p); p += c.length+1;
+
+            }}
+            sOptionT(t); sOptionT(c);
+        }
+    }
     else if(File.compare("'Buzz'")) {
         sName = "Jeskola Buzz module (.BMX)";  bDetected = 1;
         // Do NOT waste time trying to extract anything else...
@@ -2965,8 +2977,8 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
             sOption(t); sOption("rate:"+ticks+"Hz ord:"+ord+" ptn:"+ptn)
         }
     }
-    else if(File.compare("'SC68 Music-file'")) {
-        sName = "SC68 module (.SC68)"; bDetected = 1;
+    else if(File.compare("'SC68 Music-file / (c) (BeN)jamin Gerard / SasHipA-Dev  '00'SC68'........'SCFN'")) {
+        sName = "SC 68000 programmatic chiptune (.SC68)"; bDetected = 1;
         if(File.isVerbose()) {
             hdrl = File.read_ansiString(0,0x100).length+1; 
             p = hdrl; //header skipped
@@ -2992,8 +3004,8 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
             }
             sOptionT(t); if(mn.length > 1) sOption(mn.length,"×");
             sOptionT(mn.join(";"));
-            sOptionT(a,"by: "); sOptionT(cp,"(c)");
-            if(!ef) sVersion = "malformed"
+            sOptionT(a,"by: "); sOptionT(cp,"(c)"); sOption(outSz(p),"sz:")
+            if(!ef) sVersion = "malformed!short"
         }
     }
     else if(File.compare("'shro'020000")) {
@@ -3013,8 +3025,8 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
     }
     else if(File.compare("'PSID'") || File.compare("'RSID'")) {
         v1 = File.read_ansiString(0,1); bDetected = 1;
-        if(v1 == "P")  sName = "PlaySID chiptune (.SID, .PSID)";
-        else sName = "RealSID chiptune (.SID, .RSID)";
+        if(v1 == "P")  sName = "PlaySID programmatic chiptune (.SID, .PSID)";
+        else sName = "RealSID programmatic chiptune (.SID, .RSID)";
         v2 = File.read_uint16(4,_BE);
         sVersion = "v"+Hex(v2);
         bad = 0;
@@ -3090,7 +3102,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
     }
     else if(File.compare("'SNDH'",0x0C) && (File.isHeuristicScan() || File.compare("6000............6000"))) {
         //ref https://sndh.atari.org/files/sndhv21.txt
-        sName = "Atari ST module (.SND,.SNDH)"; sVersion = "uncompressed"; bDetected = 1;
+        sName = "Atari ST Sound Header module (.SND,.SNDH)"; sVersion = "uncompressed"; bDetected = 1;
         if(File.isVerbose()) {
             p = 0x10; title=artist=yr=""; totaltime = i = 0; x = 1;
             while(i < 10 && p < File.getSize()) {
@@ -3432,7 +3444,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         if(File.isVerbose()) {
             p=8;
             t=''; ef=false; ch=0; len=0; extsmp=false; pro=false;
-            while (p<File.getSize()) {
+            while (p < File.getSize()) {
                 if(ef) break;
                 hkhd = File.read_int32(p,_BE); hkhx = Hex(File.read_uint32(p,_BE)); hksz=4;
                 p += 0x04; //chunk header = 4xtype (the following will change by chunk type)
@@ -3479,7 +3491,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                             }//switch
                         }
                       } else //if no RLE sig:
-                      t=File.read_codePageString(p+o,hksz,"CP1252"); break;
+                      t = File.read_codePageString(p+o,hksz,"CP1252"); break;
                     case -1: ch = File.read_int32(p,_BE); break; //NumChannels
                     case -2: len = File.read_int32(p,_BE); if(len > 1024) len = "malformed"; break; //TrackLength
                     case -3: case -4: case -5: break;
@@ -3493,9 +3505,9 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
                 }
                 p += hksz;
             }
-        }
-        sOption(t); sOption(ch,"ch:"); sOption(len,"len:"); sOption(tmp,"tmp:");
-        if(extsmp) sOption("extsmp"); if(pro) sVersion+="/Pro"
+            sOption(t); sOption(ch,"ch:"); sOption(len,"len:"); sOption(tmp,"bpm:");
+            if(extsmp) sOption("extsmp"); if(pro) sVersion+="/Pro"
+            }
     }
     else if(File.compare("'Synth'") && !File.compare("'esi'",5)) {
         sName = "Synthesis module (.SYN)"; bDetected = 1;
@@ -3731,7 +3743,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
         //ref https://vgmrips.net/wiki/VGM_Specification
         // & https://vgmrips.net/wiki/GD3_Specification
         bDetected = 1; bad = false;
-        sName = "Video Game Music chiptune (.VGM)";
+        sName = "Video Game Music chiptune stream (.VGM)";
         eofofs = File.read_uint32(4,_LE)+4;
         sV = Hex(File.read_uint32(8,_LE),8);
         sVersion = "v"+sV.substr(5,1)+"."+sV.substr(6,2);
@@ -3805,7 +3817,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
     }
     else if(File.compare("'WSRF'",File.getSize()-0x20) && File.compare("EA",File.getSize()-0x10)) {
         //ref http://daifukkat.su/docs/wsman/#wsr
-        sName = "WonderSwan chiptune (.WSR)"; bDetected = 1;
+        sName = "WonderSwan R programmatic chiptune (.WSR)"; bDetected = 1;
         p = File.getSize()-0x20;
         sVersion = "v"+File.read_uint8(p+4);
         if(File.isVerbose()) {
@@ -4063,7 +4075,7 @@ _log("after-for "+Hex(p)+", tagdata? "+tagdata);
           || File.compare("'YMT'3.'LeOnArD!'") || File.compare("'MIX1LeOnArD!'")) {
         //ref https://github.com/cpcsdk/libstsound/blob/master/Ymload.cpp
         bDetected = 1; bad = 0; frm = 0; smp = 0; voc = 0; loop = 0; ddn = 0;
-        sName = "ST-Sound chiptune (.YM)";
+        sName = "ST-Sound chiptune stream (.YM)";
         sV = File.read_ansiString(0,4).replace(/!/g,"");
         switch(sV) {
         case "YM1": sVersion = "YM1"; break;
@@ -5332,18 +5344,21 @@ if(!bDetected && File.isDeepScan() && isASC0()) {
 function isBPSoundMon() {
     //ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/BP-Soundmonitor.c
     if(File.getSize() < 0x200) return false;
-    if(!File.compare("'V.'3.",0x1A)) return false;
+    old = false;
+    if(!/V\.\d/.test(File.read_ansiString(0x1A,3)))
+        if(File.compare("'BPSM'",0x1A)) old = true; else return false;
     for(j=0; j < 15; j++) {
-        if(File.read_uint8(32+j*32) == 0xFF) continue;
-        if(File.read_uint8(63+j*32) > 0x40) return false
+        if(File.read_uint8(0x20+j*0x20) == 0xFF) continue;
+        if(File.read_uint8(0x3F+j*0x20) > 0x60) return false
     }
+//TODO calculate for old versions
     allsmpsz = 0;
     for(k=0; k < 15; k++)
-        if(File.read_uint8(32+32*k) < 0xFF)
-            allsmpsz += (File.read_uint16(56+32*k,_BE))*2;
-    j = File.read_uint8(29);
-    sz = allsmpsz + j*64;
-    j = 0; l = File.read_uint16(30,_BE);
+        if(File.read_uint8(0x20+0x20*k) < 0xFF)
+            allsmpsz += (File.read_uint16(0x38+0x20*k,_BE))*2;
+    j = File.read_uint8(0x1D);
+    sz = allsmpsz + j*0x40;
+    j = 0; l = File.read_uint16(0x1E,_BE);
     if(525+l*16 > File.getSize()) return false; //might want to add a few more checks...
     for(k=0; k < l; k++) {
         p = File.read_uint16(512+16*k,_BE); if(p>j) j = p;
@@ -5356,8 +5371,9 @@ function isBPSoundMon() {
 }
 if(!bDetected && File.isDeepScan() && isBPSoundMon()) {
     bDetected = 1;
-    sName = "BP SoundMon module (.BP)";
-    sVersion = "v"+File.read_ansiString(0x1C,1); if(File.getSize() < sz) sVersion += "/malformed!short";
+    sName = "Brian Postma's SoundMon module (.BP)";
+    if(old) sVersion = "old"; else sVersion = "v"+File.read_ansiString(0x1C,1);
+    if(File.getSize() < sz) sVersion += "/malformed!short";
     if(File.isVerbose()) {
         sOptionT(File.read_ansiString(0,0x19));
         sOption(outSz(sz),"sz:");
@@ -7250,7 +7266,8 @@ if(!bDetected && File.isDeepScan() && isTuneFish4()) {
 function isJH() {
     //from https://zakalwe.fi/uade/uade3/uade-3.03.tar.bz2 / uade/amigasrc/players/wanted_team/Jochen_Hippel_ST/Jochen Hippel_v1.asm
     a0 = 0; tfmx = 0;
-    if(File.compare("48E7FFFE")) {
+    if(File.compare("'MCMD'")) { fmt = -1; tfmx = a0 }
+    else if(File.compare("48E7FFFE")) {
         fmt = -1; a0 += 4; d1 = 0;
         if(!File.compare("61",a0)) return false;
         d1 = File.read_uint8(a0+1); if(!d1 || (d1&1)) return false; a0 += d1+2;
@@ -8029,7 +8046,7 @@ function isADL() {
     //TODO false positive: modland/pmd/- unknown/Akai suishou no hitomi/ano-s01.m
 }
 if(!bDetected && File.isDeepScan() && isADL()) {
-    sName = "Westwood ADL chiptune (.ADL)"; bDetected = 1;
+    sName = "Westwood ADL module (.ADL)"; bDetected = 1;
     switch(nV) {
     case 1: sVersion = "v1"; break;
     case 3: sVersion = "v2.x"; break;
@@ -8102,10 +8119,7 @@ if(!bDetected && File.isDeepScan() && isFLS()) {
 if(File.isHeuristicScan()) { //parallel block
 
     // Let's start with just judging by the extensions:
-    if(extIs("bmf")) {//TODO
-        _setResult("audio","The Brain's Easy Adlib 1.0 chiptune (.BMF)","","")
-    }
-    else if(extIs("mok")) { //TODO
+    if(extIs("mok")) { //TODO
         _setResult("audio","Silmarils module (.MOK)","","")
     }
     else if(extIs("imf") || extIs("wlf")) { //a detector is quite impossible to produce...
