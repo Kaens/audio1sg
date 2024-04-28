@@ -5197,7 +5197,7 @@ function isIT() {
                 } else if(cwtv === 0x214 && cmwt === 0x214 && sreserved === "CHBI")
                     tracker = "ChibiTracker";
                 else if(cwtv === 0x214 && cmwt === 0x214 && special <= 1 && !pwd && !nreserved
-                  && (flags&0x10A6) === 4 && smp && File.compare("'XXXXXXXX.YYY'",smpp[1]+4))
+                  && (flags&0x10A6) === 4 && smp > 1 && File.compare("'XXXXXXXX.YYY'",smpp[1]+4))
                     tracker = "CheeseTracker";
                 else if(!cwtv && tracker === "") tracker = "Unknown";
                 else if(cmwt < 0x300 && tracker === "") {
@@ -7417,7 +7417,7 @@ function isJHST() {
     //from http://wt.exotica.org.uk/files/sources/SRC_JochenHippelST.lzx
     //Test routine @e3fc, init @e57e
     // in init, A4 is the module pointer and module info is @e438!
-    a0 = a1 = a4 = d4 = 0; d1 = 0x80; d0 = File.getSize(); bad = "";
+    a0 = a1 = a4 = d4 = 0; d1 = 0x80; d0 = File.getSize(); bad = msg = "";
     //func @e84e, returns d0 = 2 if this:
     while(d1) {
         if(a0 > File.getSize() || a1 > File.getSize()) return false;
@@ -7466,69 +7466,85 @@ function isJHST() {
         d1--
     }
     if(d0 != 2) return false;
-    if(File.compare("'LSMP'",a0+0x1C)) d1 = 1; else d1 = 0;
+    if(File.compare("'LSMP'",a0+0x1C)) lsmp = d1 = 1; else lsmp = d1 = 0;
 //    if(d1) _log("pc+@e16c (lsmp): "+d1); //it stores 'em'
-    a0 -= a4;
+    //a0 -= a4;
 //    if(a0) _log("pc+@e170 (mod ofs?): "+a0); //stores this too
 
     //size calc
-    Special = songsz = smpsz = 0; sz = -1; d0 = File.getSize();
-    packed = File.compare("'COSO'",a0) || File.compare("'MMME'",a0+0x20);
+    songsz = smpsz = 0; sz = sz1 = -1; d0 = File.getSize()-a0;
     //in-player: d0 = fsize; d2 = ffff; d3 = 376b; d4 = d5 = d6 = 0; d7 = 6;
     //  a0 = a2 = 11000; a1 = e17a; a3 = 11161; a4 = e438; a5 = 4ed2; a6 = e164; a7 = 84f8
-    if(!packed) { sV = "unpacked";
-        d6 = 0; d1 = 2; a2 = d4 = 0;
-        d1 = (2+File.read_int16(4,_BE)+File.read_int16(6,_BE)) << 6;
-        d2 = (1+File.read_int16(8,_BE)) * File.read_int16(0xC,_BE);
-        d3 = (1+File.read_int16(0xA,_BE))*12;
-        d1 += d2+d3; d2 = 2+File.read_int16(0x10,_BE);
-        d1 += (d2+File.read_int16(0x12,_BE))*6+0x20;
+    if(!File.compare("'COSO'",a0) && !File.compare("'MMME'",a0+0x20)) { sV = "unpacked";
+        d6 = a0; d1 = 2; a2 = d4 = a0;
+        d1 = (2+File.read_int16(a0+4,_BE)+File.read_int16(a0+6,_BE)) << 6;
+        d2 = (1+File.read_int16(a0+8,_BE)) * File.read_int16(a0+0xC,_BE);
+        d3 = (1+File.read_int16(a0+0xA,_BE))*12;
+//_log("  @e5f8: d0:"+Hex(d0)+" d1:"+Hex(d1)+" d2:"+Hex(d2)+" d3:"+Hex(d3));
+        d1 += d2+d3; d2 = 2+File.read_int16(a0+0x10,_BE);
+        d1 += (d2+File.read_int16(a0+0x12,_BE))*6+0x20;
         d2 = 0x20; d3 = d7 = 0;
-        d0 -= d1; if(d0 < 0)
-            if(a1+d0 > 0 && File.isHeuristicScan()) { bad = "!short"+d0; return true }
-            else return false
+//_log("  @e612: d0:"+Hex(d0)+" d1:"+Hex(d1)+" d2:"+Hex(d2)+" d3:"+Hex(d3));
+        d0 -= d1; if(d0 < 0) /*@e814*/ d0 = 0x1C;
+            // if(a1+d0 > 0 && File.isHeuristicScan()) { bad = "!short"+d0; return true }
+            // else return false
         if(d0 > 0) {
-            a1 = d1+a2; t = File.read_int16(a1,_BE);
-            if(t === 0x80 || t === 0x100) d7 = a1;
-            else  if(t) Special = a1;
-            do { d3 = File.read_int16(a1,_BE); a1 += 8;
-            } while(File.read_int16(a1,_BE) && a1 < File.getSize());
-            d0 -= d3; if(d0 < 0)
-                if(a1+d0 > 0 && File.isHeuristicScan()) { bad = "!short"+d0; return true }
-                else return false
+//_log("  @e618: a2:"+Hex(a2)+" d0:"+Hex(d0)+" d1:"+Hex(d1)+" d2:"+Hex(d2)+" d3:"+Hex(d3));
+            a1 = d1+a2;
+            t = File.read_int16(a1,_BE);
+            if(t === 0x80 || t === 0x100) {
+                d7 = a1;
+                do { d3 = File.read_int16(a1,_BE); a1 += 8;
+                } while(File.read_int16(a1,_BE) && a1 < File.getSize());
+//_log("  @e63e: d0:"+Hex(d0)+" d1:"+Hex(d1)+" d2:"+Hex(d2)+" d3:"+Hex(d3));
+                d0 -= d3; if(d0 < 0)
+                    d0 = 0x1C;
+            }
+            else { t >>= 8; p = a1+1; msg = [];
+                while(t && p < File.getSize()) { msg.push(t); t = File.read_uint8(p++); }
+                msg = decEncoding(msg,CPAmiga,1,Chars0to1FLF)
+            }
         }
         d0 = d1; smpsz = d3;
         // d1 += d4; //d4 is Size(PC), apparently unused
-        songsz = d1; sz = songsz+smpsz;
+        songsz = d1; sz = a0+songsz+smpsz; sz1 = (msg != "" ? sz+msg.length+1 : sz);
     } else {
         sV = "packed";
         a1 = a0; d3 = 0;
         d3 = (1+File.read_int16(a0+0x32,_BE))*6; d2 = d3+File.read_int32(a0+0x18,_BE);
+//_log("d0:"+Hex(d0)+" d1:"+Hex(d1)+" d2:"+Hex(d2)+" d3:"+Hex(d3)+"/"+d3+" msg:"+Hex(a1))
         d3 = 0; d0 -= d2;
-//_log(Hex(File.getSize())+" - "+Hex(d2)+" = "+Hex(File.getSize()-d2))
-        if(d0 < 0)
-            if(a1+d0 > 0 && File.isHeuristicScan()) { bad = "!short"+d0; return true }
-            else return false;
+        if(d0 < 0) /*@e814*/ d0 = 0x1C;
         if(d0 > 0) {
             a1 += d2; t = File.read_int16(a1,_BE);
-            if(t && t != 0x80 && t != 0x100) Special = a1;
-            do { d3 = File.read_int16(a1,_BE); a1 += 8;
-            } while(File.read_int16(a1,_BE) && a1 < File.getSize());
-            d0 -= d3; if(d0 < 0)
-                if(a1+d0 > 0 && File.isHeuristicScan()) { bad = "!short"+d0; return true }
-                else return false
+            if(t == 0x80 && t == 0x100) {
+                do { d3 = File.read_int16(a1,_BE); a1 += 8;
+                } while(File.read_int16(a1,_BE) && a1 < File.getSize());
+            d0 -= d2;
+             if(d0 < 0)
+                d0 = 0x1C
+        } else { t >>= 8; p = a1+1; msg = [];
+                while(t && p < File.getSize()) { msg.push(t); t = File.read_uint8(p++); }
+                msg = decEncoding(msg,CPAmiga,1,Chars0to1FLF)
+            }
         }
-//_log("d2:"+Hex(d2)+"/"+d2+" d3:"+Hex(d3)+"/"+d3+" Special:"+Hex(a1))
-        /*d2 += d4;*/ songsz = d2; smpsz = d3; sz = a0+d3+d2
+//_log("d2:"+Hex(d2)+"/"+d2+" d3:"+Hex(d3)+"/"+d3+" msg:"+Hex(a1))
+        /*d2 += d4;*/ songsz = d2; smpsz = d3; sz = a0+d3+d2; sz1 = (msg != "" ? sz+msg.length+1 : sz);
     }
+    x = File.read_uint16(a0+0x30,_BE);
     return true;
 }
 if(!bDetected && File.isDeepScan() && isJHST()) {
     sName = "Jochen Hippel's Atari ST module (.HST,.SOC,.SOG)"; bDetected = 1
-    sVersion = sV; if(bad != "") sVersion+="/malformed"+bad;
+    sVersion = sV; if(bad != "") sVersion = sVersion.appendS("malformed"+bad,"/");
     if(File.isVerbose()) {
-        if(smpsz) sOption("songsz:"+Hex(songsz)+" smpsz:"+Hex(smpsz)+" sz:"+outSz(sz))
-        else sOption(outSz(sz),"sz:")
+        sOptionT(msg,'msg:"','"');
+        info = "";
+        if(lsmp) info = info.appendS("ext.samples"," ")
+        if(sz > 0) info = info.appendS("sz:"+outSz(sz, sz1)," ");
+        if(smpsz) info = (/*"songsz:"+Hex(songsz)+" "+*/"smpsz:"+Hex(smpsz)).appendS(info," ");
+        if(x > 1) info = ("×"+x).appendS(info," ");
+        sOption(info)
     }
 }
 
