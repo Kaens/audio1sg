@@ -98,14 +98,32 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOption("ord:"+File.read_uint8(0x3A4)+" ptn:"+(File.read_uint8(0x3A5)+1));
         }
     }
-    else if(File.compare("'ASYLUM Music Format'")) {
-        sName = "ASYLUM Music Format (.AMF)"; bDetected = 1;
+    else if(File.compare("'ASYLUM Music Format V1.0'00000000 00000000") && File.read_uint8(0x22) <= 0x40
+      && File.getSize() >= 0xA66+0x800*File.read_uint8(0x23)) {
+        sName = "ASYLUM Music Format module (.AMF)"; bDetected = 1;
         sVersion = "v"+File.read_ansiString(0x15,3);
+        if(File.isVerbose()) {
+            spd0 = File.read_uint8(0x20); bpm0 = File.read_uint8(0x21);
+            smp = File.read_uint8(0x22); ptn = File.read_uint8(0x23); ord = File.read_uint8(0x24);
+            p = 0x126;
+            ssz = 0; smps = [];
+            for(i=0; i < smp; i++) {
+                smpn = readBytes(0x126+0x25*i,0x16,true);
+                smpn = decEncoding(smpn,CP437,false,Chars0to1F).trim();
+                if(smpn != "") smps.push(smpn);
+                slen = File.read_uint32(0x126+0x25*i+0x19); ssz += slen;
+            }
+            sz = 0xA66+0x800*ptn+ssz;
+            sOption(addEllipsis(smps.join(" "),0x100,0xA0), 'smp/msg:"','"')
+            sOption("spd0:"+spd0+" bpm0:"+bpm0+" ord:"+ord+" ptn:"+ptn+" smp:"+smp+" smpsz:"+Hex(ssz)+" sz:"+outSz(sz))
+        }
     }
-    else if(File.compare("'AMF'0.")) {
+    else if(File.compare("'AMF'") && (File.read_uint8(3) == 1 ||
+      (File.read_uint8(3) >= 8 && File.read_uint8(3) <= 0x0E)) && File.read_uint8(4) && File.read_uint8(5)
+      && File.read_uint16(6) && (File.read_uint8(3) < 9 || /[\x01-\x20]/.test(File.read_ansiString(8,1)))) {
         //some say this format is identical to ASYLUM... /presses (X)/ --Kae
         sName = "Digital Sound and Music Interface Advanced Music Format module (.AMF)";
-        sVersion = "v0"+Hex(File.read_uint8(3)); bDetected = 1;
+        sVersion = "v"+Hex(File.read_uint8(3)); bDetected = 1;
         if(File.isVerbose())
             sOptionT(File.read_ansiString(4,32));
     }
@@ -425,9 +443,12 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOption(outSz(File.read_uint16(0x71,_LE)+2),"sz:")
         }
     }
-    else if(File.compare("'DBM0'........'NAME'") && File.compare("'INFO'",0x3C)
-      && File.compare("'SONG'",0x4E) && File.read_uint8(4) < 4) {
-        sName = "Digi Booster Pro module (.DBM)"; bDetected = 1;
+    else if(File.compare("'DBM0'........'NAME'0000002C") && File.read_uint8(4) < 4
+      && File.compare("'INFO'0000000A",0x3C) && File.compare("'SONG'",0x4E)
+      && File.read_uint16(0x44,_BE) <= 255 && File.read_uint16(0x46,_BE) <= 255
+      && File.read_uint16(0x4A,_BE) <= 1024 && File.read_uint16(0x4C,_BE) >=4
+      && File.read_uint16(0x4C,_BE) <= 254 && !(File.read_uint16(0x4C,_BE)%1)) {
+        sName = "DigiBooster Pro module (.DBM)"; bDetected = 1;
         sVersion = "v"+File.read_uint8(4)+"."+File.read_uint8(5).padStart(2,'0');
         p = 8; done = false; if(File.isVerbose()) ord = []; titles = [];
         while(!done && p < File.getSize()) {
@@ -462,12 +483,31 @@ function detect(bShowType,bShowVersion,bShowOptions) {
     else if(File.compare("'DSNGSEQU'00")) {
         sName = "David Hanney's module (.DH)"; bDetected = 1
     }
-    else if(File.compare("'DIGI Booster module'")) {
-        sName = "DIGI Booster module (.DIGI)"; bDetected = 1;
-        sVersion = "v"+File.read_ansiString(0x15,3);
+    else if(File.compare("'DIGI Booster module'00") && File.getSize() >= 0x624 && File.read_uint8(0x19)
+      && File.read_uint8(0x19) <= 8 && File.read_uint8(0x2F) <= 0x7F) {
+        sName = "DigiBooster module (.DIGI)"; bDetected = 1;
+        nV = File.read_uint8(0x18); sVersion = "v"+(nV>>4)+"."+(nV&0xF); co = File.read_uint8(0x1A);
+        if(co) sVersion = sVersion.appendS("co.ptn","/");
+        if(sVersion != File.read_ansiString(0x14,4).toLowerCase()) sVersion += '/"'+File.read_ansiString(0x14,4)+'"';
         if(File.isVerbose()) {
-            sOptionT(File.read_ansiString(0x262,0x20));
-            sOptionT(File.read_ansiString(0x282,0x20),"by: ");
+            sOptionT(decAnsi(0x262,0x20,CPAmiga,true)); msg = []; ch = File.read_uint8(0x19);
+            ord = File.read_uint8(0x2F)+1; ptn = File.read_uint8(0x2E)+1;
+            smp = ssz = 0;
+            for(i=0; i < 31; i++) {
+                slen = File.read_uint32(0xB0+4*i,_BE);
+                if(slen) { smp++; ssz += slen }
+            }
+            for(i=0; i < 31; i++) {
+                sname = decAnsi(0x282+0x1E*i,0x1E,CPAmiga,true).trim();
+                if(sname != "") msg.push(sname);
+            }
+            sz = 0x624;
+            if(co) for(i=0; i < ptn && p <= File.getSize(); i++) sz += 2+File.read_uint16(sz,_BE);
+            else sz += 0x100*ptn*ch;
+            sz += ssz;
+            if(p > File.getSize()) sVersion = sVersion.appendS("malformed!short","/");
+            sOptionT(addEllipsis(msg.join(" "),0x100,0xA0),'by/msg: "','"');
+            sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(p))
         }
     }
     else if(File.compare("000003F3") && File.compare("70FF'NuUNCLEART'",0x20)
