@@ -265,7 +265,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             t = File.read_ansiString(p,f-p); p += t.length+1;
             f = File.findSignature(p,-1,"00"); if(f > 0) {
             c = File.read_ansiString(p,f-p); p += c.length+1;
-
+            //TODO analyse
             }}
             sOptionT(t); sOptionT(c);
         }
@@ -8014,7 +8014,7 @@ function isAVP() {
         if(File.compare("45FA",0xDC)) return false;
         if(!File.compare("E9417000 41FA",4)) return false;
         if(File.compare(d1,0x94) || File.compare(d1,0xA4) || File.compare(d1,0xA8)) {
-            fmt = 0; return true }
+            fmt = 0; base = 8; return true }
         else return false
     } else if(File.compare("2F0841FA")) { //@d444 -> d4ac
         a0 += 4; a0 += File.read_int16(a0,_BE) + 0x1C;
