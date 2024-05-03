@@ -448,30 +448,42 @@ function detect(bShowType,bShowVersion,bShowOptions) {
       && File.read_uint16(0x44,_BE) <= 255 && File.read_uint16(0x46,_BE) <= 255
       && File.read_uint16(0x4A,_BE) <= 1024 && File.read_uint16(0x4C,_BE) >=4
       && File.read_uint16(0x4C,_BE) <= 254 && !(File.read_uint16(0x4C,_BE)%1)) {
+        // ref http://www.digibooster.de/en/format.php
+        // & https://www.amigafuture.de/app.php/dlext/details?df_id=5071
         sName = "DigiBooster Pro module (.DBM)"; bDetected = 1;
         sVersion = "v"+File.read_uint8(4)+"."+File.read_uint8(5).padStart(2,'0');
-        p = 8; done = false; if(File.isVerbose()) ord = []; titles = [];
+        p = 8; done = gotinfo = false; bad = ""; if(File.isVerbose()) ord = []; insts = []; titles = [];
         while(!done && p < File.getSize()) {
             hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4,_BE); p += 8;
             switch(hkhd) {
-            case "INFO": if(!File.isVerbose()) break; x = File.read_uint16(p+4,_BE);
+            case "INFO": x = File.read_uint16(p+4,_BE); ins = File.read_uint16(p,_BE);
                 info = "ch:"+File.read_uint16(p+8,_BE)+" ptn:"+File.read_uint16(p+6,_BE)
-                +" ins:"+File.read_uint16(p,_BE)+" smp:"+File.read_uint16(p+2,_BE);
+                +" ins:"+ins+" smp:"+File.read_uint16(p+2,_BE);
+                gotinfo = true;
                 break;
-            case "SONG": if(!File.isVerbose()) break; q = 0;
+            case "SONG": if(!gotinfo) { bad = bad.addIfNone("!badchunkorder"); break }
+                if(!File.isVerbose()) break; q = 0;
                 while(q+44 < hksz) { t = File.read_codePageString(p+q,44,"CP1250").trim(); titles.push(t);
                     q += 44; ord.push(File.read_uint16(p+q,_BE)); q += 2+ord[ord.length-1]*2 }
                 break;
-            case "SMPL": done = true
+            case "INST": if(!gotinfo) { bad = bad.addIfNone("!badchunkorder"); break }
+                for(i = 0; i < ins; i++) {
+                    t = File.read_ansiString(p+i*50,34).trim(); if(t != "") insts.push(t);
+                    c3freq = File.read_uint32(p+i*50+34,_BE);
+                    if(c3freq < 2000 || c3freq > 192000) bad = bad.addIfNone("!badc3freq");
+                } break;
+            case "SMPL": if(!gotinfo) bad = bad.addIfNone("!badchunkorder"); done = true
             }
             p += hksz;
         }
-        if(!done || p > File.getSize()) sVersion += "/malformed!short";
+        if(!done || p > File.getSize()) bad = bad.addIfNone("!short");
+        if(bad != "") sVersion = sVersion.appendS("malformed"+bad,"/");
         if(File.isVerbose()) {
-            title = File.read_ansiString(0x10,42).trim(); sOption(title);
+            title = File.read_ansiString(0x10,0x2C).trim(); sOption(title);
             sOption(titles.join("; "),(!title && title.length == 1 ? "songs:" : ""));
             if(title == "" && !titles.length) sOptionT(File.read_ansiString(0xD8,28));
             if(x > 1) sOption(x,"×");
+            sOptionT(addEllipsis(insts.join(" "),0x100,0xA0),'smp/msg: "','"');
             info = "ord:"+ord.join("+")+" "+info; sOption(info+" sz:"+outSz(p))
         }
     }
@@ -487,8 +499,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
       && File.read_uint8(0x19) <= 8 && File.read_uint8(0x2F) <= 0x7F) {
         sName = "DigiBooster module (.DIGI)"; bDetected = 1;
         nV = File.read_uint8(0x18); sVersion = "v"+(nV>>4)+"."+(nV&0xF); co = File.read_uint8(0x1A);
-        if(co) sVersion = sVersion.appendS("co.ptn","/");
         if(sVersion != File.read_ansiString(0x14,4).toLowerCase()) sVersion += '/"'+File.read_ansiString(0x14,4)+'"';
+        if(co) sVersion = sVersion.appendS("co.ptn","/");
         if(File.isVerbose()) {
             sOptionT(decAnsi(0x262,0x20,CPAmiga,true)); msg = []; ch = File.read_uint8(0x19);
             ord = File.read_uint8(0x2F)+1; ptn = File.read_uint8(0x2E)+1;
@@ -502,12 +514,12 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                 if(sname != "") msg.push(sname);
             }
             sz = 0x624;
-            if(co) for(i=0; i < ptn && p <= File.getSize(); i++) sz += 2+File.read_uint16(sz,_BE);
+            if(co) for(i=0; i < ptn && sz <= File.getSize(); i++) sz += 2+File.read_uint16(sz,_BE);
             else sz += 0x100*ptn*ch;
             sz += ssz;
-            if(p > File.getSize()) sVersion = sVersion.appendS("malformed!short","/");
+            if(sz > File.getSize()) sVersion = sVersion.appendS("malformed!short","/");
             sOptionT(addEllipsis(msg.join(" "),0x100,0xA0),'by/msg: "','"');
-            sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(p))
+            sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(sz))
         }
     }
     else if(File.compare("000003F3") && File.compare("70FF'NuUNCLEART'",0x20)
@@ -694,11 +706,24 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         sName = "Digital Audio Sound Interface Kit module (.DSM)"; bDetected = 1;
         sOptionT(File.read_ansiString(4,32));
     }
-    else if(File.compare("'RIFF'........'DSMFSONG'")) {
+    else if(File.compare("'RIFF'........'DSMFSONG'") && File.read_uint16(0x36) <= 128 && File.read_uint16(0x38) <= 128
+      && File.read_uint16(0x3C) <= 256 && File.read_uint16(0x3E) <= 16) {
         sName = "Digital Sound Interface Kit module (.DSM)"; bDetected = 1;
         sVersion = "RIFF";
-        if(File.isVerbose())
-            sOptionT(File.read_ansiString(0x14,32));
+        if(File.isVerbose()) {
+            sOptionT(File.read_codePageString(0x14,28,"CP437"));
+            sz = File.read_uint32(4)+8; p = 0xC; smp = 0;
+            while(p < sz) {
+                hkhd = File.read_ansiString(p,4); hksz = File.read_uint32(p+4); p += 8;
+                if(hkhd == "INST") smp++
+                p += hksz;
+            }
+            if(p > File.getSize()) sVersion += "/malformed!badchunk";//+hkhd+" @"+Hex(p-hksz-8)+"="+Hex(hksz);
+            sOption("ch:"+Math.max(1,File.read_uint16(0x3E))+" spd0:"+File.read_uint8(0x42)+" bpm0:"+File.read_uint8(0x43)
+                +" ord:"+File.read_uint16(0x38)+"("+File.read_uint16(0x34)+"-"+File.read_uint16(0x36)
+                +") ptn:"+File.read_uint16(0x3C)+" smp:"+File.read_uint16(0x3A)+"/"+smp
+                +" sz:"+outSz(sz))
+        }
     }
     else if(File.compare("02011313 1412010B 0.")) {
         //ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_dsym.cpp
