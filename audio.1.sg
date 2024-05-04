@@ -7215,7 +7215,11 @@ function isSMUS() {
             realsmp.push(File.read_uint8(a1));
             a1 += d1; ins++
         } while(!File.compare("'TRAK'",a1));
-        title = File.read_ansiString(0x20,t_)
+        sz = a1; trk = 0; while(sz < File.getSize()) {
+            hkhd = File.read_ansiString(sz,4); hksz = File.read_uint32(sz+4,_BE);
+            if(hkhd != "TRAK") break; trk++; sz += 8+hksz }
+_log("trk:"+trk+" sz:"+outSz(sz))
+        title = File.read_ansiString(0x20,t_);
         fmt = 2; sV = "smus"
     }
     else {
@@ -7389,7 +7393,7 @@ function isJH() {
 }
 if(!bDetected && File.isDeepScan() && isJH()) {
     if(fmt < 0) ext = ".MCMD"; else ext = ".SOG";
-    sName = "Jochen Hippel's module ("+ext+",.HIP)"; sVersion = "f."+fmt; bDetected = 1;
+    sName = "Jochen 'Mad Max' Hippel's module ("+ext+",.HIP)"; sVersion = "f."+fmt; bDetected = 1;
     if(File.getSize() < sz) sVersion += "!short";
     if(File.isVerbose()) {
         if(x>1) sOption(x,"×");
@@ -7435,7 +7439,7 @@ function isJH7V() {
     return true;
 }
 if(!bDetected && File.isDeepScan() && isJH7V()) {
-    sName = "Jochen Hippel's module (.HIP7,.S7G)"; sVersion = "7V"; bDetected = 1;
+    sName = "Jochen 'Mad Max' Hippel's module (.HIP7,.S7G)"; sVersion = "7V"; bDetected = 1;
     if(!File.compare("'TFMX'")) sVersion += "+replayer";
     if(File.getSize() < sz) sVersion += "!short";
     if(File.isVerbose()) {
@@ -7469,7 +7473,7 @@ function isJHCoSo() {
     return true
 }
 if(!bDetected && File.isDeepScan() && isJHCoSo()) {
-    sName = "Jochen Hippel's module (.HIPC)"; sVersion = "COSO"; bDetected = 1;
+    sName = "Jochen 'Mad Max' Hippel's module (.HIPC)"; sVersion = "packed"; bDetected = 1;
     if(File.isVerbose()) {
         if(x > 1) sOption(x,"×");
         sOption("ptn:"+ptn+" smp:"+smp+" sz:"+outSz(sz));
@@ -7503,7 +7507,7 @@ function isJHST() {
             break;
         }
         else if(File.compare("'COSO'",a0)) {
-            if(!File.read_int16(a0+0x30,_BE)) return false; //FX check
+            if(!File.read_int16(a0+0x30)) return false; //FX check
             if(!File.read_int32(a0+0x18)) return false;
             if(File.compare("'TFMX'",a0+0x20)) { //@e984
                 a2 = a0+File.read_int32(a0+4,_BE); d6 = d7 = 0;
@@ -7575,13 +7579,15 @@ function isJHST() {
                 msg = decEncoding(msg,CPAmiga,1,Chars0to1FLF)
             }
         }
-        /*d2 += d4;*/ songsz = d2; smpsz = d3; sz = a0+d3+d2; sz1 = (msg != "" ? sz+msg.length+1 : sz);
+        /*d2 += d4;*/ songsz = d2; smpsz = d3; sz = a0+d3+d2;
+        if(msg.length < 3) msg = "";
+        sz1 = (msg.length ? sz+msg.length+1 : sz);
         x = File.read_uint16(a0+0x30,_BE);
     }
     return true;
 }
 if(!bDetected && File.isDeepScan() && isJHST()) {
-    sName = "Jochen Hippel's Atari ST module (.HST,.SOC,.SOG)"; bDetected = 1
+    sName = "Jochen 'Mad Max' Hippel's Atari ST module (.HST,.SOC,.SOG)"; bDetected = 1
     sVersion = sV; if(bad != "") sVersion = sVersion.appendS("malformed"+bad,"/");
     if(File.isVerbose()) {
         sOptionT(msg,'msg:"','"');
@@ -7592,6 +7598,24 @@ if(!bDetected && File.isDeepScan() && isJHST()) {
         if(x > 1) info = ("×"+x).appendS(info," ");
         sOption(info)
     }
+}
+
+function isJHSTSMP() {
+    if(File.getSize() < Math.max(0x80,File.read_uint16(0,_BE))) return false;
+    z = true; oldp = smp = 0;
+    for(i = 0; i < 0x80; i += 8) {
+        p = File.read_uint16(i,_BE); if(p > File.getSize()) return false;
+        if(p) { z = false; if(p < oldp) return false; oldp = p }
+        if(!File.compare("0010 01000000",i+2))
+            if(!File.compare("0000 00000000",i+2)) return false;
+        smp++
+    }
+    if(z) return false;
+    return true
+}
+if(!bDetected && File.isHeuristicScan() && isJHSTSMP()) {
+    sName = "Jochen 'Mad Max' Hippel's Atari ST sample set (SMP.set)"; bDetected = 1;
+    sOption("smp:"+smp+" sz:"+outSz(oldp))
 }
 
 function isEMS() {
