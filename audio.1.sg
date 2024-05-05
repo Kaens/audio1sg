@@ -5952,7 +5952,7 @@ function isSoundtrackerMOD() {
         if(File.read_uint8(44+k*30) > 15) { if(debug)_log("Fault: bad finetune"); return false; } //finetune
         svol = File.read_uint8(45+k*30); if(svol > 0x40) return false;
         sls = File.read_uint16(46+k*30,_BE), sll = File.read_uint16(48+k*30,_BE);
-        if(slen > 4999 || sls > 4999) minV = Math.max(minV,MST1_00);
+        if(slen > 9998 || sls > 4999) minV = Math.max(minV,MST1_00);
         if(slen) smp++;
         allsmpsz += slen; allvols += svol;
 //if(debug>1)_log("smp["+k+"] <"+File.read_ansiString(20+k*30,22)+"> ["+slen+"] @"+Hex(20+k*30)+" -> vol:"+svol+" loopstart:"+sls+" looplen:"+sll);
@@ -6022,7 +6022,7 @@ function isSoundtrackerMOD() {
             case 0xB: minV = ST2_00; break;
             case 0xC: case 0xD: case 0xE: minV = Math.max(minV,ST2_00_Exterminator);
                 if(fx == 0xD) { emptycmd = 1; if(!x[3] && !row) break; nDxx++ } break;
-            case 0x0F: if(minV < ST_III) minV = ST_III; break;
+            case 0xF: if(minV < ST_III) minV = ST_III; break;
             }
         }
         if(ptn >= offptn && ptnic > 64) ptn = offptn;
@@ -7529,7 +7529,7 @@ function isJHST() {
         d1--
     }
     if(d0 != 2) return false;
-    if(File.compare("'LSMP'",a0+0x1C)) lsmp = d1 = 1; else lsmp = d1 = 0;
+    if(File.compare("'LSMP'",a0+0x1C)) lsmp = 1; else lsmp = 0;
     //a0 -= a4; if(a0) _log("pc+@e170 (mod ofs?): "+a0);
 
     //size calc
