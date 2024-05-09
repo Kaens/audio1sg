@@ -361,7 +361,7 @@ function outSz() { if(!arguments.length || typeof arguments[0] === 'undefined') 
           : arguments[i] > File.getSize() ? arguments[i]+"(-"+(arguments[i]-File.getSize())+"!)"
           : arguments[i]
         )
-    }
+      } else; else sizes.push("?");
     return sizes.join("/")
 }
 
@@ -420,4 +420,21 @@ function createOrderlyHuffmanTable(lent, btl, br) {
                 } }
             code += 1 << (Md-d) } }
     return _t
+}
+
+/**
+ * Outputs time in seconds as short human-readable, with a "h:mm:ss" alternative when < 1 day.
+ * Millenia, centuries and years a sidereal years, a "month" duration is 1/12 of such year.
+ * @param {Number} seconds
+ * @returns {String}
+ * For example, 𝑓(123456789) = "31Y10M4w21h33m9s"; 𝑓(1234567) = "2w6h56m7s"; 𝑓(12345) = "3:25:45"
+ */
+function secondsToTimeStr(s) {
+    const mul = [/*millenia*/315581497635,/*centuries*/3155814976,/*yrs*/31558150,/*mns*/2629846,/*wks*/604800,86400,3600,60];
+    var r = "", ss = s%mul[7], mm = div(s%mul[6],mul[7]), hh = div(s%mul[5],mul[6]),
+    dd = div(s%mul[4],mul[5]), ww = div(s%mul[3],mul[4]), mn = div(s%mul[2],mul[3]),
+    yy = div(s%mul[1],mul[2]), cc = div(s%mul[0],mul[1]), mi = div(s,mul[0]);
+    if(s < 86400) { r = mm.padStart(2,'0')+":"+ss.padStart(2,'0'); if(hh) r = hh+":"+r; return r }
+    if(ss) r = ss+"s"+r; if(mm) r = mm+"m"+r; if(hh) r = hh+"h"+r; if(dd) r = dd+"d"+r; if(ww) r = ww+"w"+r;
+    if(mn) r = mn+"M"+r; if(yy) r = yy+"Y"+r; if(cc) r = cc+"C"+r; if(mi) r = ci+"Mil"+r; return r
 }
