@@ -427,7 +427,7 @@ function createOrderlyHuffmanTable(lent, btl, br) {
  * Millenia, centuries and years a sidereal years, a "month" duration is 1/12 of such year.
  * @param {Number} seconds
  * @returns {String}
- * For example, 𝑓(123456789) = "31Y10M4w21h33m9s"; 𝑓(1234567) = "2w6h56m7s"; 𝑓(12345) = "3:25:45"
+ * Ex. 𝑓(123456789) = "31Y10M4w21h33m9s"; 𝑓(1234567) = "2w6h56m7s"; 𝑓(12345) = "3:25:45"
  */
 function secondsToTimeStr(s) {
     const mul = [/*millenia*/315581497635,/*centuries*/3155814976,/*yrs*/31558150,/*mns*/2629846,/*wks*/604800,86400,3600,60];
@@ -437,4 +437,57 @@ function secondsToTimeStr(s) {
     if(s < 86400) { r = mm.padStart(2,'0')+":"+ss.padStart(2,'0'); if(hh) r = hh+":"+r; return r }
     if(ss) r = ss+"s"+r; if(mm) r = mm+"m"+r; if(hh) r = hh+"h"+r; if(dd) r = dd+"d"+r; if(ww) r = ww+"w"+r;
     if(mn) r = mn+"M"+r; if(yy) r = yy+"Y"+r; if(cc) r = cc+"C"+r; if(mi) r = ci+"Mil"+r; return r
+}
+
+/**
+ * Examines a sequence and gives a generalised idea of what sort of characters a string is (mostly) made of.
+ * Could be useful for validating structured files with human-filled fields.
+ * @param {String/Number[]} s - your string in question, or a List of charcodes.
+ * @param {Boolean=false} needall - if true, you have "allascallt allnum" for a line of spaces, else just "allt ".
+ * @returns {String} - at least one or a combo of these, optional prefix "all" (otherwise "mostly"):
+ *  '?': wrong type; 'empty': 0 length; '00': zeroes; 't ': tabs/spaces; 'ctl': 0-1Fh & 7Fh; 'num': numerical;
+ *  'asc': 20h-7Eh; 'xsc': zeroes+tabs+♫+FFh+crlf+ascii; 'foreign': 00,t, ,crlf, 80h+; 'any': decision cannot be made.
+ * Parse the result using indexOf.
+ * Ex. 𝑓("-123 456.789") = "allnum", 𝑓("-123 456.789",1) = "allnumallascallxscallforeign"
+ */
+function charStat() {
+    if(!arguments.length) return "?";
+    if(typeof arguments[0] === "undefined" || typeof arguments[0] === "number") return "?";
+    str = arguments[0];
+    if(arguments.length<2) needall=false; else needall = !!arguments[1];
+    if(str=="" || str == []) return "empty";
+    var i, s=[], c = [ /*[0]00*/0, /*[1]t */0, /*[2]asc*/0, /*[3]xsc*/0, /*[4]num*/0,
+      /*[5]ctl*/0, /*[6]foreign*/0 ], o = [0,0,0,0,0,0,0,0];
+    if(typeof str === "string") for(i=0;i<str.length;i++) s.push(str.charCodeAt(i)); else s = str;
+    for(i=0;i<s.length;i++) {
+        if(!s[i]) { c[0]++; c[3]++; c[5]++; c[6]++ }
+        else if(s[i]==9) { c[1]++; c[3]++; c[5]++; c[6]++ }
+        else if(s[i]==0xA || s[i]==0xD) { c[3]++; c[5]++; c[6]++ }
+        else if(s[i]==0xE) { c[3]++; c[5]++ }
+        else if(s[i]<=0x1F || s[i]==0x7F) c[5]++;
+        else if(s[i]==0x20) { c[1]++; c[2]++; c[3]++; c[4]++; c[6]++; }
+        else if(0x2B<=s[i]&&s[i]<=0x2D || 0x30<=s[i]&&s[i]<=0x39) { c[2]++; c[3]++; c[4]++; c[6]++ }
+        else if(s[i]<=0x7E) { c[2]++; c[3]++ }
+        else if(s[i]==0xFF) { c[3]++; c[6]++ }
+    } for(i=0;i<c.length;i++) o[i] = div(c[i]*100,s.length);
+    r = "";
+    //_log((typeof str)+" "+s+" {"+c+"} <"+o+">")
+    if(!needall) {
+        if(o[0]>70) { if(o[0]==100)r+="all"; r+="00" }
+        else if(o[1]>70) { if(o[1]==100)r+="all"; r+="t " }
+        else if(o[4]>70) { if(o[4]==100)r+="all"; r+="num" }
+        else if(o[2]>70) { if(o[2]==100)r+="all"; r+="asc" }
+        else if(o[3]>70) { if(o[3]==100)r+="all"; r+="xsc" }
+        else if(o[5]>70) { if(o[5]==100)r+="all"; r+="ctl" }
+        else if(o[6]>70) { if(o[6]==100)r+= "all"; r+="foreign" }
+    } else {
+        if(o[0]>70) { if(o[0]==100)r+="all"; r+="00" }
+        if(o[1]>70) { if(o[1]==100)r+="all"; r+="t " }
+        if(o[4]>70) { if(o[4]==100)r+="all"; r+="num" }
+        if(o[2]>70) { if(o[2]==100)r+="all"; r+="asc" }
+        if(o[3]>70) { if(o[3]==100)r+="all"; r+="xsc" }
+        if(o[5]>70) { if(o[5]==100)r+="all"; r+="ctl" }
+        if(o[6]>70) { if(o[6]==100)r+= "all"; r+="foreign" }
+    } 
+    if(r == "") return "any"+o; else return r
 }
