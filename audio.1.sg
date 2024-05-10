@@ -3638,13 +3638,13 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                     ptn++;
                     for(i=0; i<chs; i++) {
                         j = 0;
-                        while(j < 64) {
+                        while(j < 0x40) {
                             b = File.read_uint8(p++);
                             if(b & 0x80) { //RLE!
                                 c = b & 0x7F;
                                 if(c) {
                                     p++;
-                                    while(c && j < 64) { notes++; j++; c--; }
+                                    while(c && j < 0x40) { notes++; j++; c--; }
                                 }
                                 else j++;
                             }
@@ -3653,7 +3653,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
                                 if(b&0x08) p++; if(b&0x10) p++; if(b&0x20) p++;
                                 if(b&0x40) {
                                     c = File.read_uint8(p++);
-                                    while(c && j < 64) { notes++; j++; c--; }
+                                    while(c && j < 0x40) { notes++; j++; c--; }
                                 }
                                 else { notes++; j++; }
                             }
@@ -3665,12 +3665,12 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             t = File.read_ansiString(p,t_); p += t_;
             a_ = File.read_uint32(p,_LE); p += 4;
             a = File.read_ansiString(p,a_); p += a_;
-            c_ = File.read_uint32(p,_LE);
-            c = File.read_ansiString(p+4,c_);
+            c_ = File.read_uint32(p,_LE); p += 4;
+            c = File.read_ansiString(p,c_); p += c_
             sOption(t);
-            sOption(a,"by: ");
-            sOption(c);
-            sOption("ch:"+ch+" ins:"+ins+" ord:"+ord+" ptn:"+ptn+" notes:"+notes+" loop:"+loop);
+            sOption(addEllipsis(a,0x80),"by: ");
+            sOption(addEllipsis(c,0x100),'msg:"','"');
+            sOption("ch:"+ch+" ins:"+ins+" ord:"+ord+" ptn:"+ptn+" notes:"+notes+" loop:"+loop+" sz:"+outSz(p));
         }
     }
     else if(File.compare("'T0ASTINS")) {
