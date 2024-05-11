@@ -4,11 +4,11 @@
 // TODO update the old scripts to use the new functions,
 // and get rid of the functions themselves
 
-const _BE = true; const _LE = false; //endianness for read_int16+
+const _BE = true, _LE = false; //endianness for read_int16+
 //little-endian = reversed notation (Intel, ZX Spectrum),
 //big-endian = direct notation (TCP/IP, Motorola, Amiga)
 //For the BitReader Object, BE is MSB and LE is LSB (intuitively)
-
+const CS_ALL = true, CS_BEST = false; //charStat needall 
 const TOEOF = -1; //use for the size parameter in findSignature
 
 // ---------- START OF PRE-v3.06 CODE --------------------
@@ -306,8 +306,8 @@ function isAllZeroes(ofs, len) {
  * @returns {String} - the resulting string.
  */
 function addEllipsis(a, trim, mintrim) {
-    if(!mintrim) mintrim = 78; if(a.length < trim || mintrim > trim) return a;
-    const spaces = " .,:;!\\/'\"=&\x09\x10\x13\x1A\x26。、｡,，・";
+    if(!mintrim) mintrim = 78; if(a.length < trim || mintrim > trim) return a.trim();
+    const spaces = " .,:;!\\/'\"=&\x09\x0D\x0A\x1A\x26。、｡,，・";
     var i = trim, c = 0, ci = -1;
     while(i >= mintrim && c < 2) {
         if(spaces.indexOf(a[i]) >= 0) { c++; while(spaces.indexOf(a[i]) >= 0) i--; if(ci < 0) ci = i+1 }
