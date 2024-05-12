@@ -5462,7 +5462,7 @@ if(!bDetected && File.isDeepScan() && isASC0()) {
 
 function isBPSoundMon() {
     //ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/BP-Soundmonitor.c
-    // & src/BS02-92.S fo BPSM version
+    // & src/BS02-92.S for BPSM version
     if(File.getSize() < 0x200) return false;
     old = false; bad = "";
     if(!/V\.\d/.test(File.read_ansiString(0x1A,3)))
@@ -8145,22 +8145,21 @@ function isJP() {
         if(File.read_int16(0,_BE) || File.read_int16(0x80,_BE) || !File.compare("00000CBE",0x84)
           || !File.compare("000308BE",0xCB6) || !File.compare("000309BE",0xCBA)) return false;
         else fmt = 3;
-    smpsz = smp = 0;
+    smpsz = smp = 0; x = 1;
     if(fmt == 3) {
-        sz = File.read_uint32(0x8BA,_BE)+2; t0 = File.read_uint32(0,_BE);
+        sz = File.read_uint32(0x8BA,_BE)+2; if(sz < 0x8BC || sz > File.getSize()) return false;
+        t0 = File.read_uint32(0,_BE);
         for(i = 4; i < 0x80; i += 4) {
             t1 = File.read_uint32(i,_BE); t = t1-t0; if(t < 0) return false;
             smpsz += t; if(t) smp++; t0 = t1 }
         smpsz += 0x80;
-        x = 0; a1 = 0x6BE; do {
-            d0 = File.read_uint32(a1,_BE); a1 += 4; if(File.read_uint16(d0,_BE) == 0xFF00) break; x++
-        } while(a1 < sz);
-if(debug)_log("x = "+x+" ?")
-        a0 = File.read_uint16(0xC,_BE)+2; a1 = File.read_uint16(0x1C,_BE); x = (a1-a0)>>1;
-if(debug)_log("  or "+x+" ?")
+        if(sz == 7382 && smpsz == 19290) x = 16 /*realms ingame*/;
+        else { x = 0; a1 = 0x6BE; do {
+                d0 = File.read_uint32(a1,_BE); a1 += 4; if(File.read_uint16(d0,_BE) == 0xFF00) break; x++
+            } while(a1 < sz) }
     } else {
-        sz = File.read_uint16(0x30,_BE);
-        for(i = File.read_uint16(2,_BE); i < sz-4; i += 4) { t = File.read_uint32(i,_BE); smpsz += t; if(t) smp++ }
+        sz = File.read_uint16(0x30,_BE); a0 = File.read_uint16(0xC,_BE)+2; a1 = File.read_uint16(0x1C,_BE); x = (a1-a0)>>1;
+        for(i = File.read_uint16(2,_BE); i < sz-4; i += 4) { slen = File.read_uint32(i,_BE); smpsz += slen; if(slen) smp++ }
     }
     return true;
 }
@@ -8169,6 +8168,7 @@ if(!bDetected && isJP()) {
     case 1: sName = "Jason Page's module (.JP)"; break; case 2: sName = "Jason Page's module (.JPN)"; break;
     case 3: sName = "Jason Page's old module (.JP)"; } sVersion = "f."+fmt; bDetected = 1;
     if(File.isVerbose()) {
+        if(x > 1) sOption(x,'×');
         sOption("smp:"+smp+" smp.sz:"+smpsz+" song sz:"+outSz(sz))
     }
 }
