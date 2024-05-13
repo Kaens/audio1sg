@@ -5924,56 +5924,61 @@ if(!bDetected && File.isDeepScan() && isST()) {
 
 function isSidMon1() {
     //ref http://asle.free.fr/prowiz/prowiz.src.zip / r/sidmon1.c
-    bad = false; n = 0;
-    for(j=0;j<100;j++) {
-        p = File.read_uint16(j+2,_BE);
-        if(File.compare("' SID-MON BY R.v.VLIET'",p+2+j)) return true; //not for eg. "beat to the pulp"
+    // & https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/sidmon1/SIDMon1.0.s
+    //I'm just used to calling the base ofs "a0" at this point
+    a0 = File.findSignature(0,0xFFFF,"41FA.... ....FFD4 43FA.... 228841FA ....D1E8 FFD843FA");
+    if(a0 < 0 || a0%2 || a0 > File.getSize()) return false;
+    bad = "";
+    p = File.read_uint16(a0+2,_BE); msgp = a0+p+2; if(msgp < a0+16 || msgp > File.getSize()) return false;
+//if(debug&&a0)_log("init @"+Hex(a0)+", p="+Hex(p));
+    playp = File.findSignature(a0+0x10,a0+msgp-6,"4E7548E7FFFE"); if(playp < 0 || playp%2) return false;
+    smpd = File.read_uint16(a0+2+p-2,_BE); ordp = File.read_uint16(a0+2+p-6,_BE);
+    ptnp = File.read_uint16(a0+2+p-10,_BE); if(!smpd || !ordp || !ptnp) return false;
+//if(debug)_log("smpd:"+Hex(a0+2+p+smpd)+" ordp:"+Hex(a0+2+p+ordp)+" ptnp:"+Hex(a0+2+p+ptnp));
+    if(a0+2+p+smpd > File.getSize() || a0+2+p+ordp > File.getSize()) return false;
+    if(smpd <= ordp && smpd != 1) return false;
+    ptn = (ordp-ptnp) >> 6; ord = 0; smps = [];
+    if(smpd == 1) { //no samples, traversing orderlist
+        ord++; pt = a0+2+p+ordp;
+        if(pt+4 > File.getSize()) { sz = pt; return true; } // 1 position
+        pt += 4; t = 1; sz = ordp-ptnp;
+        while(t < sz) { t = File.read_uint32(sz,_BE); if(sz+4 > File.getSize() || !t) return true; sz += 4 }
+        sz -= 4; ord--
     }
-    if((p+2 > File.getSize()) || (p < 16)) return false;
-    if((File.read_uint8(6) != 0xFF) || (File.read_uint8(7) != 0xD4)) return false;
-    n = File.read_uint16(2+p-2,_BE);
-    o = File.read_uint16(2+p-6,_BE);
-    j = File.read_uint16(2+p-10,_BE);
-    if((p+n+6  > File.getSize()) || (p+o+6 > File.getSize())) return false;
-    if((n <= o) && (n != 1)) return false;
-    if(n == 1) {
-        pt = p+2+o; if(pt+4 > File.getSize()) return true;
-        pt += 4; l = 1; n = o-j;
-        while(l < n) {
-            l = File.read_uint32(pt,_BE);
-            if((pt+4 > File.getSize()) || (!l)) return true;
-            pt += 4;
+    else { //samples present
+        ord = (smpd-ordp) >> 2;
+        smpd += a0+2+p; //now an absolute offset
+        sdsz = File.read_uint16(smpd+2,_BE); smp = sdsz >> 5;
+        if(smpd+sdsz > File.getSize() || sdsz%32) return false;
+//if(debug)_log("smpinfo: ["+Hex(sdsz)+"/"+Hex(smp)+"]")
+        if(!sdsz) for(;; sdsz += 0x20) { //guess manually
+            if(sdsz+0x24 > File.getSize()) return false;
+            stp = File.read_uint32(smpd+sdsz+4,_BE); //smp start ofs
+            k = File.read_uint32(smpd+sdsz+8,_BE); //loop start ofs?
+            endp = File.read_uint32(smpd+sdsz+0xC,_BE); //loop end ofs or smp end ofs
+            if(stp > k || k >= endp) break; smp++;
+//if(debug)_log("  smp found @"+Hex(sdsz))
+            t = decAnsi(smpd+sdsz+0x10,0x10,CPAmiga).trim(); if(t != "") smps.push(t)
         }
-        pt -= 4
-    }
-    else {
-        n += p+2;
-        p = File.read_uint16(n+2,_BE); if((n+p > File.getSize()) || (p%32)) return false;
-        if(!p) {
-            for(;;p+=32) {
-                if(p+36 > File.getSize()) return false;
-                j = File.read_uint32(n+p+4,_BE);
-                k = File.read_uint32(n+p+8,_BE);
-                l = File.read_uint32(n+p+12,_BE);
-                if((j > k) || (k >= l)) break
-            }
+        mendp = 0;
+        for(i=0; i < smp; i++) {
+            endp = File.read_uint32(smpd+i*0x20+0xC,_BE); if(endp > mendp) mendp = endp;
+            t = decAnsi(smpd+i*0x20+0x10,0x10,CPAmiga); if(t != "") smps.push();
         }
-        o = 0;
-        for(j=0; j < p/32; j++) {
-            k = File.read_uint16(p+14+j*32,_BE);
-            if(k > o) o = k
-        }
-        n += o+4;
-        if(n > File.getSize()) bad = true;
+//if(debug)_log("mendp:"+Hex(mendp)+" @"+Hex(smpd+sdsz+4+mendp));
+        sz = smpd+sdsz+4+mendp;
+        if(sz > File.getSize()) bad = bad.addIfNone("!short");
     }
     return true;
 }
 if(!bDetected && File.isDeepScan() && isSidMon1()) {
-    sName = "SIDMON module (.SID)"; sVersion  = "v1"; bDetected = 1;
-    if(bad) sVersion += "/malformed";
+    sName = "SIDMon module (.SID)"; sVersion  = "v1"; bDetected = 1;
+    if(bad != '') sVersion = sVersion.appendS("malformed"+bad,'/');
     if(File.isVerbose()) {
-        if(n) sOption(outSz(n),"sz:");
-        else sOption("at pos. "+Hex(j))
+        t = decAnsi(msgp,0x100,CPAmiga).trim();
+        if(t != "SID-MON BY R.v.VLIET  (c) 1988") sOptionT(t);
+        sOptionT(addEllipsis(smps.join(','),200),'smps:');
+        sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(sz));
     }
 }
 
@@ -8224,6 +8229,7 @@ if(!bDetected && File.isDeepScan() && isADL()) {
     case 4: sVersion = "v3"
     }
 }
+
 
 function isFLS() {
     //this detection is based purely on sanity checks
