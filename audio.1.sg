@@ -3094,14 +3094,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
             sOptionT(File.read_ansiString(0x27,0x20),"by: ")
         }
     }
-    else if(File.compare("0000001C000000040000", 0x06)
-      && File.compare("'SIDMON II - THE MIDI VERSION'", 0x3A)) {
-        sName = "SidMon II module (.SID2)"; bDetected = 1;
-        if(File.isVerbose()) {
-            sOptionT(File.read_ansiString(7,0x20));
-            sOptionT(File.read_ansiString(0x27,0x20),"by: ")
-        }
-    }
     else if(File.compare("'PSID'") || File.compare("'RSID'")) {
         v1 = File.read_ansiString(0,1); bDetected = 1;
         if(v1 == "P")  sName = "PlaySID programmatic chiptune (.SID, .PSID)";
@@ -5972,13 +5964,52 @@ function isSidMon1() {
     return true;
 }
 if(!bDetected && File.isDeepScan() && isSidMon1()) {
-    sName = "SIDMon module (.SID)"; sVersion  = "v1"; bDetected = 1;
+    sName = "SIDMon module (.SID1,.SMN)"; sVersion  = "v1"; bDetected = 1;
     if(bad != '') sVersion = sVersion.appendS("malformed"+bad,'/');
     if(File.isVerbose()) {
         t = decAnsi(msgp,0x100,CPAmiga).trim();
         if(t != "SID-MON BY R.v.VLIET  (c) 1988") sOptionT(t);
         sOptionT(addEllipsis(smps.join(','),200),'smps:');
         sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(sz));
+    }
+}
+
+function isSidMon2() {
+//from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/SidMon20/SidMon20Worker.cs
+    if(File.getSize() < 0x5A) return false;
+    if(!File.compare("'SIDMON II - THE MIDI VERSION'", 0x3A)) return false;
+    ord = File.read_uint8(2)+1; spd0 = File.read_uint8(3); smp = File.read_uint16(4,_BE);
+    ofs = 0x3A+File.read_uint32(6,_BE); songlenlen = File.read_uint32(0xA,_BE); ofs += songlenlen; //yes
+    if(ofs != 0x5A) return false;    
+    p = 0x0E;
+    for(i = 0; i < 10; i++) {
+        t = File.read_uint32(p,_BE); if(t > 0x0FFFFF || !t) { _log("fault @"+Hex(p)); return false }
+        switch(i) {
+        case 0: var ordt = [ofs,t]; break;  case 1: if(t != ordt[1]) return false; var notexpost = [ofs,t]; break;
+        case 2: if(t != notexpost[1]) return false; var insxpost = [ofs,t]; break;
+        case 3: if(t%32) return false; var inst = [ofs,t]; break;  case 4: var wft = [ofs,t]; break;
+        case 5: var arpt = [ofs,t]; break;  case 6: var vibt = [ofs,t]; break;
+        case 7: if(t != smp) return false; var smpt = [ofs,t]; break;
+        case 8: var trktt = [ofs,t]; trk = t >> 1; break;  case 9: var trkt = [ofs,t]
+        }
+        p += 4; ofs += t; if(ofs > File.getSize()) return false
+    }
+    ofs = trkt[0]+trkt[1]; if(ofs%1) ofs++;
+    smpsz = 0; smps = [];
+    for(p = smpt[0]; p < smpt[0]+smpt[1]; p += 0x40) {
+        smpsz += File.read_uint16(p+4,_BE) << 1;
+        t = decAnsi(p+0x20,0x20,CPAmiga).trim(); if(t != "") smps.push(t)
+    }
+    sz = ofs+smpsz;  smp >>= 6;
+    return true
+}
+if(!bDetected && isSidMon2()) {
+    sName = "SIDMon II module (.SID2)"; bDetected = 1;
+    if(File.isVerbose()) {
+        sOptionT(File.read_ansiString(7,0x20));
+        sOptionT(File.read_ansiString(0x27,0x20),"in: ");
+        sOptionT(addEllipsis(smps.join(','),0x100),'smp/msg:"','"');
+        sOption("trk:"+trk+" ord:"+ord+" smp:"+smp+" sz:"+outSz(sz))
     }
 }
 
