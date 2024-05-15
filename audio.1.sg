@@ -413,7 +413,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
         if(File.isVerbose())
             sOptionT(File.read_ansiString(0x1A,0x10))
     }
-    else if(File.compare("000003F3") && (File.findString(0,0x100,"NuDELIRIUM")>0)) {
+    else if(File.compare("000003F3") && (File.findString(0x20,0x100,"NuDELIRIUM") > 0)) {
         sName = "DeliTracker player addon or Amiga Custom Module (.CUST)"; bDetected = 1;
         sVersion = "CustomPlay";
         if(File.isVerbose())
@@ -5982,19 +5982,17 @@ function isSidMon2() {
     ofs = 0x3A+File.read_uint32(6,_BE); songlenlen = File.read_uint32(0xA,_BE); ofs += songlenlen; //yes
     if(ofs != 0x5A) return false;    
     p = 0x0E;
-    for(i = 0; i < 10; i++) {
+    for(i = 0; i < 11; i++) {
         t = File.read_uint32(p,_BE); if(t > 0x0FFFFF || !t) { _log("fault @"+Hex(p)); return false }
         switch(i) {
         case 0: var ordt = [ofs,t]; break;  case 1: if(t != ordt[1]) return false; var notexpost = [ofs,t]; break;
-        case 2: if(t != notexpost[1]) return false; var insxpost = [ofs,t]; break;
-        case 3: if(t%32) return false; var inst = [ofs,t]; break;  case 4: var wft = [ofs,t]; break;
-        case 5: var arpt = [ofs,t]; break;  case 6: var vibt = [ofs,t]; break;
+        case 2: if(t != notexpost[1]) return false; break; case 3: if(t%32) return false; break;
         case 7: if(t != smp) return false; var smpt = [ofs,t]; break;
-        case 8: var trktt = [ofs,t]; trk = t >> 1; break;  case 9: var trkt = [ofs,t]
+        case 8: trk = t >> 1; break;  case 9: var trkt = [ofs,t]; break;
         }
         p += 4; ofs += t; if(ofs > File.getSize()) return false
     }
-    ofs = trkt[0]+trkt[1]; if(ofs%1) ofs++;
+    ofs = trkt[0]+trkt[1]; if(ofs%2) ofs++;
     smpsz = 0; smps = [];
     for(p = smpt[0]; p < smpt[0]+smpt[1]; p += 0x40) {
         smpsz += File.read_uint16(p+4,_BE) << 1;
@@ -8261,6 +8259,43 @@ if(!bDetected && File.isDeepScan() && isADL()) {
     }
 }
 
+function isSilmarils() {
+    //from UADE player RE
+    a0 = 0; if(!File.compare("0016",a0+4)) { a0 += 6; if(!File.compare("0016",a0+4)) return false }
+    if(!File.compare("0000 00000000 00000000 ....0020 ....0020",a0+6)) return false;
+    d1 = File.read_uint32(a0+0xE,_BE); if(d1%2) return false;
+    if(!File.compare("00000058",a0+d1)) return false;
+    a2 = a0+0x58; a3 = 0; if(File.compare("0016",0xA)) a3 += 6;
+    a3 += File.read_uint32(a3+0xE,_BE); a3 += File.read_uint32(a3,_BE);
+    a2 = a3; x = smp = sz = d0 = d3 = 0;
+    while(a3 < File.getSize()) {
+        a3 = a2; a2 += 4;
+        if(!File.read_uint32(a3,_BE) || File.read_uint8(a3,_BE)) { //→e684
+            a3 = sz; sz += File.read_uint32(a3+2,_BE); break;
+        } else {
+            a3 += File.read_int32(a3,_BE); if(a3 > sz) sz = a3; if(a3 > File.getSize()) return false;
+            if(File.compare("FF02",a3+6)) x++;
+            else {
+                t = File.read_uint32(a3+2,_BE); if(t > File.getSize()) return false;
+                smp++; d3 += t; if(d0 < t) d0 = t
+            }
+        }
+    }
+    if(a3 > File.getSize() || sz > File.getSize()) return false;
+    smpsz = d3;
+    return true
+}
+if(!bDetected && isSilmarils()) {
+    sName = "Silmarils module (.MOK)"; bDetected = 1;
+    bad = "";
+    if(x > 3) bad = bad.addIfNone("!subsongs>3");
+    if(smp > 0x20) bad = bad.addIfNone("!smp>32");
+    if(bad != "") sVersion = sVersion.appendS("malformed"+bad,'/');
+    if(File.isVerbose()) {
+        if(x > 1) sOption(x,'×');
+        sOption("smp:"+smp+" smpsz:"+Hex(smpsz)+" sz:"+outSz(sz))
+    }
+}
 
 function isFLS() {
     //this detection is based purely on sanity checks
@@ -8327,10 +8362,7 @@ if(!bDetected && File.isDeepScan() && isFLS()) {
 if(File.isHeuristicScan()) { //parallel block
 
     // Let's start with just judging by the extensions:
-    if(extIs("mok")) { //TODO
-        _setResult("audio","Silmarils module (.MOK)","","")
-    }
-    else if(extIs("imf") || extIs("wlf")) { //a detector is quite impossible to produce...
+    if(extIs("imf") || extIs("wlf")) { //a detector is quite impossible to produce...
         if(extIs("imf"))
             freq = "560Hz (or 280Hz if Duke Nukem II)";
         else

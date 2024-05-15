@@ -28,7 +28,6 @@ This is where you can contribute the most! (sorted by extension)
  - Kris Hatlelid's `.KH`
  - Loudness Sound System `.LDS`
  - Ultima 6 `.M`
- - Silmarils `.MOK`
  - Sidplayer `.MUS`
  - Startrekker AM's `.NT` info files
  - Westwood `.SND`
