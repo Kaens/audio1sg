@@ -420,12 +420,15 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SA(X.fStr(0,0x100,"NuDELIRIUM")+20,0x100))
 	}
 
-	else if(X.c("'JCH'26026601")) {
+	else if(X.c("'JCH'26026601") && X.c("'Creative Voice File'1A1A000A01291101......C300",0x40)) {
 		sName = "Edlib Tracker module samples (.S01)"; bDetected = 1
 	}
-	else if((X.c("'JCH'26 026600") && X.c("FFFF",0x75))
-	  || (X.c("'JCH'26 026680") && X.c("FFFF",0x77))) { //is this one a one-off?
+	else if(X.Sz() < 0xFFFF && (X.c("'JCH'26 026600") || X.c("'JCH'26 026680"))
+	  && (X.c("FFFF",X.U16(0x71,_LE)-2) || X.c("FFFF",X.U16(0x73,_LE)-2))) {
 		//ref http://ftp.modland.com/pub/documents/format_documentation/Edlib%20Tracker%20(.edl,%20.d00,%20.d01).txt
+		msgp = 0; i = 0; //bruteforce-find the message at the end of the file (version-dependent)
+		while (i < 4) { t = X.U16(0x71+i,_LE); if(t != 0xFFFF && t > msgp) msgp = t; i += 2 }
+		sz = X.fSig(msgp,TOEOF,"FFFF")+2;
 		bDetected = 1; bad = 0;
 		sName = "Edlib Tracker module (.D00,.D01)";
 		sVersion = "v"+X.U8(7);
@@ -437,9 +440,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SC(0x0B,0x20,"CP850"));
 			if(x > 1) sOption(x,"×");
 			sOptionT(X.SC(0x2B,0x20,"CP850"),"by: ");
-			p = X.U16(0x71,_LE);
-			sOptionT(X.SC(p,X.Sz()-p-2,"CP850"));
-			sOption(outSz(X.U16(0x71,_LE)+2),"sz:")
+			sOptionT(X.SC(msgp,sz-msgp-2,"CP850"));
+			sOption(outSz(sz),"sz:")
 		}
 	}
 	else if(X.c("'DBM0'........'NAME'0000002C") && X.U8(4) < 4
@@ -850,7 +852,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			misc = X.SA(0x0E + X.U16(0x0E,_BE),0x100);
 			more = X.U8(0x10);
 			sOptionT(title0);
-			if(more > 0) sOption(more+1,"x ");
+			if(more > 0) sOption(more+1,"×");
 			sOptionT(auth);
 			sOptionT(misc);
 		}
@@ -1267,7 +1269,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Gameboy Sound System module (.GBS)";
 		if(X.isVerbose())
 			sOptionT(X.SA(0x10,0x20));
-		tc = X.U8(4); if(tc > 0) sOption("x "+tc);
+		tc = X.U8(4); if(tc > 1) sOption(tc,"×");
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0x30,0x20),"by: ");
 			sOptionT(X.SA(0x50,0x20));
@@ -3212,7 +3214,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(X.isVerbose()) {
 			sOptionT(X.SC(4,0x20,"CP1250"));
 			tc = X.U8(0x64);
-			if(tc > 1) sOption(tc,"x ");
+			if(tc > 1) sOption(tc,"×");
 			sOptionT(X.SC(0x24,0x20,"CP1250"),"by: ");
 			sOptionT(X.SC(0x44,0x20,"CP1250"))
 		}
@@ -3866,9 +3868,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SA(0x1BE,0x10),"'");
 		}
 	}
-	else if(X.c("'Creative Voice File'1a1a")) { //TODO organise to a non-module file
-		sName = "Creative Voice audio (.VOC)"; bDetected = 1
-	}
 	else if(X.fSig(X.Sz()-0x20,TOEOF,"'VSS0'00") > -1) {
 		//TODO thaaat's not a good way to detect a thing...
 		sName = "Voodoo Supreme Synthesizer audio (.VSS)"; bDetected = 1
@@ -4300,6 +4299,53 @@ if(!bDetected && isAnders0land()) {
 		sOption(outSz(sz),"sz:")
 	}
 }
+
+	function isD00nohdr() {
+		// ref https://github.com/adplug/adplug/blob/master/src/d00.h & .cpp
+		if(X.Sz() < 40 || X.Sz() >= 0xFFFF) return false;
+		if(X.c("0001.... 000D00") && X.c("FFFF",0xB)) nV = 0;
+		else if(X.c("01..01.. 000F00") && X.c("FFFF",0xD)) nV = 1; else return false;
+		seqp = X.U16(3,_LE); if(seqp < 13 || seqp > X.Sz()) return false; // ptr to sequence pointer table
+		x = 1;
+		seqtest = X.fSig(seqp+18+9,TOEOF,"0000000000 FFFF")-seqp; // reserved bytes are 0; endmark follows 
+		while (seqtest > 0x20) { x++; seqtest -= 0x20; if(!X.c("0000000000",seqp+seqtest)) return false }
+		//there may be several sequence tables but they end the same
+		trkp = t = X.U16(5,_LE); if(!X.c("FFFF",trkp-2) || trkp < 13) return false; // ptr to track pointer table
+		insp = X.U16(7,_LE); if(!X.c("FFFF",insp-2) || insp < 13) return false; // to instrument pointer table
+		sz = X.U16(9,_LE); if(!X.c("FFFF",sz-2) || sz < 13) return false; // to message
+		if(nV == 1) { sfxp = X.U16(11,_LE); if(!X.c("FFFF",sfxp+8)) return false; } // to sfx
+		if(Math.abs(trkp-seqp) < 20 || Math.abs(trkp-insp) < 20 || Math.abs(seqp-insp) < 20) return false;
+		oldp = trkp; p = X.U16(trkp,_LE);
+		ip = 0, once = 0; // count pointers out of order, heuristic
+		while(t < trkp+18 && trkp < X.Sz()) { // check 9 pointers from TPoin for validity
+			if(t === trkp) p = oldp = t; // for the first pointer
+			if(p) oldp = p;
+			p = X.U16(t,_LE); if(!p || p < trkp || p > X.Sz()) return false;
+			if(!X.c("FFFF",p-2)) { once++; if(once > 1) return false }
+			if(p < oldp) { ip++; if(ip > 2) return false } // some D00s do have pointers out of order
+			q = p; while(!X.c("FFFF",q) && q < X.Sz()) q += 2; //check the table data for having a FFFF somewhere near
+			if(!X.c("FFFF",q)) { if(debug)_log("boh. t="+Hex(t)+" p="+Hex(p)+" q="+Hex(q)); return false; }
+			t += 2
+		}
+		msg = ""; t = X.fSig(sz,0x200,"FFFF"); if(t > 0) { // the message exists and ends in FFFF
+			msg = X.SC(sz,t-sz,"CP437").trim(); sz = t+2
+		} else { // the message may exist but it may also be garbage, checking...
+			msg = readBytes(sz,Math.min(sz+0x100,X.Sz())-sz);
+			c = charStat(msg,1); if(c.indexOf("allxsc") >= 0) {
+				msg = decEncoding(msg,CP437); sz += msg.length; msg = msg.trim()
+			} else msg = ''
+		}
+		return true;
+	}
+	if(!bDetected && X.isDeepScan() && isD00nohdr()) {
+		sName = "Edlib Tracker module (.D00)?"; sVersion = "old v"+X.U8(0); bDetected = 1;
+		if(X.isVerbose()) {
+			if(x > 1) sOption(x,'×');
+			sOptionT(addEllipsis(msg,0x100,0x80),'msg:"','"');
+			sOption("sz:"+outSz(sz))
+		}
+	}
+
 
 function isMOD() {
 	//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
@@ -7805,7 +7851,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		var sn = readBytes(20+k*30,22,true), sname = decEncoding(sn,CPAmiga).trim();
 		if(/ST-[0-9A-F]+:/i.test(sname)) ic -= 4; else snames.push(sname);
 		ic += invalidChars(sn);
-		if(debug)_log("smp["+k+'] "'+sname.trim()+'" invalid chars:'+ic+" ("+charStat(sn,1)+")")
+		if(debug>1)_log("smp["+k+'] "'+sname.trim()+'" invalid chars:'+ic+" ("+charStat(sn,1)+")")
 		if(ic > 10) { if(debug)_log("Fault: title or sample names too broken"); return false; }
 		if(X.U8(20+k*30) && !/^st-[0-9a-f]\d:/i.test(sname))
 			hasDiskNames = false;
@@ -8629,31 +8675,6 @@ if(debug)_log("loop:"+loop);
 	}
 	if(isJHSTSMP()) _setResult("audio","Jochen 'Mad Max' Hippel's Atari ST sample set (SMP.set)","",
 			"smp:"+smp+" sz:"+outSz(oldp))
-
-	function isD00nohdr() { if(X.Sz() > 0xFFFF) return false;
-		if(X.c("00...... 000D00") && X.c("FFFF",0x0B)) nV = 0;
-		else if(X.c("01...... 000F00") && X.c("FFFF",0x0D)) nV = 1;
-		else return false;
-		t = X.U16(5,_LE); if(t < 13 || t > X.Sz()) return false;
-		p = X.U16(t,_LE); t1 = X.U16(3,_LE); if(t1 < 13 || t > X.Sz()) return false;
-		t1 = X.U16(7,_LE); if(t1 < 13 || t > X.Sz()) return false;
-		if(t == t1) return false; tn = t1+18; oldp = t;
-		while(t < tn) { if(t === t1) p = oldp = t;
-			if(p) oldp = p; p = X.U16(t,_LE); if(!p) { t += 2; continue }
-			if(p < oldp) return false; q = p;
-			while(!X.c("FFFF",q) && q < X.Sz()) q += 2;
-			if(!X.c("FFFF",q)) return false; t += 2
-		}
-		p = oldp = t;
-		if(!X.c("FFFF",t+14)) return false;
-		sz = X.U16(9,_LE);
-			if(!X.c("FFFF",sz-2)) return false;
-		return true;
-	}
-	if(X.isDeepScan() && isD00nohdr()) {
-		if(X.isVerbose()) _setResult("audio","Edlib Tracker module (.D00)?","v"+nV+" headerless","sz:"+outSz(X.U16(9,_LE)));
-		else _setResult("audio","Maniacs of Noise module (.MON)","v"+nV+" headerless","")
-	}
 
 } //isHeuristicScan parallel block
 
