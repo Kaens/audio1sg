@@ -9,7 +9,6 @@ The following formats are to be reversed (or otherwise understood) and most like
 This is where you can contribute the most! (sorted by extension)
 
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
- - Buzzic `.BUZ`
  - Compoz `.CPZ`
  - Megadrive `.CYM`
  - Edlib .`EDL`

@@ -277,10 +277,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		// For example, that beta has no float x/y coordinates
 		// And there is no signature difference.
 	}
-	else if(X.c("'buz2'02")) {
-		sName = "Buzzic module (.BUZ2)"; bDetected = 1;
-		sVersion = "v2";
-	}
 	else if(X.c("'BRTF'")) {
 		sName = "BeRoTracker module (.BRT)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -8447,7 +8443,7 @@ function isBuzzic10() { // doesn't detect empty modules with no sound, as the fo
 	// there are absolutely no checks made on the text values so there's no meaning in checking those
 	return true
 }
-if(X.isDeepScan() && isBuzzic10()) {
+if(!bDetected && X.isDeepScan() && isBuzzic10()) {
 	sName = "Buzzic module (.BUZ)"; sVersion = 'v1.0'; bDetected = 1;
 	sOption('trk:'+trk+' ord:'+ord+(start?' (from '+start+')':'')+' ptn:'+ptn+' ins:'+ins
 		+' bpm:'+bpm+' gvol:'+gvol+' sz:44712')
@@ -8500,10 +8496,46 @@ function isBuzzic11() { //detection only slightly different from the above
 	if(!isAllZeroes(0x7084,0x2000)) return false;
 	return true
 }
-if(X.isDeepScan() && isBuzzic11()) {
+if(!bDetected && X.isDeepScan() && isBuzzic11()) {
 	sName = "Buzzic module (.BUZ)"; sVersion = 'v1.1'; bDetected = 1;
 	sOption('trk:'+trk+' ord:'+ord+(start?' (from '+start+')':'')+' ptn:'+ptn+' ins:'+ins
 		+' bpm:'+bpm+' gvol:'+gvol+' sz:45224')
+}
+
+function isBuzzic2() {
+	//from the app sources
+	if(!X.c("'buz2'0200")) return false;
+	gvol = X.F32(8); if(!isWithin(gvol,0,2)) return false;
+	bpm = X.U32(0xC); if(!isWithin(bpm,10,200)) return false;
+	startpos = X.U32(0x10); ord = X.U32(0x14)+1; if(startpos >= ord) return false;
+	looping = X.U8(0x18); if(looping > 1) return false;
+	nV = X.U16(6); p = 0x9C; sz = -1; bad = "";
+	maxptn = maxtrk = 64; maxtml /*max template melody length*/ = 128;
+	ptn = X.U32(p); trk = X.U32(p+4); p += 8;
+	if(nV >= 1) { maxptn = X.I32(p); maxtrk = X.I32(p+4); maxtml = X.I32(p+8); p += 12 }
+	p += maxptn*16+maxtrk*maxtml;
+	trks = [];
+	for(i=0; i < 64; i++) { t = X.SA(p,0x40).trim(); if(t != "") trks.push(t); p += 0x40 }
+	ptns = [];
+	for(i=0; i < 64; i++) { t = X.SA(p,0x40).trim(); if(t != "") ptns.push(t); p += 0x40 }
+	ins = X.U32(p); p += 4;
+	if(p > X.Sz()) return false;
+	inss = []; totalops = 0;
+	for(i=0; i < ins; i++) {
+		t = X.SA(p,0x80).trim(); if(t != "") inss.push(t);
+		var opcnt = X.U32(p+0x184); totalops += opcnt; p += 0x2410+opcnt*0x228;
+	}
+	sz = p; if(sz > X.Sz()) bad = bad.addIfNone('!short');
+	return true;
+}
+if(!bDetected && isBuzzic2()) {
+	sName = "Buzzic module (.buz2)"; bDetected = 1; sVersion = 'v2.'+nV.padStart(2,'0');
+	if(X.isVerbose()) {
+		//sOptionT(addEllipsis(trks.join(','),0xA0,0x80),'trks:"','"');
+		//sOptionT(addEllipsis(ptns.join(','),0xA0,0x80),'ptns:"','"');
+		//sOptionT(addEllipsis(inss.join(','),0xA0,0x80),'insts:"','"');
+		sOption('bpm:'+bpm+' trk:'+trk+' ptn:'+ptn+' ins:'+ins+' g.vol:'+Math.round(gvol*100)+'% ops:'+totalops+' sz:'+outSz(sz))
+	}
 }
 
 function isFLS() {
