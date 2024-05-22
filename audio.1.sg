@@ -8598,6 +8598,22 @@ if(!bDetected && isBuzzic2()) {
 	}
 }
 
+function isInfogramesRH2() {
+	if(!X.c("000200")) return false; //+04: speed?
+	if(!X.c("FF000F",X.U16(4,_BE)+1)) return false;
+	sz = X.U16(0x10,_BE)+2;
+	for(i=10,oldp = X.U16(8,_BE); i < 0x20; i += 2) { if(i == 0x10) continue;
+		p = X.U16(i,_BE); if(p <= oldp || p+1 > X.Sz()) return false; if(!X.c("FF",p+1)) return false;
+		oldp = p
+	}
+	return true;
+}
+if(!bDetected && isInfogramesRH2()) {
+	sName = "Infogrames (RobHubbard2) module (.DUM)"; sVersion = "+.INS"; bDetected = 1;
+	if(X.isVerbose()) sOption(outSz(sz),'sz:')
+	//TODO get info
+}
+
 function isFLS() {
 	//this detection is based purely on sanity checks
 	//  AND a tiiiiiny ~bruteforce~ of membase, which is why it comes in last

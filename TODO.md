@@ -18,7 +18,6 @@ This is where you can contribute the most! (sorted by extension)
  - Delta Packer `.DP`
  - Digital Sonix And Chrome `.DSC`
  - Digital Studio `.DST` (Spectrum)
- - Infogrames `.DUM`
  - Pixel Painters `.FMF`, `.FTF`
  - Flash Tracker `.FTS`
  - Jason Brooke's `.JB`
