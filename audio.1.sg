@@ -229,7 +229,28 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "AXS module (.AXS)"; bDetected = 1
 	}
 	else if(X.c("'CBMF'")) {
-		sName = "Bob's Adlib Music module (.BAM)"; bDetected = 1
+		sName = "Bob's Adlib Music module (.BAM)"; bDetected = 1;
+		if(X.isVerbose() && X.isDeepScan()) {
+			//ref https://github.com/adplug/adplug/blob/master/src/bam.cpp
+			p = 4; notes = ins = 0; songend = false;
+			while(!songend && p < X.Sz()) {
+				lp: while(!songend && X.U8(p) < 0x80) {
+					cmd = X.U8(p) >> 4;
+					switch(cmd) {
+					case 0: songend = true; p++; break;
+					case 1: p += 2; notes++; break; //start note
+					case 2: p++; break; //stop note
+					case 3: p += 12; ins++; break; //define ins
+					case 5: p++; break; //set label
+					case 6: p += 2; break; //jump
+					case 7: //end of chorus
+					default: p++; break;
+					}
+				}
+				if(X.U8(p) >= 0x80) p++;
+			}
+			if(!songend) p = -1; sOption('ins:'+ins+' notes:'+notes+' sz:'+outSz(p))
+		}
 	}
 	else if(X.c("'BBSONG'00")) {
 		sName = "Beepola module (.BBSONG)"; bDetected = 1;
@@ -258,7 +279,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	else if(/BMF1\.[012]/.test(X.SA(0,6)) && X.Sz() > 8 && X.fSig(6,42,"00") > 6) {
-		/// ref https://github.com/adplug/adplug/blob/master/src/bmf.cpp
+		//ref https://github.com/adplug/adplug/blob/master/src/bmf.cpp
 		sName = "The Brain's Easy Adlib module (.BMF)"; sV = X.SA(5,1);
 		sVersion = "v1."+sV; bDetected = 1;
 		if(X.isVerbose() && sV > '0') {
