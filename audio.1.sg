@@ -1805,13 +1805,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SC(0x14,0x16,"IBM850"),"by/inst: ")
 		}
 	}
-	else if(X.c("000000000000'MTN'000000",0x5B2) || X.c("'IT10'00",0x5B8)) {
-		sName = "SoundTracker module (.ST26,.ICE)"; sVersion = "v2.6"; bDetected = 1;
-		if(X.isVerbose()) {
-			sOptionT(X.SA(0,0x14));
-			sOptionT(X.SA(0x14,0x16),'by/smp:"','"')
-		}
-	}
 	else if(X.c("08'MONOTONE'")) {
 		//ref https://github.com/MobyGamer/MONOTONE/blob/master/MTSRC/MT_SONG.PAS
 		sName = "MONOTONE module (.MON)"; bDetected = 1;
@@ -4396,7 +4389,7 @@ if(!bDetected && isAnders0land()) {
 	}
 
 
-function isMOD() {
+function isProtrackerMOD() {
 	//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
 	if(X.Sz() < 0x43C) return false;
 	var b = readBytes(0x438,4); var s = X.SA(0x438,4);
@@ -4482,7 +4475,7 @@ function isMOD() {
 	sz += smpsz;
 	return true
 }
-if(!bDetected && isMOD()) {
+if(!bDetected && isProtrackerMOD()) {
 	sName = "Generic module (.MOD)"; bDetected = 1;
 	sVersion = X.SA(0x438,4);
 	if(X.isVerbose()) {
@@ -4531,6 +4524,31 @@ if(!bDetected && isKRIS()) {
 		sOption(X.SA(0,16));
 		sOptionT(addEllipsis(smps.join(" "),200),'smp/msg:\"','"');
 		sOption("ord:"+ord+" ptn:"+ptn+" sz:"+outSz(sz));
+	}
+}
+
+function isMTNICE() {
+	//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_ice.cpp
+	if(X.c("'MTN'000000",0x5B8)) tracker = 'MnemoTroN ST';
+	else if(X.c("'IT10'00",0x5B8)) tracker = 'Ice Tracker 1.0~1';
+	else return false;
+	smp = smpsz = 0; smps = [];
+	for(p=20; p < 20+30*31; p+=30) {
+		t = decAnsi(p,22,CPAmiga).trim(); if(t != '') smps.push(t);
+		ssz = X.U16(p+22,_BE); if(ssz) smp++; smpsz += ssz
+	}
+	ord = X.U8(p++); ptn = X.U8(p++); if(ord > 128) return false;
+	for(i=0; i < 128*4; i++) if(X.U8(p++) > ptn) return false;
+	sz = 0x5BC+ptn*64*4+smpsz;
+	return true
+}
+if(!bDetected && isMTNICE()) {
+	sName = "SoundTracker module (.ST26,.ICE)"; sVersion = "v2.6"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(decAnsi(0,0x14,CPAmiga));
+		sOptionT(addEllipsis(smps.join(' '),0x80),'smps/msg:"','"')
+		sOption('in: '+tracker);
+		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+sz)
 	}
 }
 
@@ -5546,7 +5564,6 @@ function isGlobalTracker() {
 	if(X.Sz() < 296) return false;
 	adr = X.U16(5); p = 0x27; mp = 0;
 	for(i=0,old=X.U16(p)-adr,p+=2; i < 14; i++,old=t) { t = X.U16(p)-adr; //sample ptrs check
-_log("smp@"+Hex(t))
 		if(t - old < 6 || (t-old-2)%4 || t > X.Sz()) return false; p += 2 }
 	for(i=0,old=X.U16(p)-adr,p+=2; i < 15; i++,old=t) { t = X.U16(p)-adr; //ornament ptrs check
 		if(t-old < 3 || t > X.Sz() || t-old != 2+X.U8(old+1) /* orn. loop end */) return false; p += 2 }
@@ -5649,14 +5666,13 @@ function isGMC() {
 	}
 	if(allsmpsz <= 4) return false;
 	smps.sort(function(a,b){return a[0]-b[0]});
-smps.forEach(function(k){_log("smp ofs:"+Hex(k[0])+" len:"+Hex(k[1])+" -> "+Hex(k[0]+k[1]))})
 	for(k=0; k < smps.length-1; k++)  if(smps[k][0]+smps[k][1] > smps[k+1][0]) return false;
 	ord = X.U8(0xF3); //ptn table size
 	if(ord > 0x64 || !ord) return false;
 	ptn = 0; ords = [];
 	for (i=0; i < 100; i++) { //ptn order table
 		p = X.U16(0xF4+i*2,_BE);
-		if (p & 0x3FF) { _log("GMCFault @"+Hex(0xF2+i*2)+": bad ptn "+Hex(p)); return false }
+		if (p & 0x3FF) return false;
 		if(i < ord) { p >>= 10; if(p > ptn && p != 63) ptn = p }
 	} ptn++;
 	if(ptn > 64) return false;
@@ -5669,19 +5685,16 @@ smps.forEach(function(k){_log("smp ofs:"+Hex(k[0])+" len:"+Hex(k[1])+" -> "+Hex(
 			if(np && np != 0xFFFE)
 				if(np < 113 || np > 856) badnotes++; else { if(nps.indexOf(np) < 0) nps.push(np); notes++ }
 			d[2] &= 0xF;
-			if(d[2] == 3 && d[3] > 0x40) {
-				_log("GMC  @"+Hex(p)+": vol.fx error "+d[3]+" at ptn "+i+" row "+(j>>2)+" chn "+(j%4)); badnotes++ } //vol effect
-			if(d[2] == 4 && d[3] > 0x63) {
-				_log("GMC  Fault @"+Hex(p)+": ptn.break error "+d[3]+" vs. 99 at ptn "+i+" row "+(j>>2)+" chn "+(j%4)); return false }
-			if(d[2] == 5 && d[3] > ord+1) {
-				_log("GMC  Fault @"+Hex(p)+": pos.jump error "+d[3]+" vs. "+ord+" at ptn "+i+" row "+(j>>2)+" chn "+(j%4)); return false }
+			if(d[2] == 3 && d[3] > 0x40) badnotes++; //vol effect
+			if(d[2] == 4 && d[3] > 0x63) return false;
+			if(d[2] == 5 && d[3] > ord+1) return false;
 			p += 4; if(p > 0xFFFC || p > X.Sz()) return false
 		}
 	if(badnotes > 16) { _log("GMCFault: over 16 bad notes"); return false }
 	}
 	if(!notes && !X.isHeuristicScan()) return false;
 	nps.sort(function(a,b){return a-b});
-_log(nps.length+" different nps used: "+nps)
+//_log(nps.length+" different nps used: "+nps)
 	sz = allsmpsz + ptn*1024 + 0x1BC;
 	return true
 }
@@ -5689,7 +5702,7 @@ if(!bDetected && X.isDeepScan() && isGMC()) {
 	bDetected = 1;
 	sName = "Game Music Creator module (.GMC)";
 	if(X.isVerbose()) {
-		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smps.length+" notes:"+notes+" sz:"+outSz(sz)); if(X.Sz() < sz) sVersion = "malformed!short"
+		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smps.length+" notes:"+notes+"("+nps.length+" diff.) sz:"+outSz(sz)); if(X.Sz() < sz) sVersion = "malformed!short"
 	}
 }
 
@@ -6017,7 +6030,7 @@ function isSidMon1() {
 	// & https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/sidmon1/SIDMon1.0.s
 	//I'm just used to calling the base ofs "a0" at this point
 	a0 = X.fSig(0,0xFFFF,"41FA.... ....FFD4 43FA.... 228841FA ....D1E8 FFD843FA");
-	if(a0 < 0 || (a&1) || a0 > X.Sz()) return false;
+	if(a0 < 0 || (a0&1) || a0 > X.Sz()) return false;
 	bad = "";
 	p = X.U16(a0+2,_BE); msgp = a0+p+2; if(msgp < a0+16 || msgp > X.Sz()) return false;
 //if(debug&&a0)_log("init @"+Hex(a0)+", p="+Hex(p));
