@@ -167,14 +167,28 @@ function decAnsi(ofs, len, dectbl, zstop, tbl01F) {
     return(decEncoding(readBytes(ofs,len), dectbl, zstop, tbl01F))
 }
 
+
 /**
- * Your typical integer division with just the integer result.
- * Not tested on all weird cases, but __you know what you did.__
- * @param {Int} a
- * @param {Int} b
- * @returns {Int} something like div
+ * Checks for whether a value fits the limits using <=, as opposed to isInside.
+ * @param {Number} a - the value to check.
+ * @param {Number} mina
+ * @param {Number} maxa
+ * @returns {Bool}
  */
-function div(a, b) { var s = a*b>0 ? 1 : a*b<0 ? -1 : 0; return s*Math.floor(Math.abs(a)/Math.abs(b)) }
+function isWithin(a, mina, maxa) {
+    return mina <= a && a <= maxa
+}
+
+/**
+ * Checks for whether a value fits the limits using <, as opposed to isWithin. Useful for floats.
+ * @param {Number} a - the value to check.
+ * @param {Number} mina
+ * @param {Number} maxa
+ * @returns {Bool}
+ */
+function isInside(a, mina, maxa) {
+    return mina < a && a < maxa
+}
 
 /**
  * Derive a string hexadecimal value, zero-padded.
@@ -431,9 +445,9 @@ function createOrderlyHuffmanTable(lent, btl, br) {
  */
 function secondsToTimeStr(s) {
     const mul = [/*millenia*/315581497635,/*centuries*/3155814976,/*yrs*/31558150,/*mns*/2629846,/*wks*/604800,86400,3600,60];
-    var r = "", ss = s%mul[7], mm = div(s%mul[6],mul[7]), hh = div(s%mul[5],mul[6]),
-    dd = div(s%mul[4],mul[5]), ww = div(s%mul[3],mul[4]), mn = div(s%mul[2],mul[3]),
-    yy = div(s%mul[1],mul[2]), cc = div(s%mul[0],mul[1]), mi = div(s,mul[0]);
+    var r = "", ss = s%mul[7], mm = Util.div64(s%mul[6],mul[7]), hh = Util.div64(s%mul[5],mul[6]),
+    dd = Util.div64(s%mul[4],mul[5]), ww = Util.div64(s%mul[3],mul[4]), mn = Util.div64(s%mul[2],mul[3]),
+    yy = Util.div64(s%mul[1],mul[2]), cc = Util.div64(s%mul[0],mul[1]), mi = Util.div64(s,mul[0]);
     if(s < 86400) { r = mm.padStart(2,'0')+":"+ss.padStart(2,'0'); if(hh) r = hh+":"+r; return r }
     if(ss) r = ss+"s"+r; if(mm) r = mm+"m"+r; if(hh) r = hh+"h"+r; if(dd) r = dd+"d"+r; if(ww) r = ww+"w"+r;
     if(mn) r = mn+"M"+r; if(yy) r = yy+"Y"+r; if(cc) r = cc+"C"+r; if(mi) r = ci+"Mil"+r; return r
@@ -469,7 +483,7 @@ function charStat() {
         else if(0x2B<=s[i]&&s[i]<=0x2D || 0x30<=s[i]&&s[i]<=0x39) { c[2]++; c[3]++; c[4]++; c[6]++ }
         else if(s[i]<=0x7E) { c[2]++; c[3]++ }
         else if(s[i]==0xFF) { c[3]++; c[6]++ }
-    } for(i=0;i<c.length;i++) o[i] = div(c[i]*100,s.length);
+    } for(i=0;i<c.length;i++) o[i] = Util.div64(c[i]*100,s.length);
     r = "";
     //_log((typeof str)+" "+s+" {"+c+"} <"+o+">")
     if(!needall) {

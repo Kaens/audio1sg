@@ -1439,14 +1439,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(xc.length) sOption(xc,join("\n"));
 		}
 	}
-	else if(X.c("0.'GTR'")) {
-		sName = "Global Tracker (.GTR)"; bDetected = 1;
-		sV = Hex(X.U8(4)); sVersion = "v"+sV[0]+"."+sV[1];
-		if(X.isVerbose()) {
-			sOptionT(X.SA(7,0x20));
-			sOption(X.U8(0),"delay:");
-		}
-	}
 	else if(X.c("'GYMX'")) {
 		sName = "Sega Genesis/Mega Drive YM2612 chiptune (.GYM)"; bDetected = 1;
 		e = X.SA(0x64,0x20).trim();
@@ -1457,6 +1449,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SA(0x44,0x20),"at: ");
 			sOptionT(X.SA(0x84,0x20),"by: ");
 			sOptionT(X.SA(0xA4,0x100));
+			sOptionT(X.U32(0x1A8),'orig.size:')
 		}
 	}
 	else if(X.c("'NuH.DAVIES'",0x22)) {
@@ -5390,7 +5383,7 @@ _log("! @"+Hex(p)+" w="+Hex(w)+" > "+defW+" rs:"+rs+" clen:"+Hex(clen)+" cend:"+
 					var ddd = dt - (365*y + Util.div64(y,4) - Util.div64(y,100) + Util.div64(y,400));
 					if(ddd < 0) { y--; ddd = dt - (365*y + Util.div64(y,4) - Util.div64(y,100) + Util.div64(y,400)) }
 					var mi = Util.div64(100*ddd+52, 3060);
-					tracker = "Schism Tracker "+(y+div(mi+2,12)).padStart(4,'0')+"-"
+					tracker = "Schism Tracker "+(y+Util.div64(mi+2,12)).padStart(4,'0')+"-"
 						+((mi+2)%12+1).padStart(2,'0')
 						+"-"+(ddd - Util.div64(mi*306+5,10) + 1).padStart(2,'0')
 				} break;
@@ -5456,15 +5449,13 @@ function isJ2B() {
 				t = readBytes(p+2,25,true); t = decEncoding(t,"CP437").trim();
 				if(t != "") insts.push(t.trim());
 				insn = X.U8(p+1,_LE); subsmp = X.U16(p+30,_LE);
-_log("    ,-> #"+insn+", smps? "+subsmp)
 				q = p+0xE1;
 				while(q < p+hksz) {
 					hhd = decAnsi(q,4,"CP437"); hsz = X.U32(q+4); q += 8;
 					if(hhd == "SAMP") smp++;
 					t_ = decAnsi(q,0x100,"CP437");
-_log(" ,-> @"+Hex(q-8)+":<"+hhd+'> <'+t_+'>')
 					q += hsz;
-if(debug && q < p+hksz && ["SAMP","INST"].indexOf(decAnsi(q,4,"CP437")) < 0) _log(" | ^WTF @"+Hex(q-hsz)+"->"+Hex(q))
+if(q < p+hksz && ["SAMP","INST"].indexOf(decAnsi(q,4,"CP437")) < 0) _log(" | ^WTF @"+Hex(q-hsz)+"->"+Hex(q))
 				}
 				break
 			}
@@ -5492,10 +5483,8 @@ function isASC1() { //basically ASC0 + loop pos
 	smptp = X.U16(4,_LE); if(smptp > X.Sz()) return false; //samples table ptr
 	orntp = X.U16(6,_LE); if(orntp > X.Sz()) return false; //ornaments table ptr
 	if(X.U16(smptp,_LE) != 0x40 || X.U16(orntp,_LE) != 0x40) return false;
-	j3 = 0;
-	for(j1=0; j1 < ord; j1++) {
-		p = X.U8(9+j1); if(j3 < p) j3 = p; }
-	if(X.U16(ptntp,_LE) != (j3+1)*6) return false;
+	ptn = 0; for(i=0; i < ord; i++) { p = X.U8(9+i); if(ptn < p) ptn = p }
+	ptn++; if(X.U16(ptntp,_LE) != ptn*6) return false;
 	j = X.U16(orntp+0x40-2,_LE)+orntp;
 	while((j < X.Sz()) && (j < 65535) && !(X.U8(j)&0x40))  j += 2;
 	bad = "";
@@ -5515,7 +5504,7 @@ if(!bDetected && X.isDeepScan() && isASC1()) {
 			t = X.SA(pt,pa-pt); a = X.SA(pa+4,0x12);
 			sOptionT(t); sOptionT(a,"by: ")
 		}
-		sOption("delay:"+delay+" loop:"+loop+" len:"+sz)
+		sOption("ord:"+ord+" ptn:"+ptn+" delay:"+delay+" loop:"+loop+" sz:"+outSz(sz))
 	}
 }
 
@@ -5527,10 +5516,8 @@ function isASC0() {
 	smptp = X.U16(3,_LE); if(smptp > X.Sz()) return false; //samples table ptr
 	orntp = X.U16(5,_LE); if(orntp > X.Sz()) return false; //ornaments table ptr
 	if(X.U16(smptp,_LE) != 0x40 || X.U16(orntp,_LE) != 0x40) return false;
-	j3 = 0;
-	for(j1=0; j1 < ord; j1++) {
-		p = X.U8(8+j1); if(j3 < p) j3 = p; }
-	if(X.U16(ptntp,_LE) != (j3+1)*6) return false;
+	ptn = 0; for(i=0; i < ord; i++) { p = X.U8(8+i); if(ptn < p) ptn = p; }
+	ptn++; if(X.U16(ptntp,_LE) != ptn*6) return false;
 	j = X.U16(orntp+0x40-2,_LE)+orntp;
 	while((j < X.Sz()) && (j < 65535) && !(X.U8(j)&0x40))  j += 2;
 	bad = "";
@@ -5550,7 +5537,31 @@ if(!bDetected && X.isDeepScan() && isASC0()) {
 			t = X.SA(pt,pa-pt); a = X.SA(pa+4,0x12);
 			sOptionT(t); sOptionT(a,"by: ")
 		}
-		sOption("delay:"+delay+" sz:"+outSz(sz))
+		sOption("ord:"+ord+" ptn:"+ptn+" delay:"+delay+" sz:"+outSz(sz))
+	}
+}
+
+function isGlobalTracker() {
+//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundGTR
+	if(X.Sz() < 296) return false;
+	adr = X.U16(5); p = 0x27; mp = 0;
+	for(i=0,old=X.U16(p)-adr,p+=2; i < 14; i++,old=t) { t = X.U16(p)-adr; //sample ptrs check
+_log("smp@"+Hex(t))
+		if(t - old < 6 || (t-old-2)%4 || t > X.Sz()) return false; p += 2 }
+	for(i=0,old=X.U16(p)-adr,p+=2; i < 15; i++,old=t) { t = X.U16(p)-adr; //ornament ptrs check
+		if(t-old < 3 || t > X.Sz() || t-old != 2+X.U8(old+1) /* orn. loop end */) return false; p += 2 }
+	sz = t+2+X.U8(t+1); //it's always the ornaments that come last, so we'll take the last one
+	for(i=1,old=X.U16(p)-adr,p+=2; i < 32*3; i++,old=t) { t = X.U16(p)-adr; //pattern ptrs check
+		if(t - old < 3 || t > X.Sz()) return false; p += 2 }
+	return true
+}
+if(!bDetected && isGlobalTracker()) {
+	sName = "Global Tracker module (.GTR)"; bDetected = 1;
+	sVersion = 'v'+(X.U8(4)>>4)+'.'+(X.U8(4)&0xF);
+	if(X.isVerbose()) {
+		dly = X.U8(0); ptn = X.U8(0x125); lp = X.U8(0x126);
+		sOptionT(X.SA(7,0x20));
+		sOption(' ptn:'+ptn+' delay:'+dly+' sz:'+outSz(sz));
 	}
 }
 
@@ -5593,34 +5604,28 @@ if(!bDetected && X.isDeepScan() && isBPSoundMon()) {
 
 function isFuchs() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/FuchsTracker.c
-	if(X.Sz() < 0xC0) return false;
+	if(X.Sz() < 0xC0 || !X.c("'SONG'",0xC0) || !X.c("'INST'",0xC8+X.U32(0xC4,_BE))) return false;
 	allsmpsz = X.U32(0x0A,_BE);
-	if((allsmpsz<=2) || (allsmpsz>=65535*16)) return false;
-	smpdescs = 0;
-	for(k=0; k<16; k++) {
-		sz = X.U16(0x0E+k*2,_BE);
-		lpst = X.U16(0x4E+k*2,_BE);
-		if(sz < lpst) return false;
-		if(X.U8(0x2E+k*2) > 0x40) return false; //vol
-		smpdescs += sz
+	if(allsmpsz <= 2 || allsmpsz >= 65535*16) return false;
+	smpdescs = 0; smp = 0;
+	for(i=0; i < 16; i++) {
+		ssz = X.U16(0x0E+i*2,_BE); if(ssz) smp++;
+		lpst = X.U16(0x4E+i*2,_BE); if(ssz < lpst) return false;
+		if(X.U8(0x2E+i*2) > 0x40) return false; //vol
+		smpdescs += ssz
 	}
-	if((smpdescs<=2) || (smpdescs>allsmpsz)) return false;
-	k = 0; //last pattern
-	for(j=0; j<40; j++) {
-		pt = X.U8(113+j*2);
-		if(pt>40) return false;
-		if(pt>k) k = pt
-	}
-	k+=1;
-	k*=1024;
-	if(k+200 > X.Sz()) return false;
+	if(smpdescs <= 2 || smpdescs > allsmpsz) return false;
+	ptn = 0; //last pattern
+	for(i=0; i < 40; i++) {
+		pt = X.U8(113+i*2); if(pt > 40) return false; if(pt > ptn) ptn = pt }
+	ptn++; k = ptn*1024; if(k+200 > X.Sz()) return false;
 	sz = smpdescs+k+204;
 	return true
 }
 if(!bDetected && X.isDeepScan() && isFuchs()) {
 	sName = "FuchsTracker module (.FUCHS)"; if(X.Sz() < sz) sVersion = "malformed!short";
 	bDetected = 1;
-	if(X.isVerbose()) sOption(outSz(sz),"sz:")
+	if(X.isVerbose()) sOption('ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 }
 
 function isGMC() {
@@ -5632,18 +5637,13 @@ function isGMC() {
 	for(k=0; k < 15; k++) {
 		o = X.U32(16*k,_BE); if(o > 0x7FFFFF || (o&1)) return false; //ofs
 		l = X.U16(4+16*k,_BE)<<1; //length
-		if(l > 0xFFFF) { _log("GMCFault: smp too long "+l); return false }
-		if(X.U8(6+16*k,_BE)) { //zero byte
-			_log("GMCFault @"+Hex(6+16*k)+": non-zero"); return false }
-		if(X.U8(7+16*k) > 0x40) { //vol
-			_log("GMCFault @"+Hex(7+16*k)+": smpvol error"); return false }
-		a = X.U32(8+16*k,_BE); if(a > 0x7FFFFF || (a&1)) { //address
-			_log("GMCFault @"+Hex(8+16*k)+": adr="+Hex(a)); return false }
+		if(l > 0xFFFF) return false;
+		if(X.U8(6+16*k,_BE)) return false; //zero byte
+		if(X.U8(7+16*k) > 0x40) return false; //vol
+		a = X.U32(8+16*k,_BE); if(a > 0x7FFFFF || (a&1)) return false; //address
 		n = X.U16(0xC+16*k,_BE); //looplen
-		if(n > 2 && n > l) {
-			_log("GMCFault @"+Hex(0xC+16*k)+": looplen "+Hex(n)+" > sz "+Hex(l)); return false }
-		if(X.U16(0xE+16*k,_BE)&1) { //datastart
-			_log("GMCFault @"+Hex(0xE+16*k)+": odd datastart"); return false }
+		if(n > 2 && n > l) return false;
+		if(X.U16(0xE+16*k,_BE)&1) return false; //datastart
 		allsmpsz += l;
 		if(l) smps.push([o,l]);
 	}
@@ -8415,7 +8415,7 @@ function isDUX() {
 if(!bDetected && isDUX()) {
 	sName = "GT Game Systems module (.DUX)"; bDetected = 1;
 	if(X.isVerbose()) {
-		ord = 1+div(X.U32(0x68,_BE)-smpsz, 0x3C);
+		ord = 1+Util.div64(X.U32(0x68,_BE)-smpsz, 0x3C);
 		sOption("ord:"+ord+" smp:"+smp+" songsz:"+Hex(unpsz)+" smpsz:"+Hex(smpsz-0x70)+" sz:"+outSz(sz))
 	}
 }
@@ -8599,7 +8599,7 @@ if(!bDetected && isBuzzic2()) {
 }
 
 function isInfogramesRH2() {
-	if(!X.c("000200")) return false; //+04: speed?
+	if(!X.c("000200")) return false; //+04: speed? I saw 1 through 7
 	if(!X.c("FF000F",X.U16(4,_BE)+1)) return false;
 	sz = X.U16(0x10,_BE)+2;
 	for(i=10,oldp = X.U16(8,_BE); i < 0x20; i += 2) { if(i == 0x10) continue;
