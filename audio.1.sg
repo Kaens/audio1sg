@@ -1790,9 +1790,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Music Maker STD instrument (.IP)"; bDetected = 1;
 		sVersion = "v8 old";
 	}
-	else if(X.c("'SO31'",0x7C)) {
-		sName = "MultiMedia Sound module (.MMS)"; bDetected = 1
-	}
 	else if(X.c("'MO3'")) {
 		sName = "MO3 MOD module (.MO3)"; bDetected = 1
 	}
@@ -1805,15 +1802,16 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SC(0x14,0x16,"IBM850"),"by/inst: ")
 		}
 	}
-	else if(X.c("08'MONOTONE'")) {
+	else if(X.c("08'MONOTONE'") && X.Sz() >= 0x15F) {
 		//ref https://github.com/MobyGamer/MONOTONE/blob/master/MTSRC/MT_SONG.PAS
 		sName = "MONOTONE module (.MON)"; bDetected = 1;
 		sVersion = "v"+X.U8(0x5B);
 		if(X.isVerbose()) {
 			sOptionT(X.UCSD(0x09));
 			sOptionT(X.UCSD(0x32));
-			sOption("ptn:"+X.U8(0x5C)+
-				" trk:"+X.U8(0x5D));
+			ptn = X.U8(0x5C); trk = X.U8(0x5D); cellsz = X.U8(0x5E);
+			ord = 0; i = 0x5F; do { t = X.U8(i++); if(t != 0xFF) ord++ } while(i < 0x15F && i != 0xFF)
+			sOption('trk:'+trk+' ord:'+ord+' ptn:'+ptn+' sz:'+outSz(0x15F+0x40*ptn*trk*cellsz));
 		}
 	}
 	else if(/SONG[0-9.]{4}(COMP|NORM)/.test(X.SA(0,12))) {
@@ -4313,6 +4311,7 @@ if(!bDetected && isProtoTracker()) {
 		}
 }
 
+
 function isAnders0land() {
 	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Anders0land/SRC_Anders0land/Anders 0land_v1.asm
 	if(!X.c("'mpl'")) return false;
@@ -4342,51 +4341,52 @@ if(!bDetected && isAnders0land()) {
 	}
 }
 
-	function isD00nohdr() {
-		// ref https://github.com/adplug/adplug/blob/master/src/d00.h & .cpp
-		if(X.Sz() < 40 || X.Sz() >= 0xFFFF) return false;
-		if(X.c("0001.... 000D00") && X.c("FFFF",0xB)) nV = 0;
-		else if(X.c("01..01.. 000F00") && X.c("FFFF",0xD)) nV = 1; else return false;
-		seqp = X.U16(3,_LE); if(seqp < 13 || seqp > X.Sz()) return false; // ptr to sequence pointer table
-		x = 1;
-		seqtest = X.fSig(seqp+18+9,TOEOF,"0000000000 FFFF")-seqp; // reserved bytes are 0; endmark follows 
-		while (seqtest > 0x20) { x++; seqtest -= 0x20; if(!X.c("0000000000",seqp+seqtest)) return false }
-		//there may be several sequence tables but they end the same
-		trkp = t = X.U16(5,_LE); if(!X.c("FFFF",trkp-2) || trkp < 13) return false; // ptr to track pointer table
-		insp = X.U16(7,_LE); if(!X.c("FFFF",insp-2) || insp < 13) return false; // to instrument pointer table
-		sz = X.U16(9,_LE); if(!X.c("FFFF",sz-2) || sz < 13) return false; // to message
-		if(nV == 1) { sfxp = X.U16(11,_LE); if(!X.c("FFFF",sfxp+8)) return false; } // to sfx
-		if(Math.abs(trkp-seqp) < 20 || Math.abs(trkp-insp) < 20 || Math.abs(seqp-insp) < 20) return false;
-		oldp = trkp; p = X.U16(trkp,_LE);
-		ip = 0, once = 0; // count pointers out of order, heuristic
-		while(t < trkp+18 && trkp < X.Sz()) { // check 9 pointers from TPoin for validity
-			if(t === trkp) p = oldp = t; // for the first pointer
-			if(p) oldp = p;
-			p = X.U16(t,_LE); if(!p || p < trkp || p > X.Sz()) return false;
-			if(!X.c("FFFF",p-2)) { once++; if(once > 1) return false }
-			if(p < oldp) { ip++; if(ip > 2) return false } // some D00s do have pointers out of order
-			q = p; while(!X.c("FFFF",q) && q < X.Sz()) q += 2; //check the table data for having a FFFF somewhere near
-			if(!X.c("FFFF",q)) { _log("boh. t="+Hex(t)+" p="+Hex(p)+" q="+Hex(q)); return false; }
-			t += 2
-		}
-		msg = ""; t = X.fSig(sz,0x200,"FFFF"); if(t > 0) { // the message exists and ends in FFFF
-			msg = X.SC(sz,t-sz,"CP437").trim(); sz = t+2
-		} else { // the message may exist but it may also be garbage, checking...
-			msg = readBytes(sz,Math.min(sz+0x100,X.Sz())-sz);
-			c = charStat(msg,1); if(c.indexOf("allxsc") >= 0) {
-				msg = decEncoding(msg,CP437); sz += msg.length; msg = msg.trim()
-			} else msg = ''
-		}
-		return true;
+
+function isD00nohdr() {
+	// ref https://github.com/adplug/adplug/blob/master/src/d00.h & .cpp
+	if(X.Sz() < 40 || X.Sz() >= 0xFFFF) return false;
+	if(X.c("0001.... 000D00") && X.c("FFFF",0xB)) nV = 0;
+	else if(X.c("01..01.. 000F00") && X.c("FFFF",0xD)) nV = 1; else return false;
+	seqp = X.U16(3,_LE); if(seqp < 13 || seqp > X.Sz()) return false; // ptr to sequence pointer table
+	x = 1;
+	seqtest = X.fSig(seqp+18+9,TOEOF,"0000000000 FFFF")-seqp; // reserved bytes are 0; endmark follows 
+	while (seqtest > 0x20) { x++; seqtest -= 0x20; if(!X.c("0000000000",seqp+seqtest)) return false }
+	//there may be several sequence tables but they end the same
+	trkp = t = X.U16(5,_LE); if(!X.c("FFFF",trkp-2) || trkp < 13) return false; // ptr to track pointer table
+	insp = X.U16(7,_LE); if(!X.c("FFFF",insp-2) || insp < 13) return false; // to instrument pointer table
+	sz = X.U16(9,_LE); if(!X.c("FFFF",sz-2) || sz < 13) return false; // to message
+	if(nV == 1) { sfxp = X.U16(11,_LE); if(!X.c("FFFF",sfxp+8)) return false; } // to sfx
+	if(Math.abs(trkp-seqp) < 20 || Math.abs(trkp-insp) < 20 || Math.abs(seqp-insp) < 20) return false;
+	oldp = trkp; p = X.U16(trkp,_LE);
+	ip = 0, once = 0; // count pointers out of order, heuristic
+	while(t < trkp+18 && trkp < X.Sz()) { // check 9 pointers from TPoin for validity
+		if(t === trkp) p = oldp = t; // for the first pointer
+		if(p) oldp = p;
+		p = X.U16(t,_LE); if(!p || p < trkp || p > X.Sz()) return false;
+		if(!X.c("FFFF",p-2)) { once++; if(once > 1) return false }
+		if(p < oldp) { ip++; if(ip > 2) return false } // some D00s do have pointers out of order
+		q = p; while(!X.c("FFFF",q) && q < X.Sz()) q += 2; //check the table data for having a FFFF somewhere near
+		if(!X.c("FFFF",q)) { _log("boh. t="+Hex(t)+" p="+Hex(p)+" q="+Hex(q)); return false; }
+		t += 2
 	}
-	if(!bDetected && X.isDeepScan() && isD00nohdr()) {
-		sName = "Edlib Tracker module (.D00)?"; sVersion = "old v"+X.U8(0); bDetected = 1;
-		if(X.isVerbose()) {
-			if(x > 1) sOption(x,'×');
-			sOptionT(addEllipsis(msg,0x100,0x80),'msg:"','"');
-			sOption("sz:"+outSz(sz))
-		}
+	msg = ""; t = X.fSig(sz,0x200,"FFFF"); if(t > 0) { // the message exists and ends in FFFF
+		msg = X.SC(sz,t-sz,"CP437").trim(); sz = t+2
+	} else { // the message may exist but it may also be garbage, checking...
+		msg = readBytes(sz,Math.min(sz+0x100,X.Sz())-sz);
+		c = charStat(msg,1); if(c.indexOf("allxsc") >= 0) {
+			msg = decEncoding(msg,CP437); sz += msg.length; msg = msg.trim()
+		} else msg = ''
 	}
+	return true;
+}
+if(!bDetected && X.isDeepScan() && isD00nohdr()) {
+	sName = "Edlib Tracker module (.D00)?"; sVersion = "old v"+X.U8(0); bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'×');
+		sOptionT(addEllipsis(msg,0x100,0x80),'msg:"','"');
+		sOption("sz:"+outSz(sz))
+	}
+}
 
 
 function isProtrackerMOD() {
@@ -4486,6 +4486,7 @@ if(!bDetected && isProtrackerMOD()) {
 	}
 }
 
+
 function isKRIS() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
 	// & https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
@@ -4527,6 +4528,7 @@ if(!bDetected && isKRIS()) {
 	}
 }
 
+
 function isMTNICE() {
 	//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_ice.cpp
 	if(X.c("'MTN'000000",0x5B8)) tracker = 'MnemoTroN ST';
@@ -4549,6 +4551,51 @@ if(!bDetected && isMTNICE()) {
 		sOptionT(addEllipsis(smps.join(' '),0x80),'smps/msg:"','"')
 		sOption('in: '+tracker);
 		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+sz)
+	}
+}
+
+
+function isMoonBlaster() {
+	//ref https://www.msx.org/wiki/Moonblaster_file_format
+	//TODO check for the sanity of more values passed to MSX-AUDIO, like instr/vol
+	ord = X.U8(0); ofs = 0;
+	if(ord > 220 && ord < 255) return false; //not sure if the manual is right about 220 being the maximum
+	if(ord == 255) { ofs = 1; ord = 200 } //a subformat. Always 200 positions, 01-filled; all offsets are +1
+	else ord++;
+	for(i=0; i < 0x20; i++) if(X.U8(0xA3+ofs+i) > 0x16) { /*_log('MBM: instr/vol error');*/ return false }
+	tmp0 = X.U8(ofs+0xCD); if(!tmp0) { /*_log('MBM: tempo = 0 error');*/ return false }
+	p = ofs+0x178+ord; ptn = 0; for(i=ofs+0x178; i < p; i++) { t = X.U8(i); if(t > ptn) ptn = t }
+	// Start pattern number is 1, no need to ptn++. Funnily, the manual says patterns start from 0
+	ptnp = p+ofs; ptn1 = oldp = X.U16(ptnp);
+	if(ptn1 > X.Sz()) { /*_log('MBM: ptn1 @'+Hex(ptn1)+">"+Hex(X.Sz()));*/ return false }
+	for(i=0; p < X.Sz() && i < ptn; i++) {
+		p = X.U16(ptnp+i*2);
+		if(!i) unpsz = p; // patterns should start from the current unpsz
+		if(p < ptnp+i*2 || p > X.Sz()) {
+			/*_log('MBM: ptn ptr['+Hex(i)+'] error @'+Hex(ptnp+i*2)+': '+Hex(p));*/ return false }
+		if(i && p-oldp > 0x100) { /*_log('MBM: ptn too large @'+Hex(ptnp+i*2));*/ return false }
+		oldp = p;
+	}
+	if(!ofs) { p = ptnp+i*2;
+		if((unpsz != p || p > X.Sz())) { /*_log('MBM: pattern offset error: p='+Hex(p));*/ return false }
+	} else p = ptn1
+	//decruncher: going over all the patterns at once
+	while(p < X.Sz()) { c = X.U8(p++);
+		if(!c) break; else if(c <= 0xF2) unpsz++; else /*decrunching 0's*/ unpsz += c-0xF2;
+	}
+	if(p > 0x3DC0) return false;
+	sz = p;
+	return true
+}
+if(!bDetected && isMoonBlaster()) {
+	//MUS is "FST-song", MBM is song, MBK is drumkit, MBV is voice-e, MBB is voice-b, MBS is samples
+	sName = 'MSX MoonBlaster for MoonSound module (.MBM)'; bDetected = 1;
+	if(ofs) sVersion = '200-pos.ver.';
+	drumkit = X.SA(ofs+0x140,8).trim();
+	if(drumkit != 'NONE') sVersion = sVersion.appendS('+'+drumkit+'.MBK','/');
+	if(X.isVerbose()) {
+		sOption(X.SA(ofs+0xCF,40));
+		sOption('tempo0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' unpsz:'+unpsz+' sz:'+outSz(sz))
 	}
 }
 
@@ -4638,6 +4685,7 @@ if(!bDetected && isOctaMed()) {
 	}
 }
 
+
 function isOctaMedMMD() {
 	//from https://web.archive.org/web/20220109073109/http://www.textfiles.com/programming/FORMATS/med-form.txt
 	if(!X.c("'MMD'")) return false;
@@ -4708,6 +4756,7 @@ if(!bDetected && isOctaMedMMD()) {
 		sOption((X.isDeepScan()?"ch:"+ch+" ":"")+"ord:"+ord.join("+")+" ptn:"+ptn+" smp:"+smp+" sz:"+outSz(X.U32(4,_BE)))
 	}
 }
+
 
 function isAHX() {
 	//ref http://lclevy.free.fr/exotica/ahx/ahxformat.txt
@@ -4788,6 +4837,7 @@ if(!bDetected && isAHX()) {
 			sOption("ch:"+chn+" spd:"+spd+" ord:"+ord+" trk:"+trk+" ins:"+ins+" notes:"+n+" sz:"+outSz(sz))
 	}
 }
+
 
 function isSTM() {
 	//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_stm.cpp
@@ -4890,6 +4940,7 @@ if(!bDetected && isSTM()) {
 		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" gvol:"+gvol+" sz:"+outSz(sz))
 	}
 }
+
 
 function isIT() {
 	//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_it.cpp et al.
@@ -5449,6 +5500,7 @@ if(!bDetected && isIT()) {
 	}
 }
 
+
 function isJ2B() {
 	if(X.c("'RIFF'........'AM  '")) align = 1;
 	else if(X.c("'RIFF'........'AMFF'")) align = 0;
@@ -5526,6 +5578,7 @@ if(!bDetected && X.isDeepScan() && isASC1()) {
 	}
 }
 
+
 function isASC0() {
 	//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundASC0
 	if(X.Sz() < 8) return false;
@@ -5559,6 +5612,7 @@ if(!bDetected && X.isDeepScan() && isASC0()) {
 	}
 }
 
+
 function isGlobalTracker() {
 //ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundGTR
 	if(X.Sz() < 296) return false;
@@ -5581,6 +5635,7 @@ if(!bDetected && isGlobalTracker()) {
 		sOption(' ptn:'+ptn+' delay:'+dly+' sz:'+outSz(sz));
 	}
 }
+
 
 function isBPSoundMon() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/BP-Soundmonitor.c
@@ -5619,6 +5674,7 @@ if(!bDetected && X.isDeepScan() && isBPSoundMon()) {
 	}
 }
 
+
 function isFuchs() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/FuchsTracker.c
 	if(X.Sz() < 0xC0 || !X.c("'SONG'",0xC0) || !X.c("'INST'",0xC8+X.U32(0xC4,_BE))) return false;
@@ -5644,6 +5700,7 @@ if(!bDetected && X.isDeepScan() && isFuchs()) {
 	bDetected = 1;
 	if(X.isVerbose()) sOption('ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 }
+
 
 function isGMC() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/GMC.c
@@ -5745,6 +5802,7 @@ if(!bDetected && X.isDeepScan() && isProTracker1()) {
 	}
 }
 
+
 function isProTracker2() {
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker2.cpp
 	// & https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundPT2
@@ -5776,6 +5834,7 @@ if(!bDetected && X.isDeepScan() && isProTracker2()) {
 		sOption("tmp:"+tmp+" ord:"+ord+" ptn:"+ptn)
 	}
 }
+
 
 function isProTracker3() { //PT3's detection, ALSO sanity checks because SOME people -_-
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker3_compiled.cpp
@@ -5810,6 +5869,7 @@ if(!bDetected && X.isDeepScan() && isProTracker3()) {
 	}
 }
 
+
 function isSoundTrackerProUnp() {
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/soundtracker.cpp
 	// & https://bulba.untergrund.net/STPDocs.7z -> Xplay79f.txt
@@ -5834,6 +5894,7 @@ if(!bDetected && X.isDeepScan() && isSoundTrackerProUnp()) {
 	sName = "Sound Tracker Pro module (.STF)"; sVersion  = "uncompiled/unpacked"; bDetected = 1;
 }
 
+
 function isSoundTrackerPro() {
 	// taken from https://bulba.untergrund.net/STPDocs.7z -> stp.txt
 	tmp = X.U8(0); if((tmp == 0) || (tmp > 50)) return false;
@@ -5852,6 +5913,7 @@ if(!bDetected && X.isDeepScan() && isSoundTrackerPro()) {
 	sName = "Sound Tracker Pro module (.STP)"; sVersion  = "uncompiled"; bDetected = 1;
 	sOption("tmp:"+tmp+" ord:"+len)
 }
+
 
 function isSQTracker() {
 	//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundSQT
@@ -5895,6 +5957,7 @@ if(!bDetected && X.isDeepScan() && isSQTracker()) {
 	sName = "Scalex Qjeta Tracker module (.SQT)"; sVersion  = "compiled"; bDetected = 1;
 	sOption("ord:"+ord+" ptn:"+ptn)//+" len:"+len)
 }
+
 
 function isST() {
 	//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundST
@@ -5974,6 +6037,7 @@ if(!bDetected && X.isDeepScan() && isST()) {
 	if(X.isVerbose()) sOptionT(msg,"msg: ");
 }
 
+
 function isST3() {
 	//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundST3
 	if(X.Sz() < 8) return false;
@@ -6024,6 +6088,7 @@ if(!bDetected && X.isDeepScan() && isST()) {
 		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" delay:"+delay+" @"+Hex(base)+" sz:"+outSz(len));
 	}
 }
+
 
 function isSidMon1() {
 	//ref http://asle.free.fr/prowiz/prowiz.src.zip / r/sidmon1.c
@@ -6085,6 +6150,7 @@ if(!bDetected && X.isDeepScan() && isSidMon1()) {
 	}
 }
 
+
 function isSidMon2() {
 //from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/SidMon20/SidMon20Worker.cs
 	if(X.Sz() < 0x5A) return false;
@@ -6125,6 +6191,7 @@ if(!bDetected && isSidMon2()) {
 	}
 }
 
+
 function isADXAHX() { //non-module! sanity check a bit because 8000 is too broad
 	if(!X.c("8000")) return false;
 	fmt = X.U8(4);
@@ -6164,6 +6231,7 @@ if(!bDetected && X.isHeuristicScan() && isADXAHX()) {
 	}
 }
 
+
 function isDigiIllu() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/DigitalIllusion.c
 	if(X.Sz()<17) return false;
@@ -6196,6 +6264,7 @@ if(!bDetected && X.isDeepScan() && isDigiIllu()) {
 		sOption(outSz(sz),"sz:"); if(sz > X.Sz()) sVersion = "malformed!short"
 	}
 }
+
 
 function isPMD() {
 	// ref https://raw.githubusercontent.com/ValleyBell/MidiConverters/master/pmd_SeqFormat.txt
@@ -6249,6 +6318,7 @@ if(/*!bDetected && */X.isDeepScan() && isPMD() ) {
 		sOption(fnames.join(", "),"fn: ")
 	}
 }
+
 
 function isRobHubbardRH() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/RobHubbard/src/RobHubbard_v7.asm
@@ -6318,6 +6388,7 @@ if(!bDetected && X.isDeepScan() && isRobHubbardRH()) {
 	}
 }
 
+
 function isPuma() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PumaTracker/src/PumaTracker_v2.asm
 	//ref http://lclevy.free.fr/amiga/exotic/puma_str.txt
@@ -6385,6 +6456,7 @@ if(!bDetected && X.isDeepScan() && isPuma()) {
 			+" lp:"+loop+" sz:"+outSz(sz))
 	}
 }
+
 
 function isSeanConran() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SeanConran/src/Sean Conran_v3.asm
@@ -6457,6 +6529,7 @@ if(!bDetected && X.isDeepScan() && isSeanConran()) {
 		if(x > 1) sOption(x,"×");
 	}
 }
+
 
 function isBenDaglish() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/BennDaglish/Benn Daglishv3.asm
@@ -6607,7 +6680,6 @@ function isBenDaglish() {
 		a1 = smpi1 + d1 + (d2<<1);
 		if(sz < a1) sz = a1;
 	}
-
 	return true
 }
 if(!bDetected && X.isDeepScan() && isBenDaglish()) {
@@ -6617,6 +6689,7 @@ if(!bDetected && X.isDeepScan() && isBenDaglish()) {
 			sOption("smp:"+smp1+"+"+smp2+" sz:"+outSz(sz));
 	}
 }
+
 
 function isAndrewParton() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Andrew Parton/SRC_AndrewParton/Andrew Parton_v2.asm
@@ -6655,6 +6728,7 @@ if(!bDetected && X.isDeepScan() && isAndrewParton()) {
 	if(X.isVerbose())
 		sOption("smp:"+smp+" songsz:"+songsz+" smpsz:"+smpsz+" sz:"+outSz(sz))
 }
+
 
 function isAshleyHogg() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Ashley Hogg/SRC_AshleyHogg/Ashley Hogg_v1.asm
@@ -6706,10 +6780,8 @@ function isAshleyHogg() {
 		a0 = 2; a0 += X.U16(a0,_BE);
 		do { t = X.I16(a0,_BE); a0 += 2; } while(t != 0x1970 || a0 > X.Sz());
 		a1 = a0-4; a1 += X.I16(a1,_BE);
-_log("2: a0:"+Hex(a0)+" a1:"+Hex(a1));
 		do { t = X.I16(a0,_BE); a0 += 2; } while(t != 0x41FA || a0 > X.Sz());
 		a0 += X.I16(a0,_BE);
-_log("3: a0:"+Hex(a0));
 		x = (a1-a0) >> 4;
 		do { t = X.U16(a2,_BE); a2 += 2; } while(t != 0xC2FC || a0 > X.Sz());
 		a2 += 4; smpip = a2+X.U16(a2,_BE);
@@ -6744,6 +6816,7 @@ if(!bDetected && X.isDeepScan() && isAshleyHogg()) {
 	 }
 }
 
+
 function isCinemaware() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Cinemaware/Cinemaware.asm
 	if(!X.c("'IBLK'")) return false;
@@ -6769,6 +6842,7 @@ if(!bDetected && X.isDeepScan() && isCinemaware()) {
 		sOption("ord:"+ord+" sz:"+outSz(sz)+ " (sans ext.samples)")
 	}
 }
+
 
 function isCustomMade() {
 	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/CustomMade/CustomMade_v1.asm
@@ -6817,7 +6891,7 @@ function isCustomMade() {
 		case "4": // @ d3cc
 			if(!X.c("00BFD500",a0)) { L = "6"; break} //oldplay
 			tmrval = (X.U8(a0-1) << 8) + X.U8(a0+7);
-_log("tmrval:"+Hex(tmrval));
+//_log("tmrval:"+Hex(tmrval));
 			//tmrval = d0;
 			if(X.c("4E71",a0+20)) { L = "lp_c"; break }
 			if(X.c("21FC",a0+28)) a3 = X.U32(a0+30,_BE);
@@ -6874,6 +6948,7 @@ if(!bDetected && X.isDeepScan() && isCustomMade()) {
 		//" Origin:"+Hex(org)+" SongsTab:"+Hex(songst)+" SamplesInfo:"+Hex(smpi)+" Table:"+Hex(Table))
 	}
 }
+
 
 function isDaveLoweNew() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/DaveLoweNew/src/Dave Lowe New.s
@@ -6949,6 +7024,7 @@ if(!bDetected && X.isDeepScan() && isDaveLoweNew()) {
 	}
 }
 
+
 function isDesire() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Desire/src/Desire_v1.asm
 	if(X.Sz() <= 2500) return false;
@@ -7007,6 +7083,7 @@ if(!bDetected && X.isDeepScan() && isDesire()) {
 		if(sz < X.Sz()) sVersion += "/malformed!short"
 	}
 }
+
 
 function isDavidWhittaker() {
 	// from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/DavidWhittaker/DavidWhittakerWorker.cs
@@ -7153,6 +7230,7 @@ if(!bDetected && X.isDeepScan() && isDavidWhittaker()) {
 			+" spd:"+sngspd+" sz:"+outSz(sz))
 	}
 }
+
 
 function isFashionTracker() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/FashionTracker-v1.0/FashionTracker.asm
@@ -7814,6 +7892,43 @@ if(!bDetected && X.isHeuristicScan() && isJBM()) {
 		sOption("tmr:"+tmr+" ch:"+ch+" ptn:"+ptn+" ins:"+ins)
 }
 
+
+function isSoundFX() {
+	//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_sfx.cpp
+	// & https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SoundFX/src/SoundFX_V2.asm
+	if(X.c("'SONG'",0x3C) && X.Sz() > 0x294) msmp = 15;
+	else if(X.c("'SO31'",0x7C) && X.Sz() > 0x4B4) msmp = 31;
+	else return false;
+	hdrp = 4*msmp; smptp = hdrp+0x14; ordp = smptp+msmp*30;
+	ord = X.U8(ordp,_BE); if(ord > 128) return false;
+	t = X.U16(hdrp+4,_BE); if(t < 178 /*== 0*/) return false;
+	tmp0 = (14565*122/t).toFixed(0); spd0 = 6;
+	smp = smpsz = ic = 0; smps = [];
+	for(i=0; i < msmp; i++) {
+		ssz = X.U32(i*4,_BE); if(ssz > 0x20000) return false; smpsz += ssz; if(ssz) smp++;
+		t = readBytes(smptp+i*30,20);
+		for(c=0; c < t.length; c++) if(t[c] && t[c] < 0x20) ic++; if(ic >= 128) return false;
+		t = decEncoding(t,CPAmiga);
+		if(t.trim() != "") smps.push(t.trim())
+		smth = X.U16(smptp+i*30+2,_BE);
+	}
+	return true
+}
+if(!bDetected && isSoundFX()) {
+	sName = msmp == 15 ? "SoundFX module (.SFX)" : "SoundFX 2 / MultiMedia Sound module (.MMS)";
+	if(msmp == 15) sVersion = 'v1.0-8'; bDetected = 1;
+	if(X.isVerbose()) {
+		p += 2; ptn = 0;
+		for(i=ordp+2; i < ordp+2+ord; i++) { t = X.U8(i); if(t > ptn) ptn = t } ptn++;
+		sz = ordp + 0x82 + ptn*0x400 + smpsz; if(msmp == 31) sz += 6;
+		lp = X.U8(ordp+1); if(lp > ord) sVersion = sVersion.appendS('malformed!badloop','/');
+		//unk = readBytes(hdrp+6,14); unksum = 0; for(i=0;i<unk.length;i++) unksum += unk[i];
+		//if(unksum > 0) sOption('unk.bytes:'+unk);
+		sOption('tmp0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+(lp?' loop:'+lp:'')+' sz:'+outSz(sz))
+	}
+}
+
+
 function isKefrensSoundMachine() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/KefrensSoundMachine.c
 	if(X.Sz()<1537) return false;
@@ -7847,6 +7962,7 @@ if(!bDetected && X.isHeuristicScan() && isKefrensSoundMachine()) {
 		if(sz > X.Sz()) sVersion = "malformed!short"
 	}
 }
+
 
 function isImagesMusicSystem() { //goes before Soundtracker .STK for speed
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ImagesMusicSystem/src/Images Music System_v3.asm
@@ -7897,6 +8013,7 @@ if(!bDetected && X.isDeepScan() && isImagesMusicSystem()) {
 	}
 }
 
+
 function isSoundtrackerMOD() { //goes after IMS for speed
 	//ref http://asle.free.fr/prowiz/prowiz.src.zip / r/SoundTracker.c
 	// & https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
@@ -7920,11 +8037,11 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		if(/ST-[0-9A-F]+:/i.test(sname)) ic -= 4; else snames.push(sname);
 		ic += invalidChars(sn);
 		if(debug>1)_log("STKsmp["+k+'] "'+sname.trim()+'" invalid chars:'+ic+" ("+charStat(sn,1)+")")
-		if(ic > 10) { _log("STKFault: title or sample names too broken"); return false; }
+		if(ic > 10) { if(debug>1)_log("STKFault: title or sample names too broken"); return false; }
 		if(X.U8(20+k*30) && !/^st-[0-9a-f]\d:/i.test(sname))
 			hasDiskNames = false;
 		slen = X.U16(42+k*30,_BE)*2;
-		if(slen > 0x12000) { _log("STKFault: sample #"+k+" too large:"+Hex(slen)); return false; }
+		if(slen > 0x12000) { if(debug>1)_log("STKFault: sample #"+k+" too large:"+Hex(slen)); return false; }
 		if(X.U8(44+k*30) > 15) { bad = bad.addIfNone("!finetune"); ic+=16 } //finetune
 		svol = X.U8(45+k*30); if(svol > 0x40) return false;
 		sls = X.U16(46+k*30,_BE), sll = X.U16(48+k*30,_BE);
@@ -7933,16 +8050,16 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		allsmpsz += slen; allvols += svol;
 //if(debug>1)_log("smp["+k+"] <"+X.SA(20+k*30,22)+"> ["+slen+"] @"+Hex(20+k*30)+" -> vol:"+svol+" loopstart:"+sls+" looplen:"+sll);
 		if(sll > slen+2) {
-			_log("STK!smp "+k+" LpLen "+sll+" > sSz "+slen); bad = bad.addIfNone("!sLpLen>sSz") }
+			if(debug>1)_log("STK!smp "+k+" LpLen "+sll+" > sSz "+slen); bad = bad.addIfNone("!sLpLen>sSz") }
 		if(slen && sls >= slen) {
-			_log("STK!smp "+k+" LpStart "+sls+" >= sSz "+slen); bad = bad.addIfNone("!sLpStart>=sSz") }
+			if(debug>1)_log("STK!smp "+k+" LpStart "+sls+" >= sSz "+slen); bad = bad.addIfNone("!sLpStart>=sSz") }
 		if(sls && !sll) {
-			_log("STK!smp "+k+" LpStart "+sls+" LpSz 0"); bad = bad.addIfNone("!sLpStart0LpSz") }
+			if(debug>1)_log("STK!smp "+k+" LpStart "+sls+" LpSz 0"); bad = bad.addIfNone("!sLpStart0LpSz") }
 		if(sls && !slen) {
-			_log("STK!smp "+k+" LpStart "+sls+" sSz 0"); bad = bad.addIfNone("!sLpStart0SSz") }
+			if(debug>1)_log("STK!smp "+k+" LpStart "+sls+" sSz 0"); bad = bad.addIfNone("!sLpStart0SSz") }
 	}
 //_log("5:allsmpsz="+allsmpsz+" allvols="+allvols);
-	if(allsmpsz < 8 || !allvols) { _log("Fault: smps too small or no smpvols"); return false; }
+	if(allsmpsz < 8 || !allvols) { if(debug>1)_log("Fault: smps too small or no smpvols"); return false; }
 	ord = X.U8(0x1D6);
 	if(ord > 128) return false;
 	restartp = X.U8(0x1D7);
@@ -7956,7 +8073,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 	}
 	ptn = offptn = badptn = ord_ = 0; usedptns = []; usedsmps = [];
 	for(o=0; o < 128; o++) {
-		x = X.U8(0x1D8+o); if(x > 63) { _log("STKFault: impossible ptn #"+x); return false; }
+		x = X.U8(0x1D8+o); if(x > 63) { if(debug>1)_log("STKFault: impossible ptn #"+x); return false; }
 		if(ptn <= x) {
 			ptn = x+1;
 			if(o < ord) { offptn = ptn; if(usedptns.indexOf(x) < 0) usedptns.push(x) }
@@ -7966,7 +8083,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 	} ord_++;
 //_log("ptn:"+ptn+" off.ptn:"+offptn+" badptn:"+badptn+" used ptns:"+usedptns)
 	songszoffptn = 0x258+0x400*offptn;
-	if(songszoffptn > X.Sz()) { _log("STKFault: patterns cut below "+songszoffptn); return false; }
+	if(songszoffptn > X.Sz()) { if(debug>1)_log("STKFault: patterns cut below "+songszoffptn); return false; }
 	ic = tnDxx = notes = 0;
 	for(i=0; i < ptn; i++) {
 		emptycmd = nDxx = badnote = ptnic = ptnotes = 0;
@@ -8002,7 +8119,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		}
 		if(ptn >= offptn && ptnic > 64) ptn = offptn;
 		else { ic += ptnic; notes += ptnotes; if(badnote) bad = bad.addIfNone("!badnote") }
-		if(ic > Math.max(512,ptn*128)) { _log("STKFault: "+ic+" invalid characters"); return false }
+		if(ic > Math.max(512,ptn*128)) { if(debug>1)_log("STKFault: "+ic+" invalid characters"); return false }
 		if(nDxx && nDxx < 3) minV = ST2_00; tnDxx += nDxx;
 	}
 	if(tnDxx > ptn+32 && minV == ST2_00) minV = MST1_00;
@@ -8029,7 +8146,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		//the size is more than two patterns' lengths different (especially smaller),
 		//either no length or no "official" patterns are there, and the orderlist is mostly zeroes,
 		//and it's just a couple notes, and the avg volume's too low, and the start speed is weird...
-		_log("STKFault: too suspicious"); return false }
+		if(debug>1)_log("STKFault: too suspicious"); return false }
 	if(ic) bad = bad.addIfNone("!baddata="+ic);
 	if(sz > X.Sz()) bad = bad.addIfNone("!short");
 	return true;
@@ -8040,61 +8157,13 @@ if(!bDetected && isSoundtrackerMOD()) {
 	if(X.isVerbose()) {
 		sOptionT(X.SA(0,0x14));
 		if(X.isDeepScan()) sOption(tracker,"in:");
-		sOption(snames.join(" "),"smp/msg:");
+		sOption(snames.join(" "),"smps/msg:");
 		sOption(" bpm0:"+bpm0+" ord:"+ord+(ord_!=ord?"/"+ord_:"")+" ptn:"+ptn
 			+(offptn != ptn ? "/"+offptn : "")+" smp:"+smp+(X.isDeepScan() ? " notes:"+notes : "")
 			+" sz:"+outSz(sz))
 	}
 }
 
-function isMXDRV() {
-	// fmt https://www.vector.co.jp/download/file/dos/art/fh003454.html / DOC/MDXFORM.DOC
-	// ref ditto / SRC/MDX2MUS.ASM
-	// useful links: https://gorry.haun.org/mx/index_e.html
-	if(X.Sz() < 4+2+9*2 || X.Sz() > 0xFFFF) return false; //minimum header
-	da1 = X.fSig(0,Math.min(0x400,X.Sz()),"0D0A1A"); //the longest name encountered on modland was 99 bytes long
-	if(da1 < 0) return false;
-	for(i = 0; i < da1; i++) { c = X.U8(i); if(c < 0x20 && c != 9 && c != 0x1B) return false }
-	t = X.SC(0,da1,"SJIS");
-	p = X.fSig(da1+3,Math.min(15,X.Sz()-da1),"00"); if(p < 0) return false;
-	if(da1+3 != p)
-		pdxfn = X.SA(da1+3,p);
-	else pdxfn = "";
-	p++; ofs = p;
-	comp = false;
-	if(X.SA(ofs+4,4) == "LZX ") {
-		lzxsz = X.U32(ofs+0x12,_BE);
-//_log("ofs="+ofs+", lzxsz = "+lzxsz+" += "+(ofs+lzxsz));
-		if(lzxsz) comp = true;
-		return true; // stop right there because omg no
-	}
-
-	vd = X.U16(ofs,_BE)+ofs;
-	if(vd > X.Sz()) return false;
-	p += 2;
-	var chn = X.U16(p,_BE)+ofs;
-	if(chn < p+2 || chn > X.Sz()-2) return false;
-	ch = (chn-p)>>1;
-	if(ch != 16 && ch != 9) return false;
-	oldchn = chn;
-	for(k=1; k < ch; k++) { //check the rest of channels
-		p += 2; if(p > X.Sz()-2) return false;
-		chn = X.U16(p,_BE)+ofs;
-		if(chn < oldchn || chn > X.Sz()-2) return false;
-		oldchn = chn
-	}
-	if(vd < chn) return false;
-	return true;
-}
-if(!bDetected && X.isDeepScan() && isMXDRV()) {
-	sName = "X68k MXDRV module (.MDX)"; bDetected = 1;
-	if(pdxfn != "") sVersion = "+ "+pdxfn;
-	if(ch==16) sVersion += "#EX-PCM";
-	if(comp) sVersion += "(compressed)";
-	if(X.isVerbose()) {
-		sOption(t);
-	}
-}
 
 function isDMM() {
 	// ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/digitalmusicmaker.cpp
@@ -8129,6 +8198,7 @@ if(!bDetected && X.isDeepScan() && isDMM()) {
 	if(X.isVerbose())
 		sOption("tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" smp:"+smp+" loop:"+loop)
 }
+
 
 function isV2M() {
 	//ref https://github.com/farbrausch/fr_public/blob/master/v2/v2mplayer.cpp ::InitBase
@@ -8167,6 +8237,7 @@ if(!bDetected && X.isDeepScan() && isV2M()) {
 		sOption = "ch:"+chs+" notes:"+notes+" timediv:"+timediv+" maxtime:"+maxtime;
 	//TODO add the final tags
 }
+
 
 function isComposer670() {
 	// from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_c67.cpp
@@ -8212,6 +8283,7 @@ if(!bDetected && X.isDeepScan() && isComposer670()) {
 	if(X.isVerbose()) sOption("spd:"+spd+" ord:"+ord)
 }
 
+
 function isSeanConnolly() {
 	//from UADE player check RE
 	if(!X.c("6000.... 6000.... 6000")) return false;
@@ -8224,6 +8296,7 @@ function isSeanConnolly() {
 if(!bDetected && isSeanConnolly()) {
 	sName = 'Sean "Odie" Connolly\'s module (.SCN)'; sVersion = "v"+v; bDetected = 1
 }
+
 
 function isAVP() {
 	//from reversing the eagleplayer
@@ -8277,6 +8350,7 @@ if(!bDetected && isAVP()) {
 	}
 }
 
+
 function isJP() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/JasonPage/src/Jason%20Page_v5.s
 	fmt = 0;
@@ -8320,6 +8394,202 @@ if(!bDetected && isJP()) {
 		sOption("smp:"+smp+" smp.sz:"+smpsz+" song sz:"+outSz(sz))
 	}
 }
+
+
+function isMikeDavies() {
+	//ref reversing the eagleplayer
+	a2 = 0xF2;
+	if(!X.c("0C40",a2)) { a2 -= 6; if(!X.c("33C0",a2)) return false }
+	if(!X.c("48E7FFFE 61064CDF 7FFF4E75",a2-12)) return false;
+	a2 = X.fSig(a2,0xFFFF,"6000")+2; if(a2 < 2) return false;
+	t = X.I16(a2,_BE); if(!t || t < 0 || (t&1)) return false;
+	a2 += t; if(!X.c("2D58",a2)) return false;
+	a2 = 0;
+	function findOrPlus(s) { while(a2 < X.Sz()) { if(X.c(s,a2)) break; a2 += 2 } } // couple helper functions
+	function plusAndFind(s) { while(a2 < X.Sz()) { a2 += 2; if(X.c(s,a2-2)) break } }
+	function errorP(s) { _log('MD: '+s); patchClear(); return false }
+	var a4 = []; // the "wach get out!!!" memory part. Local vars
+	//we skip a4.push(0) *2 unlike the original code, so analogously, a4[] points @d138 instead of d134
+	findOrPlus("48E7FFFE"); a4.push(a2>>16); a4.push(a2&0xFFFF); //d3a2~d3ae
+	findOrPlus("33FC0001"); //d3b0~d3ba
+	a2 += 4; rel = X.U32(a2,_BE);
+	plusAndFind("41F9"); a4.push(a2>>16); a4.push(a2&0xFFFF);
+	d1 = X.I32(a2,_BE); //d3c0~d3c8
+	plusAndFind("B1FC"); d0 = X.U32(a2,_BE); //d3ca-d3d0
+	x = d0 = (d0-d1) >> 4;
+
+	plusAndFind("41F9"); a4.push(a2>>16); a4.push(a2&0xFFFF); //d3da~d3e0
+	plusAndFind("B1FC"); a4.push(a2>>16); a4.push(a2&0xFFFF); //d3e2~d3e8
+	plusAndFind("303C"); //d3ea~d3ee
+	findOrPlus("48E7FFFE ........ 6100"); a4.push(a2>>16); a4.push(a2&0xFFFF); //d3f6~d40a
+	plusAndFind("41F9"); a4.push(a2>>16); a4.push(a2&0xFFFF);
+	d2 = X.U32(a2,_BE); //d40c~d414
+	plusAndFind("B1FC"); d3 = X.U32(a2,_BE); //d416~d41c
+	d3 = d4 = d3-d2; var mo = d3%0x18; d3 = Util.divu64(d3,0x18); //d41e~d42e
+	if(mo) {
+		d4 += 4; mo = d4%0x18; d4 = Util.divu64(d4,0x18);
+		if(mo) return errorP('@d436 error 5'); //originally, error code 5
+		d3 = d4;
+		if(X.c("4654443C",0x7D8)) { //d44c~44; patch #1 adjusting 3 positions
+			a3 = 0x770;
+			for(d4=2; d4 >= 0; d4--) {
+				a3 -= 4; wpU32be(a3+4,rpU32be(a3));
+			}
+		}
+	}
+	a4.push(d3>>16); a4.push(d3&0xFFFF); //d45a
+	plusAndFind("4BF9"); d5 = rpU32be(a2)-rel; //d45c~64
+	if(a2 > X.Sz()) return errorP('@d464 a2 too high');
+	if(!X.isDeepScan()) { patchClear(); return true }
+
+	a4.push(d5>>16); a4.push(d5&0xFFFF); //d466
+	a4.push(0); //d468
+	a5 = 0x4ED2; a4.push(a5>>16); a4.push(a5&0xFFFF); //d46a; delitrackerglobals
+
+	//d472~d4fa: patch #2 (changes certain offsets in the player code to relative)
+	a3 = (a4[0]<<16)+a4[1];
+	p2cycle: while(a3 < X.Sz()) { //from d472...
+		switch(rpU16be(a3)) {
+		case 0x33EE: case 0x33FC: a3 += 2; //d4ce & ↓
+		case 0x3039: case 0x33C0: case 0x33C1: case 0x3C39: case 0x41F9:
+		case 0x4279: case 0x4A79: case 0x4BF9: case 0x4DF9: case 0x5379: case 0xB1FC: //d4d0
+			a3 += 2; a3_ = rpU32be(a3); if((a3_>>16) == 0x00DF) break;
+			wpU32be(a3,a3_-rel); a3 += 4; break;
+		case 0x33F9: //d4de
+			a3 += 2; a3_ = rpU32be(a3);
+			if((a3_>>16) == 0x00DF) a3 += 4; else { wpU32be(a3,a3_-rel); a3 += 4 }
+			a3_ = rpU32be(a3); if((a3_>>16) != 0x00DF) { wpU32be(a3,a3_-rel); a3 += 4 } break;
+		default: a3 += 2; if(a3 >= d5) break p2cycle;
+		}
+	}
+	d4 = d3; //d4fe
+	a2 = (a4[10]<<16)+a4[11]; //d500
+	a2 = rpU32be(a2); //d504
+	a2_ = rpU32be(a2)-rel; wpU32be(a2,a2_); //d506~8
+	d2 = a2_; //d50a~c
+	d5 = a2_+2*rpU32be(a2+4); a2 += 0x18; a2_ = rpU32be(a2); d3 -= 2; //patch1; d50e~1a
+	if(d3 > 0x80) return errorP('@d51a badsmp:'+Hex(d3));
+	while(d3 >= 0) { //d51c & d53a
+		a2_ -= rel; wpU32be(a2,a2_); //d51e~d520
+		if(d5 <= a2_) d5 = a2_+2*rpU32be(a2+4);
+		if(d2 > a2_) d2 = a2_; //d530~d534
+		a2 += 0x18; a2_ = rpU32be(a2); //patch1
+	d3--}
+	a4.push(a2>>16); a4.push(a2&0xFFFF); //d53e. a2+4 = start of samples
+	a2 = rpU32be((a4[4]<<16)+a4[5]); //d540~4
+	a3 = (a4[6]<<16)+a4[7]; a3_ = rpU32be(a3); //d546
+	d3 = Util.divu64(a3_-a2, 0x18); //d54c~50
+	a4.push(d3); //d554
+	smp = d3+d4; //d556~8
+	d4 = d3; a2_ = rpU32be(a2); //d55c
+	if(d4 > 0x80) return errorP('@d55e d4='+Hex(d4)+' > 80h');
+	while(d4 > 0) { //d55e~60 & d57e
+		a2_ -= rel; wpU32be(a2,a2_); //d562~4
+		if(d5 <= a2_) d5 = a2_+2*rpU32be(a2+4);
+		if(d2 > a2_) d2 = a2_; //d574~8
+		a2 += 0x18; a2_ = rpU32be(a2);
+	d4--}
+	if(a2 > (a4[19]<<16)+a4[20]) { a4[19] = a2>>16; a4[20] = a2&0xFFFF } //d582~8
+	d0 <<= 2; //d58e
+ 	a2 = rpU32be((a4[2]<<16)+a4[3]); a2_ = rpU32be(a2); //d592~6
+	d3 = 0;
+	do {
+		if(a2_ != 0xFFFFFFFF && d3 < a2_-rel) d3 = a2_-rel; //d59c~a8
+		a2 += 4; a2_ = rpU32be(a2); //d5aa
+	d0--} while(a2 < X.Sz() && d0 > 0);
+	a3 = (a4[8]<<16)+a4[9]; //d5b0
+	while(a3 < X.Sz()) { a3 += 2; if(X.c("0C40",a3-2)) break } //d5b4~8
+	d0 = rpU16be(a3+0x16); a4.push(d0); //d5ba~e
+	if(d5 > d3) { //d5c8~a
+		if(d5 > X.Sz()) return errorP('@d5ce error 1C'); //d5cc~e; return errorcode 1C
+		a2 = d2; a1 = (a4[19]<<16)+a4[20];
+		do { //from d5d8...
+			if(rpU16be(a1) == d0) { a1 += 6; wpU32be(a1,rpU32be(a1)-rel) } //d5d8~e0; patching #3?...
+			a1 += 2; // d5e2
+		} while(a1 != a2 && a1 < X.Sz())
+		a2 = d5;
+	} else { //from d5ee
+		if(d3 > X.Sz()) return errorP('@d5ee error 1C'); //d5ee~f0; return errorcode 1C
+		a2 = d3; //d5f4; d4 and a3 = filesize
+		while(a2 < X.Sz()) { //d5fc -> sub_d65c
+			a2 += 2; if([0x94,0xFE,0xFF,0x1FE,0x1FF].indexOf(rpU16be(a2-2)) >= 0) break }
+		a1 = d5; a1_ = rpU32be(a1); //d5f8
+		do { // from d5fa...
+			if(d0 == (a1_>>16)) {
+				a1 += 6; a1_ = rpU32be(a1)-rel; wpU32be(a1,a1_);
+				if(d3 < a1_) d3 = a1_;
+			}
+			a1 += 2; a1_ = rpU32be(a1); //d60a
+		} while(a2 != a1); //d60c~e to d5fa
+		if(a2 <= d3) { //d610~2
+			a2 = d3;
+			while(a2 < X.Sz()) {
+				a2 += 2; if([0x94,0xFE,0xFF,0x1FE,0x1FF].indexOf(rpU16be(a2-2)) >= 0) break; }
+		}
+	}
+	patchClear();
+	sz = a2; //d618~a
+	smpsz = d5-d2;
+	songsz = a2-smpsz;
+	return true
+}
+if(!bDetected && isMikeDavies()) {
+	sName = "Mike Davies module (.MD)"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		if(X.isDeepScan()) sOption('smp:'+smp+' songsz:'+Hex(songsz)+' smpsz:'+Hex(smpsz)+' sz:'+outSz(sz))
+	}
+}
+
+function isMXDRV() {
+	// fmt https://www.vector.co.jp/download/file/dos/art/fh003454.html / DOC/MDXFORM.DOC
+	// ref ditto / SRC/MDX2MUS.ASM
+	// useful links: https://gorry.haun.org/mx/index_e.html
+	if(X.Sz() < 4+2+9*2 || X.Sz() > 0xFFFF) return false; //minimum header
+	da1 = X.fSig(0,Math.min(0x400,X.Sz()),"0D0A1A"); //the longest name encountered on modland was 99 bytes long
+	if(da1 < 0) return false;
+	for(i = 0; i < da1; i++) { c = X.U8(i); if(c < 0x20 && c != 9 && c != 0x1B) return false }
+	t = X.SC(0,da1,"SJIS");
+	p = X.fSig(da1+3,Math.min(15,X.Sz()-da1),"00"); if(p < 0) return false;
+	if(da1+3 != p)
+		pdxfn = X.SA(da1+3,p);
+	else pdxfn = "";
+	p++; ofs = p;
+	comp = false;
+	if(X.SA(ofs+4,4) == "LZX ") {
+		lzxsz = X.U32(ofs+0x12,_BE);
+//_log("ofs="+ofs+", lzxsz = "+lzxsz+" += "+(ofs+lzxsz));
+		if(lzxsz) comp = true;
+		return true; // stop right there because omg no
+	}
+
+	vd = X.U16(ofs,_BE)+ofs;
+	if(vd > X.Sz()) return false;
+	p += 2;
+	var chn = X.U16(p,_BE)+ofs;
+	if(chn < p+2 || chn > X.Sz()-2) return false;
+	ch = (chn-p)>>1;
+	if(ch != 16 && ch != 9) return false;
+	oldchn = chn;
+	for(k=1; k < ch; k++) { //check the rest of channels
+		p += 2; if(p > X.Sz()-2) return false;
+		chn = X.U16(p,_BE)+ofs;
+		if(chn < oldchn || chn > X.Sz()-2) return false;
+		oldchn = chn
+	}
+	if(vd < chn) return false;
+	return true;
+}
+if(!bDetected && X.isDeepScan() && isMXDRV()) {
+	sName = "X68k MXDRV module (.MDX)"; bDetected = 1;
+	if(pdxfn != "") sVersion = "+ "+pdxfn;
+	if(ch==16) sVersion += "#EX-PCM";
+	if(comp) sVersion += "(compressed)";
+	if(X.isVerbose()) {
+		sOption(t);
+	}
+}
+
 
 function isADL() {
 	//ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
@@ -8373,6 +8643,7 @@ if(!bDetected && X.isDeepScan() && isADL()) {
 	}
 }
 
+
 function isSilmarils() {
 	//from UADE player RE
 	a0 = 0; if(!X.c("0016",a0+4)) { a0 += 6; if(!X.c("0016",a0+4)) return false }
@@ -8411,6 +8682,7 @@ if(!bDetected && isSilmarils()) {
 	}
 }
 
+
 function isDUX() {
 	//from the UADE player's RE
 	sz = X.U32(0,_BE); if(sz > X.Sz() || (sz&1)) return false;
@@ -8432,6 +8704,7 @@ if(!bDetected && isDUX()) {
 		sOption("ord:"+ord+" smp:"+smp+" songsz:"+Hex(unpsz)+" smpsz:"+Hex(smpsz-0x70)+" sz:"+outSz(sz))
 	}
 }
+
 
 function isLionheart() {
 	if(!X.c("00000028") || !X.c("FFFF 00000000",0x22)
@@ -8467,6 +8740,7 @@ if(!bDetected && isLionheart()) {
 		sOption("ord:"+ord+" ptn:"+ptn+" ins:"+ins+" smp:"+smp+" sz:"+outSz(sz))
 	}
 }
+
 
 function isBuzzic10() { // doesn't detect empty modules with no sound, as the format's already too sparse
 	if(X.Sz() < 0xAEA8) return false;
@@ -8522,6 +8796,7 @@ if(!bDetected && X.isDeepScan() && isBuzzic10()) {
 		+' bpm:'+bpm+' gvol:'+gvol+' sz:44712')
 }
 
+
 function isBuzzic11() { //detection only slightly different from the above
 	if(X.Sz() < 0xB0A8) return false;
 	susv = 0;
@@ -8575,6 +8850,7 @@ if(!bDetected && X.isDeepScan() && isBuzzic11()) {
 		+' bpm:'+bpm+' gvol:'+gvol+' sz:45224')
 }
 
+
 function isBuzzic2() {
 	//from the app sources
 	if(!X.c("'buz2'0200")) return false;
@@ -8611,6 +8887,7 @@ if(!bDetected && isBuzzic2()) {
 	}
 }
 
+
 function isInfogramesRH2() {
 	if(!X.c("000200")) return false; //+04: speed? I saw 1 through 7
 	if(!X.c("FF000F",X.U16(4,_BE)+1)) return false;
@@ -8626,6 +8903,7 @@ if(!bDetected && isInfogramesRH2()) {
 	if(X.isVerbose()) sOption(outSz(sz),'sz:')
 	//TODO get info
 }
+
 
 function isFLS() {
 	//this detection is based purely on sanity checks
@@ -8705,14 +8983,6 @@ if(X.isHeuristicScan()) { //parallel block
 		_setResult("audio","ArkosTracker module (.AKS)","","");
 	}
 
-	if(X.c("2D58",0x134) && X.c("183D7C",0x137)
-	  && X.c("144DEE",0x13D) && X.c("362D58",0x141)) {
-		_setResult("audio","Mike Davies's module (.MD)","","")
-	}
-
-	if(X.c("'SONG'", 0x3C)) {
-		_setResult("audio","SoundFX module (.SFX)","","");
-	}
 	if(X.c("00000114000001", 0x24)
 	  && X.c("000001140000011400000114000001140000011400000114", 0x74)) {
 		_setResult("audio","Sound Factory module (.PSF)","","")

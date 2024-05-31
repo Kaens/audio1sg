@@ -505,3 +505,30 @@ function charStat() {
     } 
     if(r == "") return "any"+o; else return r
 }
+
+// PATCHING FUNCTIONALITY; promised to become native
+var patcheddata = [];
+function rpU8(adr) { //read patched data or passthrough, U8
+    for(var i=0; i < patcheddata.length; i++) if(patcheddata[i][0] == adr) return patcheddata[i][1];
+    return X.U8(adr)
+}
+function rpU16be(adr) { //read patched data or passthrough, U16 BE
+    return (rpU8(adr)<<8)|rpU8(adr+1)
+}
+function rpU32be(adr) { //read patched data or passthrough, U32 BE
+    return (rpU8(adr)<<24)|(rpU8(adr+1)<<16)|(rpU8(adr+2)<<8)|rpU8(adr+3)
+}
+function wpU8(adr,val) { //add to patches, U8
+    for(var i=0; i < patcheddata.length; i++)
+        if(patcheddata[i][0] == adr) { patcheddata[i][1] = val; return }
+    patcheddata.push([adr,val])
+}
+function wpU16be(adr,val) { //add to patches, U16 BE
+    wpU8(adr,(val>>8)&0xFF); wpU8(adr+1,val&0xFF)
+}
+function wpU32be(adr,val) { //add to patches, U32 BE
+    wpU8(adr,(val>>24)&0xFF); wpU8(adr+1,(val>>16)&0xFF);
+    wpU8(adr+2,(val>>8)&0xFF); wpU8(adr+3,val&0xFF)
+}
+function patchLength() { return patcheddata.length }
+function patchClear() { patcheddata = [] }
