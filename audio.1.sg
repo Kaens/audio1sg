@@ -46,10 +46,17 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'_A2module_'")) {
 		bDetected = 1; bad = false;
 		sName = "AdLib Tracker II module (.A2M)";
-		nV = X.U8(0x0E); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV;
-		ptn = X.U8(0x0F); if(!ptn || ptn>64) bad = "!badptn";
+		nV = X.U8(0xE); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV;
+		ptn = X.U8(0xF); if(!ptn || ptn>64) bad = "!badptn";
 		if(bad) sVersion += "/malformed"+bad;
-		else if(X.isVerbose()) sOption("ptn:"+ptn);
+		else if(X.isVerbose()) sOption('ptn:'+ptn); //TODO extract more, ver.-dependent
+	}
+	else if(X.c("'_A2tiny_module_'")) {
+		sName = "AdLib Tracker II module (.A2T)"; bDetected = 1; bad = false;
+		nV = X.U8(0x13); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV+' tiny';
+		ptn = X.U8(0x14); if(!ptn || ptn>64) bad = "!badptn";
+		if(bad) sVersion += "/malformed"+bad;
+		else if(X.isVerbose()) sOption('tempo:'+X.U8(0x15)+' spd:'+X.U8(0x16)+' ptn:'+ptn); //TODO extract more
 	}
 	else if(X.c("'EXITgB'2018201820182F18201024C94AA80004660A558006A80000000200042200D28924C1D0A8000424C0D1DF2018D1D82018D1D82018201812D804800000000166F660B4610000'H|'017E01610000'Z|'027E02610000'R|'037E03610000'JL'DF7FFF'NuH'E7FFFE7E01610000AC7E02610000A67E03610000A04CDF7FFF'Nu`'0A602260000092600000'~A'FA....4BF900DFF000'p0;|'000000AA0440001064F4'NuK'F900DFF0003007C0FC",0x1A) //check D0h bytes
 		) {
@@ -1666,6 +1673,43 @@ _log('smp['+i+'] co @'+Hex(p))
 	  && X.c("000000000000010101",0x25) && X.c("'2222222'",0x44)) {
 		sName = "Ken Silverman's Adlib module (.KSM)"; bDetected = 1
 	}
+	else if((X.c("'KSCC'") && !X.U8(0xE) && !(X.U8(0xF) & 0xE0)) || //&meant to be 0xF0 but majutsushi*.kss have 0x10 there
+	  (X.c("'KSSX'") && !X.U32(0x14))) {
+		// ref https://sourceforge.net/p/nezplug/code/HEAD/tree/nezplug/trunk/src/nes/m_kss.c & trunk/in_nez.txt
+		sName = "KSS chiptune (.KSS)"; bDetected = 1;
+		if(X.c("'KSSX'")) { nv = 1; sVersion = "extended" } else nv = 0;
+		bnk = X.U8(0xD) & 0x7F; bnk16 = X.U8(0xD) & 0x80 ? 1 : 2;
+		if(bnk) sVersion = sVersion.appendS('banks'+(bnk16 == 1?'8k':'16k'), ',');
+		chip = X.U8(0xF);
+		if(X.isVerbose()) if(X.c("'MBM'",0x20)) sOptionT(X.SA(0x24,0x34));
+		sz = 0x10+X.U8(0xE)+X.U16(6)+0x2000*bnk*bnk16;
+		hnmmode = rammode = false; scc = true; ch = 1;
+		if(chip & 2) {
+			sVersion = sVersion+'#SEGA-MkIII(SMS)';
+			if(chip & 4) { sVersion = sVersion+'/GameGear-Stereo'; ch = 2 }
+			else sVersion = sVersion+'/SMS-SNG(SN76489)';
+			if(chip & 1) sVersion = sVersion+'/FM-UNIT(YM2413)';
+			if(chip & 0x88) rammode = true;
+			scc = false
+		} else {
+			if(chip & 0x10) {
+				if(chip & 8) { sVersion = sVersion+'#MSX-AUDIO-STEREO'; ch = 2 }
+				else { sVersion = sVersion+'#MSX-AUDIO'; hnmmode = true }
+			} else sVersion = sVersion+'#MSX-AUDIO';
+			if(chip & 1) sVersion = sVersion+'/MSX-MUSIC';
+			if(chip & 0x80) { rammode = true; scc = false }
+			else {
+				rammode = (chip & 4) != 0; scc = !rammode
+			}
+		} 
+		if(rammode) sVersion = sVersion+'/RAM'; if(scc) sVersion = sVersion+'/SCC';
+		if(hnmmode) sVersion = sVersion+'/牌の魔術師DAC';
+		if(nv) if(X.U8(0xE) >= 0xB) if(X.isVerbose()) {
+			x1 = X.U16(0x18); x2 = X.U16(0x1A);
+			if(x2-x1 > 1) sOption('subsongs '+x1+'-'+x2);
+		}
+		if(X.isVerbose()) sOption('ch:'+ch+(bnk?' ex.bnk:'+bnk:'')+' sz:'+outSz(sz))
+	}
 	else if(X.c("'cyd!song'") ) {
 		//ref https://github.com/kometbomb/klystron/tree/master/src/snd/music.c , .h
 		sName = "Klystrack module (.KT)"; bDetected = 1;
@@ -1695,13 +1739,6 @@ _log('smp['+i+'] co @'+Hex(p))
 	}
 	else if(X.c("'cyd!efex'") ) {
 		sName = "Klystrack effects (.KF?)"; bDetected = 1
-	}
-	else if(X.c("'KSCC'") || X.c("'KSSX'")) {
-		sName = "KSS module (.KSS)"; bDetected = 1;
-		if(X.c("'KSSX'")) sVersion = "extended";
-		if(X.isVerbose())
-		  if(X.c("'MBM'",0x20))
-			sOptionT(X.SA(0x24,0x34))
 	}
 	else if( X.c("'ADL '0000....'MDhd'00000008000080..00000080'MThd'00000006000200..01E0'MTrk'0000....00FF03")
 	  || ( X.U32(0,_LE)==X.Sz() && X.c("'AD'",4) ) ) {
@@ -2614,6 +2651,11 @@ _log('smp['+i+'] co @'+Hex(p))
 					//yet another zipped-xmls format
 			}
 		}
+	}
+	else if(X.c("PSMP") && [0,0x10].indexOf(X.U8(4)) >= 0) {
+		sName = 'Sega MegaDrive Pre-SMP chiptune (.PSZ)'; bDetected = 1;
+		sVersion = X.U8(4)? 'BE': 'LE';
+		if(X.isVerbose()) sOption('tempo:'+X.U8(5))
 	}
 	else if(X.c("'PTCOLLAGE-'") || X.c("'PTTUNE--20'")) {
 		//ref source code / pxtnService.cpp, pxtnDescriptor.cpp
@@ -8314,6 +8356,28 @@ if(!bDetected && isSoundtrackerMOD()) {
 }
 
 
+function isPaulRobotham() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_teamPaulRobotham/src/Paul%20Robotham_v1.asm
+	trk = X.U16(0,_BE); d2 = X.U16(2,_BE); d3 = X.U16(4,_BE); smp = X.U16(6,_BE); p = 8;
+	if(!trk || trk > 4 || !d2 || !d3 || !smp) return false;
+	mp = 0; trks = [];
+	for(d1=trk;d1;d1--) { t = X.U32(p,_BE); p += 4; if((t>>16) || !t) return false; trks.push(t); if(mp < t) mp = t } //stpos
+_log('StartPos -> '+Hex(p));
+	for(;d2;d2--) { t = X.I32(p,_BE); p += 4; if(t <= 0 || t%2) return false; if(mp < t) mp = t } //Next1
+	d2 = X.I32(p,_BE);
+_log('Next1 -> '+Hex(p))
+	for(;d3;d3--) { t = X.I32(p,_BE); p += 4; if(t <= 0 || t%2) return false; if(mp < t) mp = t } //Next2
+_log('Next2 -> '+Hex(p))
+	p += smp*12; if(p != d2) return false;
+	for(d2=15;d2;d2--,p+=16) if(!X.c("3F3F3F3F 3F3F3F3F 3F3F3F3F 3F3F3F3F",p)) return false;
+	return true
+}
+if(!bDetected && isPaulRobotham()) {
+	sName = "Paul Robotham's module (.DAT+.SSD)"; bDetected = true;
+	if(X.isVerbose()) sOption('trk:'+trk+' smp:'+smp)
+}
+
+
 function isDMM() {
 	// ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/digitalmusicmaker.cpp
 	for(i=0; i < 6; i++) if(!(0xC0 <= X.U8(i*2+1) <= 0xFF)) return false;
@@ -9048,9 +9112,112 @@ function isInfogramesRH2() {
 	return true;
 }
 if(!bDetected && isInfogramesRH2()) {
-	sName = "Infogrames (RobHubbard2) module (.DUM)"; sVersion = "+.INS"; bDetected = 1;
+	sName = "Infogrames (RobHubbard2) module (.DUM&.INS)"; bDetected = 1;
 	if(X.isVerbose()) sOption(outSz(sz),'sz:')
 	//TODO get info
+}
+
+
+function isSpecialFX() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SpecialFX/Special%20FX_v2.asm
+	if(!X.c("6000")) return false;
+	d2 = X.U16(2,_BE); if(d2 <= 0 || d2%2) return false; a1 = 2; a0 = 4;
+	for(i = 0; i < 3; i++) { if(!X.c("6000",a0)) return false; t = X.U16(a0+2,_BE); a0 += 4; if(t <= 0 || t%2) return false }
+	a1 += d2;
+	if(X.c("6000",a0)) {
+		for(i = 0; i < 3; i++) { if(!X.c("6000",a0)) return false; t = X.U16(a0+2,_BE); a0 += 4; if(t <= 0 || t%2) return false }
+		if(X.c("6000",a0)) return false;
+	} else { //OldFor
+		if(!X.c("6100",a1)) return false; a1 += 4
+	}
+	if(!X.c("41F9",a1)) return false; a1 += 6; if(!X.c("43F9",a1)) return false;
+	//TODO subsongs
+	return true;
+}
+if(!bDetected && isSpecialFX()) {
+	sName = "M.Cannon & J.Dunn's Special FX module (.JD)"; bDetected = 1
+}
+
+function isSpecialFXST() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SpecialFX_ST/src/Special%20FX%20ST_v3.asm
+	if(X.Sz() < 2300) return false;
+	if(!X.c("00000000") && !X.c("0101") && !X.c("00000101") && !X.c("6000")) return false;
+	a1 = 140; a2 = X.Sz()-4; a0 = 0;
+	while(a0 < X.Sz()) { if(X.c("00090800",a0)) break; a0 += 2; if(a1 == a0) return false }
+	if(!X.c("01120900", a0+74) && !X.c("02240A00", a0+74*2) && !X.c("00090800", a0+74*3)
+	  && !X.c("01120900", a0+74*4) && !X.c("02240A00", a0+74*5)) return false;
+	a0 = a1+1860;
+	while(a0 < X.Sz()) { if(X.c("0EF80E10",a0)) break; a0 += 2; if(a0 >= a2) return false }
+	//init
+	sz = -1; var d1 = 10, a1 = d7 = p1 = p2 = 0;
+	while(a1 < X.Sz()) { d0 -= 2; a1 += 2; if(X.c("E740",a1-2)) break } //Find1
+	x = X.U16(a1-12,_BE);
+	p1 = a1-4+X.U16(a1-4,_BE);
+	while(a1 < X.Sz()) { //Find2
+		if(X.c("101A234A",a1)) {
+			a1 += d1 }
+		else if(X.c("4880D040",a1)) break; //noSpec, break to OK2
+		a1 += 2
+	}
+	p2 = a1-2+X.U16(a1-2,_BE); //useful
+	while(a1 < X.Sz()) { if(X.c("08C70007",a1)) break; a1 += 2 } //Find3
+	a2 = a1; if(a1 >= X.Sz()) return false;
+	while(a2 > 0) { a2 -=2; if(X.c("41FA",a2)) break } //Find4
+	while(a1 < X.Sz()) //Find5
+		if(X.c("41F9",a1)) { a2 = X.U16(a1+2,_BE); break }
+		else { t = X.c("41FA",a1); a1 += 2; if(t) { a2 = a1+X.U16(a1,_BE); break }
+	}
+	while(a1 < X.Sz()) { if(X.c("08870002",a1)) break; a1 += 2 } //Find6
+	a2 = a1+6; //OK6
+	if(X.c("41F9",a2-2)) { a2 = X.U16(a2,_BE); d7 = a2 }
+	else a2 += X.U16(a2,_BE);
+	while(a1 < X.Sz()) { if(X.c("08C70002",a1)) break; a1 += 2 } //Find7
+	a1 += d1; a2 = a1;
+	if(X.c("41F9",a2-2)) a2 = X.U16(a2,_BE); else a2 += X.U16(a2,_BE);
+	while(a1 < X.Sz()) { t = X.c("41FA",a1); a1 += 2; if(t) break } //Find8
+	a2 = a1+X.U16(a1,_BE);
+	var skip = 0; bad = '';
+	while(a1 < X.Sz()) { if(X.c("0EF80E10",a1)) { skip = 1; break } if(X.c("7000101A",a1)) break; a1 += 2 } //Find9
+	if(!skip) {
+		a2 = a1-2+X.U16(a1-2,_BE);
+		while(a1 < X.Sz()) //FindA
+			if(X.c("0EF80E10",a1)) { skip = 1; break }
+			else { t = X.c("41FA",a1); a1 += 2; if(t) break }
+		a2 = a1; a1 += X.U16(a1,_BE);
+	}
+	if(!skip) if(a1 > X.Sz()) { bad = bad.addIfNone('!short'); skip = 2 }
+	if(!skip) { sz = a1; if(!d7) skip = 1 }
+	if(!skip) while(a2 < X.Sz()) { //FindEnd
+		if(X.c("41FA",a2)) sz = a1 = a2+2+X.U16(a2+2,_BE)+14;
+		if(!X.c("110010",a2)) break; else a2 += 2;
+	}
+	//EndTable skipped -> Skip2
+	if(skip != 2) {
+		d0 = p2-p1;
+		if(d0 > 0) d0 >>= 3;
+		if(d0 > 0) x = d0
+	}
+	return true
+}
+if(!bDetected && isSpecialFXST()) {
+	sName = "Special FX ST module (.DODA)"; bDetected = 1;
+	if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		if(sz != -1) sOption(outSz(sz),'sz:')
+	}
+}
+
+
+function isTronicDP() {
+	a0 = d1 = 0x10+X.U16(2,_BE)+X.U16(6,_BE)+X.U16(10,_BE)+X.U16(14,_BE);
+	if(a0 > X.Sz() || a0%2) return false;
+	a0 += X.U16(a0,_BE); if(a0%2) return false;
+	if(!X.c("005800B0",a0+4)) return false;
+	return true
+}
+if(!bDetected && isTronicDP()) {
+	sName = "Tronic Delta Packer module (.DP)"; bDetected = 1; sOption('in:TronicTracker(?)')
 }
 
 
@@ -9301,7 +9468,7 @@ _log("loop:"+loop);
 
 	function isMON() {
 		if(!X.c("4EFA....4EFA....4EFA")) return false;
-		var t = X.U16(2,_BE); if (t > X.Sz() - 9) return false;
+		var t = X.U16(2,_BE); if (t > X.Sz() - 10) return false;
 		return X.c("4BFA.... 08AD 0000",t+2)
 	}
 	if(isMON())
@@ -9320,6 +9487,16 @@ _log("loop:"+loop);
 	}
 	if(isJHSTSMP()) _setResult("audio","Jochen 'Mad Max' Hippel's Atari ST sample set (SMP.set)","",
 			"smp:"+smp+" sz:"+outSz(oldp))
+
+	function isTwinTeam() {
+		if(!X.c("01000000", 0x06) || X.Sz() < 1500 || X.Sz() > 9000 || X.calculateEntropy(12,1200) < 7.8) return false; //a quick check because that's a lot of algo
+		//ideally, get the checks from https://github.com/adplug/adplug/blob/master/src/dmo.cpp
+		return true
+	}
+	if(isTwinTeam()) {
+		_setResult("audio","TwinTeam's Twin Trackplayer module (.DMO)","",'unp.sz:'+X.U16(0xC))
+	}
+
 
 } //isHeuristicScan parallel block
 

@@ -12,16 +12,12 @@ This is where you can contribute the most! (sorted by extension)
  - Compoz `.CPZ`
  - Megadrive `.CYM`
  - Edlib .`EDL`
- - Paul Robotham's `.DAT`/`.SSD`
- - Twin TrackPlayer `.DMO`
- - Special FX ST `.DODA`
- - Delta Packer `.DP`
+ - Twin TrackPlayer `.DMO` (decrypt, unpack...)
  - Digital Sonix And Chrome `.DSC`
  - Digital Studio `.DST` (Spectrum)
  - Pixel Painters `.FMF`, `.FTF`
  - Flash Tracker `.FTS`
  - Jason Brooke's `.JB`
- - Special FX `.JD`
  - Jesper Olsen's `.JO`
  - Kris Hatlelid's `.KH`
  - Loudness Sound System `.LDS`
