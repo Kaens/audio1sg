@@ -13,7 +13,6 @@ This is where you can contribute the most! (sorted by extension)
  - Megadrive `.CYM`
  - Edlib .`EDL`
  - Twin TrackPlayer `.DMO` (decrypt, unpack...)
- - Digital Sonix And Chrome `.DSC`
  - Digital Studio `.DST` (Spectrum)
  - Pixel Painters `.FMF`, `.FTF`
  - Flash Tracker `.FTS`

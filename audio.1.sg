@@ -9221,6 +9221,38 @@ if(!bDetected && isTronicDP()) {
 }
 
 
+function isDigitalSonixChrome() {
+	//ref UADE player RE
+	if(!X.U16(0)) return false; smp = X.U8(2); if(!smp) return false; ord = X.U8(3); if(ord < 2) return false;
+	d2 = smpsz = X.U32(4,_BE); if(!d2 || d2%2 || d2 > X.Sz() || d2 > 0x80000) return false;
+	d3 = X.U32(8,_BE); if(d3 > 0x20000) return false;
+	a0 = 0xC; x = 0;
+	for(i=ord-1; i; i--) {
+		d4 = X.I32(a0,_BE); if(d4 < 0 || d4 > 0x20000 || d4%2) return false; if(!X.U8(a0+4)) x++; a0 += 6
+	}
+	if(!X.c("00000000 0000",a0)) return false; a0 += 6; //@d2de~e4
+	d3 <<= 2; a0 += d3; //d2e6~8
+	a2 = a0+smp*0x12; //d2ea~f4
+	s = 0;
+	while(a0 < X.Sz() && a0 < a2) {
+		d1 = X.I32(a0+2,_BE); if(d1 <= 0 || d1 > d2) return false;
+		d0 = X.U32(a0+0xC,_BE); if(d0 > d2) return false;
+		if(X.U8(a0+0x10) > 0x40 || X.U8(a0+0x11)) return false; //this check's not in the player
+		a0 += 0x12;
+	}
+	if(a0 > X.Sz() || d2 != d0+X.I32(a0-0x10,_BE)) return false;
+	sz = a0+smpsz;
+	return true
+}
+if(!bDetected && isDigitalSonixChrome()) {
+	sName = "Digital Sonix & Chrome module (.DSC)"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'×');
+		sOption('ord:'+ord+' smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
 function isFLS() {
 	//this detection is based purely on sanity checks
 	//  AND a tiiiiiny ~bruteforce~ of membase, which is why it comes in last
