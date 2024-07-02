@@ -2423,6 +2423,11 @@ _log('smp['+i+'] co @'+Hex(p))
 	else if(X.c("FFFFE002E102")) {
 		sName = "POKEYNoise chiptune (.PN)"; bDetected = 1
 	}
+	else if(X.c("01080B08 E1079E32 30363100 000078D8 A2FF9A20 1B082000")) {
+		sName = "Polyanna module (.PRG)"; sVersion = "v1.0&player"; bDetected = 1;
+		if(X.isVerbose()) sOption('sz:'+outSz(0x5801))
+		//TODO add info
+	}
 	else if(X.c("'PRT'")) {
 		sName = "PreTracker module (.PRT)"; bDetected = 1;
 		nV = X.U8(3);
@@ -4512,6 +4517,7 @@ _log('smp['+i+'] co @'+Hex(p))
 			}
 		}
 	}
+
 
 //pure signature detection end
 
@@ -8203,6 +8209,201 @@ if(!bDetected && isSoundFX()) {
 }
 
 
+function isJesperOlsen() {
+	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Jesper_Olsen/Jesper Olsen_v1.asm
+	fmt = ''; smp = smpp = 0; sz = -1; x = 1;
+	if(X.c("6000")) {//old
+		p = 0; d1 = 3;
+		do {
+			if(!X.c("6000",p)) return false;
+			if((t = X.I16(p+2,_BE)) <= 0 || t % 2) return false; p += 4
+		} while(d1--);
+		p = p0 = 6+X.I16(6,_BE);
+		if(!X.c("4A406B00",p)) { //even older
+			p -= 4;
+			if(X.c("C0FC",p)) p += 2;
+			else
+				for(i=0; i < 16 && p < X.Sz(); i++,p+=2)
+					if(X.c("02800000",p)) { if(!X.c("00FFC0FC",p+4)) return false; p += 8; break }
+			if(p > X.Sz()) return false;
+			mulu = X.I16(p,_BE); p += 800; q = p+900;
+			while(p < X.Sz()) {
+				if(X.c("6AE064E0",p)) break;
+				p += 2; if(p === q) return false
+			}
+			if(p > X.Sz()) return false;
+			fmt = 'old'; p = p0;
+			while(p < X.Sz()) { t = X.I16(p,_BE); p += 2;
+				if(t >= 0 && (t & 0x40FA) == 0x40FA) { t = X.I16(p,_BE); p += 2; if(t >= 0) break } }
+			p += t-2; var songp_in_explayp = p;
+			x = X.I16(p,_BE)-p;
+			if(x < mulu) x = 1; else x = Util.divu64(x,mulu);
+			//p is now in a2 and a1 is the filesize
+			while(p < X.Sz()) {
+				if(X.c("'FORM' 0000???? '8SVXVHDR'",p)) { if(!smpp) smpp = p; smp++; p += 4+X.I32(p+4,_BE)+2 }
+				p += 2; if(p >= X.Sz()) break
+			}
+			if(p > X.Sz()) return false; sz = p;
+			p = 0xA+X.I16(0xA,_BE);
+			while(p < X.Sz()) { t = X.c("43FA",p); p += 2; if(t) break }
+			var Lea = p, VoiceTmp = p+X.I16(p,_BE); p += 2; //skipping the part about a flag
+			d1 = X.c("6000",12) ? "7FFE" : "7FFF";
+			while(p < X.Sz()) { t = X.c(d1,p); p += 2; if(t) break }
+			while(p < X.Sz()) { t = X.c("336C",p); p += 2; if(t) break }
+			var Value = X.I16(p+2,_BE)
+			//now, I'm not very sure if we _need_ Lea, VoiceTmp, Value for our purposes, but we have'em!
+		} else {
+			if(!X.c("000641FA",p+4)) return false; p += 8;
+			p += X.I16(p,_BE)+4; if(!X.c("00017FFF",p)) return false;
+			fmt = 'second';
+			p = p0+8+X.I16(p0+8,_BE); var SongPtr = p;
+			p += 8; x = 0; d2 = X.I32(p+0xA,_BE);
+			while(p < X.Sz()) { if(d2 != X.I32(p+0xA,_BE)) break; x++; p += 0x1A }
+			p = smpp = SongPtr+X.I32(SongPtr,_BE); //smpinfo
+			while(p < X.Sz()) {
+				if(X.c("'FORM' 00?????? '8SVXVHDR'",p)) { smp++; p += 4+X.I32(p+4,_BE)+2 }
+				p += 2; if(p >= X.Sz()) break
+			}
+			if(p > X.Sz()) return false; sz = p;
+			p = SongPtr; d1 = X.U32(p,_BE); d2 = X.U32(p+0x12,_BE);
+			if(d2 <= d1) p += d1; //that'll be our song size
+			else {
+				d3 = d2-X.I32(p+0x16,_BE);
+				sz = d2+d3+p; if(sz == 35944) x -= 1; //I don't have this file to test
+				if(sz > X.Sz()) return false;
+				//d3 <<= 2; p += X.I32(p,_BE); d3 += p; songsz = d3; smpsz = sz-songsz
+			}
+		}
+	} else if(X.c("0000 ???? 00017FFF")) { //the Harald Hårdtand game is once again different
+		var z = 0; for(p = 8; p < 0x10; p += 2) {
+			t = X.I16(p,_BE); if(!t) { z++; continue }
+			if(t < 0 || t%2 || !(X.c("7FFF",t-2) || X.c("7FFE",t-4))) return false;
+		} if(z > 1) return false;
+		p = 2+X.I16(2,_BE);
+		if(p > X.Sz() || !X.c("'FORM' 00?????? '8SVXVHDR'",p)) return false;
+		while(p < X.Sz()) {
+			if(X.c("'FORM' 00?????? '8SVXVHDR'",p)) { smp++; p += 4+X.I32(p+4,_BE)+2 }
+			p += 2; if(p >= X.Sz()) break
+		}
+		if(p > X.Sz()) return false;
+		sz = p; fmt = 'harald'
+	} else { //this detection is a tad broken in the eagleplayer
+		if((p = X.U16(0,_BE)) > 0x200 || p < 4 || p % 2) return false; p += 2;
+		for(i=2; i < p; i += 2) if((t = X.I16(i,_BE)) <= 0 || t % 2 || !X.c("7FFF",t-2)) return false;
+		fmt = 'latest';
+		x = X.U16(0,_BE); p = smptp = X.U16(x+2,_BE); d3 = X.U16(x,_BE); x >>= 1; x--;
+		if(x != 1) if(X.c("0000",d3-6) || !X.c("7F00",d3-4)) x--;
+		smp0p = X.U16(p,_BE); var lo = hi = X.U24(smp0p+0xF,_BE);
+		smp = ssz = 0;
+		while(p < smp0p && smp < 128) { if(a2 > X.Sz()) return false;
+			smp++; pp = X.U16(p,_BE);
+			sofs = X.U24(pp+0xF,_BE);
+			if(lo > sofs) lo = sofs;
+			if(hi <= sofs) {
+				hi = sofs; ssz = X.I16(pp+0x12,_BE);
+				if(!X.c("'BODY'",sofs-8)) { //a raw sample
+					//the original test was if(!X.U8(pp+0xE)) - this fails with, say, georgglaxo ingame.jo
+					sofs = X.U32(pp+0x14,_BE);
+					if(sofs > hi) { hi = sofs; ssz = 2*X.U16(pp+0x18,_BE) }
+				}
+			}
+			if(hi > X.Sz()) return false;
+			if(pp < smp0p) smp0p = pp;
+//_log('smp '+smp+'. @'+Hex(pp)+' maxofs:'+Hex(hi)+' ssz0E:'+Hex(X.U24(pp+0xF,_BE))+' ssz18:'+Hex(X.U16(pp+0x18,_BE))
+//+(X.c("'BODY'",sofs-8)?' IFF ['+Hex(X.U32(sofs-4,_BE))+'-'+Hex(sofs+X.U32(sofs-4,_BE))+']':' raw'))
+			p += 2;
+		}
+		if(X.c("'BODY'00'",lo-8)) lo = X.fSig("'FORM'00??????",lo-150,lo-20); songsz = lo;
+		if(X.c("'BODY'00'",hi-8)) hi += X.U32(hi-4,_BE); //BODY tag skip
+		else hi += ssz<<1;
+		sz = hi;
+	}
+
+	return true;
+}
+if(!bDetected && isJesperOlsen()) {
+	sName = "Jesper Olsen's module (.JO)"; sVersion = fmt; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x'); sOption('smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
+function isJasonBrooke() {
+	//from reversing the eagleplayer
+	// SubSongs at +04; SongSize at +14; Samples at +1C; CalcSize at +24;
+	// SamplesSize at +2C; ord at +34; SynthSamples at +3C
+	// LoadSize at +0C; SynthSamples at +3C; Steps at +44; AuthorName at +4C => F2;
+	// Prefix at +54 => 139
+	fmt = ''; p = 0;
+	function findPlus(s) { while(p < X.Sz()) { t = X.c(s,p); p += 2; if(t) break } }
+	function findOrPlus(s) { while(p < X.Sz()) { if(X.c(s,p)) break; p += 2 } }
+	function minusFind(s) { while(p > 0) { p -= 2; if(X.c(s,p)) break } }
+	if(X.c("48E7F0F0")) { if(!X.c("424047FA FFF84A2B",4)) return false; fmt = 'old'; // -1
+		if(!X.isVerbose()) return true;
+		a0 = p = 12; findPlus("43FA"); d7 = p+X.U16(p,_BE)+1;
+		findPlus("228A"); p += 2; d2 = p-8+X.U16(p-8,_BE); //the first synsmp ptr?
+		findPlus("137B"); d6 = a4 = p+X.U16(p,_BE)-1; x = 1;
+		while(d6 < X.Sz()) { d6 += 10; if(!X.U16(d6,_BE)) break; if(X.U8(d6)) break; x++ }
+		minusFind("48E7"); var hi, lo = X.U16(a4+2,_BE); //p & a4 -> stack
+		for(d0 = x; d0--;) { //d852~62
+			a4 += 2; for(d3=4; d3--;) { t = X.U16(a4,_BE); a4 += 2; if(lo > t) lo = t }
+		}
+		p = lo; lo = hi = X.U16(p,_BE); p += 2;
+		do { //d870~84
+			t = X.U16(p,_BE); p += 2; if(t) { if(t < lo) lo = t; if(t > hi) hi = t; }
+		} while(p < d7);
+		a3 = lo; synsmp = (lo-d2)>>7;
+		p = hi;
+		while(p < X.Sz()) if([0x85,0x87].indexOf(X.U8(p)) >= 0) break; else p++; //d89a~ac
+		d0 = 0; do { //d8ae~c6
+			while(a3 < X.Sz()) if([0x85,0x87].indexOf(X.U8(a3)) >= 0) break; else a3++;
+			a3++; d0++
+		} while(a3 < p);
+		p++; a3 = d6; if(a3) { //d8c8~f6
+			for(d1=0x80,found=false; d1-- && !found;) { t = X.c("41FA",a3); a3 += 2; if(t) found = true }
+			if(found) { //d8de
+				a3 += X.U16(a3,_BE);
+				while(a3 < X.Sz()) { if(X.c("FF",a3+4) || X.c("FF",a3+6)) a3 += 0x12; else break }
+				p = a3;
+			}
+			sz = p; steps = d0 //d8fa
+		}
+	}
+	else {
+		p = 0xAC; while(p < 0xE0) { t = X.c("48E7",p); p += 2; if(t) break } if(p > 0xE0) return false; 
+		if(!X.c("F8FC",p) && !X.c("F8F8",p)) return false;
+		if(!X.c("08F90001 00BFE001 33FC0780 00DFF09A 47FA",p+2)) return false;
+		p += 0x14; if(0x10000-p-X.U16(p,_BE)) return false;
+		fmt = 'new'; if(!X.isVerbose()) return true; p = 0;
+		findPlus("48E7"); findPlus("49F9"); p += 6; findPlus("7600"); d0 = X.U16(p-10,_BE);
+		findOrPlus("10320000"); a4 = p-2+X.U16(p-2,_BE);
+		findPlus("48E7"); p = a3 = p-6; findPlus("43FA"); p += X.U16(p,_BE)-1;
+		a4 -= p; d3 = Util.divu64(a4,0x12); x = 1; d2 = 0;
+		for(; p < X.Sz(); x++) { //d74e~5c
+			p += 0x12; d2 = X.U16(p,_BE); if(X.U8(p,_BE)) break; d2--; if(d2 <= 0) break; }
+		if(d3 < x) x = d3; //d75e~64
+		p = a3; minusFind("45FA"); d0 = p = p-2+X.U16(p-2,_BE);
+		p += 4; synsmp = smp = d5 = 0; smpp = p;
+		while(p < X.Sz()) {
+			if((t = X.U32(p,_BE)) > d0) { //d784~a8
+				if(!smp) d5 = t; if(t <= d5) d5 = a4 = t; smp++; p += 10; if(p > a4) break;
+			} else { synsmp++; p += 10 }
+		}
+		i = smp+synsmp; sz = 0; p = smpp;
+		while(i-- && p < X.Sz()) { t = X.U32(p,_BE)+X.U16(p+4,_BE); if(sz < t) sz = t; p += 10 } //~d7cc
+	}
+	return true
+}
+if(!bDetected && isJasonBrooke()) {
+	sName = "Jason C. Brooke's module (.JB,.JCB)"; sVersion = fmt; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		sOption((fmt=='new'?'wfsmp:'+smp:'steps:'+steps)+' synsmp:'+synsmp+' sz:'+outSz(sz))
+	}
+}
+
+
 function isKefrensSoundMachine() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/KefrensSoundMachine.c
 	if(X.Sz()<1537) return false;
@@ -9303,7 +9504,7 @@ function isPollyTracker() {
 if(!bDetected && isPollyTracker()) {
 	sName = "Polly Tracker module (.MOD)"; bDetected = 1;
 	if(X.isVerbose() && X.isDeepScan()) {
-		sOptionT(info); sOptionT(composer,'by: ');
+		sOptionT(info); sOptionT(composer,'by:');
 		sOption('tempo:'+Hex(tempo)+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' notes:'+notes+' unpsz:'+unpsz+' sz:'+outSz(sz))
 	}
 }

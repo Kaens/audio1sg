@@ -8,6 +8,7 @@ The following formats are to be reversed (or otherwise understood) and most like
 
 This is where you can contribute the most! (sorted by extension)
 
+ - MTC (Spectrum)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
  - Compoz `.CPZ`
  - Megadrive `.CYM`
@@ -15,8 +16,6 @@ This is where you can contribute the most! (sorted by extension)
  - Twin TrackPlayer `.DMO` (decrypt, unpack...)
  - Pixel Painters `.FMF`, `.FTF`
  - Flash Tracker `.FTS`
- - Jason Brooke's `.JB`
- - Jesper Olsen's `.JO`
  - Kris Hatlelid's `.KH`
  - Loudness Sound System `.LDS`
  - Ultima 6 `.M`
