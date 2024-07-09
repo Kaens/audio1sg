@@ -8,41 +8,200 @@ The following formats are to be reversed (or otherwise understood) and most like
 
 This is where you can contribute the most! (sorted by extension)
 
- - MTC (Spectrum)
+ - Aero Tracker `.AERO` (info, size)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
+ - Ace Tracker `.AM` (info, size)
+ - AY Amadeus `.AMAD` (info, size)
+ - A.M. Composer `.AMC` (info, size)
+ - AMusic Adlib-MOD `.AMD` (size)
+ - Digital Sound and Music Interface `.AMF` (info, size)
+ - AND Xynth `.AMX` (info, size)
+ - ArtOfNoise/Chorus `.AON` (info, size)
+ - AProSys `.APS` (info, size)
+ - Arpeggiator `.ARP` (info, size)
+ - Actionamics Sound Tool `.AST` (info, size)
+ - Audio Sculpture `.AS` (info, size)
+ - Athtune `.ATHTUNE` (info, size)
+ - AXS `.AXS` (info, size)
+ - Beepola `.BBSONG` (info, size)
+ - Ben Daglish's SID `.BDS` (info, size)
+ - BoyScout `.BSS` (info, size)
+ - CBA `.CBA` (info, size)
+ - Chip Tracker `.CHI` (size)
+ - Creative Music File `.CMF` (info, size)
+ - Core Design `.CORE` (info, size)
  - Compoz `.CPZ`
+ - Cybertracker C64 and not `.CT` (info for non-C64, size)
+ - CustomPlay `.CUST` (size -- just parse the Amiga hunks)
  - Megadrive `.CYM`
- - Edlib .`EDL`
+ - Digital FM `.DFM` (info, size)
+ - David Hanney's `.DH` (info,size)
  - Twin TrackPlayer `.DMO` (decrypt, unpack...)
+ - Digital Mugician 1 `.DMU` and 2 `.MUG` (info, size)
+ - Digital Audio Sound Interface Kit non-iff `.DSM` (info, size)
+ - Digital Symphony `.DSYM` (size)
+ - Dynamic Studio Pro `.DSM` (tighten, info, size)
+ - Digital Speech Standard `.DSS` v2, 3 (tighten, info, size, move outa audio.1.sg)
+ - DreamStation `.DSS` and DS II `.DS2` (info, size)
+ - Digital Sound Studio `.DSS` (info, size)
+ - Drum Traker `.DTL` (info, size)
+ - Digital Tracker `.DTM` (info, size)
+ - DeFy AdLib Tracker `.DTM` (info, size)
+ - DigiTrekker `.DTM` (info, size - should be easy)
+ - DarkWave Studio `.DWP` (info, size)
+ - EarAche `.EA` (info, size)
+ - Edlib .`EDL`
+ - Quadra Composer `.EMOD` (info, size)
+ - Ay Emul `.EMUL` (size)
+ - Euphony `.EUP` (info, size)
+ - Farandole Composer `.FAR` (more info, size)
+ - Future Composer `.FC`, `.BSI`, `.SMOD` (tighten, info, size)
  - Pixel Painters `.FMF`, `.FTF`
- - Flash Tracker `.FTS`
- - Kris Hatlelid's `.KH`
- - Loudness Sound System `.LDS`
+ - FM-Kingtracker `.FMK` (info, size)
+ - FM Tracker `.FMT` (info, size)
+ - FM Tracker (Adlib) `.FMT` (info, size)
+ - Fast Tracker `.FTC` (info, size)
+ - FamiTracker `.FTM` (info, size)
+ - Flash Tracker `.FTS` (info, size)
+ - Forgotten Worlds BGM `.FW` (info, size)
+ - Fuxoft AY Language `.FXM` (info, size)
+ - Gameboy Ripped Format `.GBR` (info, size)
+ - Gameboy Sound System `.GBS` (info, size)
+ - General Digital Music `.GDM` (info, size)
+ - GlueMon `.GLUE` (calcsize)
+ - Fred Gray `.GRAY` (info, size)
+ - Beaver Sweeper `.GTK` (info, size)
+ - Howie Davies `.HD` (info, size)
+ - HES `.hes` (info, ex. zxtune has it)
+ - Imago Orpheus `.IMF` (size)
+ - In Stereo! `.IS` & `.IS20` (info, size)
+ - Ixalance `.IXS` (info via zlib)
+ - Galaxy Sound System `.J2B` (info, size via zlib)
+ - Janko Mrsic-Flogel `.JMF` (info, size)
+ - Jeroen Tel `.JT` (info, size)
+ - JayTrax `.JXS` (info, size)
+ - Kris Hatlelid's `.KH` (count subsongs)
+ - Ken Silverman's Adlib `.KSM` (tighten, info, size)
+ - Klystrack `.KT` (size, sources available)
+ - Lucas Arts Adlib `.LAA` (info, size)
+ - Sound Interface System `.LEM` (tighten, info, size)
+ - Leggless `.LME` (info, size)
  - Ultima 6 `.M`
+ - Music Assembler `.MA` (info, size)
+ - Mlat Adlib Tracker `.MAD` (tighten, info, size)
+ - B.Birney's PlayerPro `.MAD` (tighten, info, size)
+ - Mark Cooksey `.MC` (info + size for the new format)
+ - TFMX modules `.MDAT` & `.MDST` (tighten, info, size)
+ - Digitrakker `.MDL` (info, size)
+ - Tony Crowther's packed MED `.MMDC` (tighten, info)
+ - Gameboy Tracker `.MGB` (info, size)
+ - Megatracker `.MGT` (info, size)
+ - MK-Jamz `.MKJ` (info, size)
+ - Music Maker EXT `.MM4` & `.MM8` (info)
+ - Megastation `.MS` & `.MSM` (info, size)
+ - Medley `.MSO` (info, size)
+ - MTC (Spectrum)
+ - Master Tracker Adlib `.MTR` (size)
+ - DOOM music (`.MUS` `\x1A`) (info)
+ - MVS `.MUS` (info, size)
  - Sidplayer `.MUS`
+ - MVX `.MVM` (info, size)
+ - Cubic Tiny XM `.MXM` (info, size)
+ - MaxTrax `.MXTX` (info, size)
+ - Nerd Tracker II `.NED` (info, size)
  - Startrekker AM's `.NT` info files
- - Westwood `.SND`
- - SAM Coupe `.SNG`
- - Paul Summers's `.SNK`
+ - NoiseTrekker/ProTrekker `.NTK` & `.PTK` (info, size)
+ - NovoTrade Packer `.NTP` (tigthen, info, size)
+ - Oktalyzer `.OKTA` (info, size)
+ - Onyx `.OMF` (info, size)
+ - Synth Pack `.OSP` (info, size)
+ - Pierre Adane Packer `.PAP`
  - Beni Tracker `.PIS`
- - Paul Shields's `.PS`
+ - Disorder Tracker 2 `.PLM` (size)
+ - Palladix Adlib `.PLX` (info, size)
+ - POKEYNoise chiptune `.PN` (info, size)
+ - Polyanna `.PRG` (info)
+ - PreTracker `.PRT` (size)
+ - Pro Sound Creator `.PSC` (info, size)
+ - Playstation `.PSF` series (size)
+ - PSG/EPSG `.PSG`, `.EPSG`, `.PSG2` (size)
+ - Epic Megagames MASI `.PSM` (info)
+ - Pro Sound Maker `.PSM` (more info, size)
  - Powertracker `.PT`
+ - pxtone `.PTTUNE` & `.PTCOP` (info)
+ - Poly Tracker `.PTM` (size)
+ - ProTracker IFF `.PTM` (info, size)
  - Peter Verswyvelen's `.PVP`
  - Quartet ST `QTS.`
+ - Raw OPL Capture `.RAW` (size)
+ - Renoise (old) `.RNS` (info, size)
+ - Riff Raff `.RIFF` (info, size)
+ - Ron Klaren `.RK` (info, size)
+ - Visual Composer `.ROL` (tighten, info, size)
+ - Real Tracker `.RTM` (info, size)
+ - Scream Tracker 3 `.S3M` (version info)
+ - S98 `.S98` (tighten if possible, size)
+ - Sonic Arranger `.SA` (rewrite)
  - Speedy A1 System `.SAS`
+ - Slight Atari Player `.SAP` (size)
+ - Surprise! AdLib Tracker `.SAT` & `.SA2` (size)
  - SoundControl `.SC`
+ - Sierra Alib `.SCI` (rewrite)
  - SCUMMVM `.SCUMM`
  - Synth Dream `SDR.`
  - Tomy Tracker `.SG`
+ - Mario Paint's Shroom `.SHO` (info, size)
+ - PlaySID, RealSID `.SID` (size if possible)
+ - Sound Images Generation 2 `.SIG` (tighten, info, size... maybe just rewrite)
  - Scott Johnston's SoundPlayer `SJS.`
+ - Skale Tracker `.SKM` (info, size)
  - Sound Master `.SM`
- - Pierre Adane Packer `.PAP`
- - Stereo Sidplayer `.STR`
+ - Sound Master II `.SMPRO` (info, size)
+ - Sound Club `.SN` (tighten, info, size)
+ - Westwood `.SND`
+ - `.SNDH` (size)
+ - Faust Music Creator `.SNG` (info, size)
+ - GoatTracker `.SNG` (info, size)
+ - Jonne Valtonen's SNG Player `.SNG` (info, size)
+ - Richard Joseph `.SNG` (info, size)
+ - SAM Coupe `.SNG`
+ - Synder Tracker & its `.SNG` series (unpack, info, size)
+ - Paul Summers `.SNK`
+ - Nintendo SNES `.SPC` (size)
+ - Sound Programming Language `.SPL` (info, size)
+ - Stonetracker `.SPM` (tighten/fix, info, size)
  - .DMM, `.SQD` - test patterns!
- - TFM Music Maker `.TFE`
+ - Quartet PSG `SQT.` (info, size, possibly rewrite)
+ - Speedy System `.SS` (info, size)
+ - Sound Tracker (Pro, II) `.ST1` & `.ST11` & `.STP` (info, size)
+ - Stereo Sidplayer `.STR`
+ - SUNtronic `.SUN` (info, size)
+ - Symphonie `.SYMMOD` (a bit more info, confirm about size)
+ - Synthesis `.SYN` (info, size)
+ - SynTracker `.SYNMOD` (info, size)
+ - TCB Tracker `.TCB` (info, size)
+ - TFM `.TFD` & `.TFE` (info, size)
  - Thomas Hermann's `THM.`
+ - The Musical Enlightenment `.TME` (info, size)
+ - RamTracker `.TRK` (more info, size)
  - Sound Images `.TW`
+ - Unique Development `.UDS` (info, size)
+ - UltraTracker `.ULT` (info, size)
+ - UNIMOD `.UNI` (size)
+ - Shiru's VGM Music Maker `.VGE` (info, size - gotta reverse, it's funny & Shiru deleted the source)
+ - VGM `.VGM` (size)
  - Vibrants `.VIB` (I just have 1 file of this)
+ - VicTracker `.VT` (info, size)
+ - Voodoo Supreme Synthesizer `.VSS` (rewrite)
+ - Vortex Tracker II `.VT2` (info, size)
+ - Wally Beben `.WB` (info, size)
+ - Wonderswan R `.WSR` (more info, size)
+ - Exotic AdLib `.XAD` (tighten, info, size)
+ - Extended MIDI `.XMI` (info, size)
+ - SVArTracker `.SVAR` (when unzipped, check info)
+ - GoatTracker `.SNG` (info, size)
+ 
+ - Extra Simple Music `.XSM` (info, size)
  - Optionally (desirably), various sample formats
 
 There are also lots of TODO marking their way through the entire `audio.1.sg`, and they want attention as well. Many things that don't have the mark still can be improved by adding and outputting some analysis towards orders/patterns/samples/instruments/tempo/speed or whatever else the format has to offer.
