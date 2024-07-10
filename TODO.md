@@ -85,7 +85,6 @@ This is where you can contribute the most! (sorted by extension)
  - Lucas Arts Adlib `.LAA` (info, size)
  - Sound Interface System `.LEM` (tighten, info, size)
  - Leggless `.LME` (info, size)
- - Ultima 6 `.M`
  - Music Assembler `.MA` (info, size)
  - Mlat Adlib Tracker `.MAD` (tighten, info, size)
  - B.Birney's PlayerPro `.MAD` (tighten, info, size)

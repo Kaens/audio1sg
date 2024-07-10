@@ -329,7 +329,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			//ref https://github.com/adplug/adplug/blob/master/src/bam.cpp
 			p = 4; notes = ins = 0; songend = false;
 			while(!songend && p < X.Sz()) {
-				lp: while(!songend && X.U8(p) < 0x80) {
+				while(!songend && X.U8(p) < 0x80) {
 					cmd = X.U8(p) >> 4;
 					switch(cmd) {
 					case 0: songend = true; p++; break;
@@ -9609,6 +9609,55 @@ if(!bDetected && isPaulShields()) {
 	}
 }
 
+
+// new stable detections :go here:
+
+
+function isUltima6M() {
+	//ref https://github.com/adplug/adplug/blob/master/src/u6m.cpp
+	if(X.Sz() < 421 || !isWithin(unpsz=X.U16(0),0x30E,0xB21) || !X.c('00000007',2)) return false; //a rough filter
+	// a finer filter: actually unpacking LZW and double-checking there
+	var C, cW, o = 0, lim = Math.min(X.Sz(),unpsz), br = new BitReader(4), end = false,
+		pW = 0, cwsz = 9, nextcw = 0x102, stk = [],
+		dictsz = defdictsz = 0x1000, dict = [], contains = 0x102;
+	for(i=0; i < dictsz-0x100; i++) dict.push({'rt':0, 'cw':0}) //new dictionary
+	var dest = []; for(i=0; i < unpsz; i++) dest.push(0); //unpacked module
+	function getstring(codeword) { //puts the string into a stack
+		var c = codeword; while(c > 0xFF) { stk.push(dict[c-0x100]['rt']); c = dict[c-0x100]['cw'] } stk.push(c & 0xFF)
+	}
+	while(!end && br.offset <= lim && o <= unpsz) { //lzw decomp
+		if(cwsz < 9 || cwsz > 12) return false; cW = br.read(cwsz);
+		switch(cW) {
+			case 0x100: cwsz = 9; nextcw = 0x102; dictsz = 0x200; contains = 0x102; //re-init the dictionary
+				if(cwsz < 9 || cwsz > 12) return false; cW = br.read(cwsz); if(o >= unpsz) return false;
+				dest[o++] = cW & 0xFF; break;
+			case 0x101: end = true; break; //end of data
+			default:
+				getstring(cW < nextcw ? cW : pW); //codeword is already in the dictionary? get cW; else, pW
+				C = stk[stk.length-1] & 0xFF;
+				if(cW < nextcw)
+					while(stk.length) { if(o >= unpsz) return false; dest[o++] = stk.pop() & 0xFF
+					}
+				else { //codeword not yet defined
+					while(stk.length) { if(o >= unpsz) return false; dest[o++] = C; stk.pop() }
+					if(cW != nextcw) return false;
+				}
+				if(contains < dictsz) { dict[contains-0x100] = { 'rt':C, 'cw':pW }; contains++ }
+				nextcw++; if(nextcw >= dictsz) if(cwsz < 12) { cwsz++; dictsz <<= 1 }					
+		}
+		pW = cW
+	}
+	if(!end) return false;
+	sz = br.offset;
+	if(dest[0] != 0x83 || dest[1] || (dest[2]&8) || (dest[3]&0x20) || (dest[5]&0x80) || dest[6] > 1) return false;
+//_logBase64(toBase64(dest)); //outputs the unpacked module for further saving
+	return true
+}
+if(!bDetected && isUltima6M()) {
+	sName = 'Ultima 6 Adlib module (.M)'; sOption('unpsz:'+unpsz+' sz:'+outSz(sz)); bDetected = 1
+}
+
+
 function isADL() {
 	//ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
 	if(X.Sz() < 720 || X.Sz() > 0xFFFF) return false; //v1 min. size
@@ -10068,7 +10117,6 @@ function isLDS() {
 if(isLDS())
 	_setResult('audio','Loudness Sound System Ad Lib module (.LDS)','',
 		'ch:9 mode:'+mode+' spd:'+X.U16(1)+' tempo:'+tempo+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' sz:'+outSz(sz));
-
 
 } //isHeuristicScan parallel block
 
