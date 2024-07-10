@@ -1659,24 +1659,25 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(c);
 		}
 	}
-	else if(X.c("'HESM'") && X.c("'DATA'",0x10)) {
-		sName = "Hudson Entertainment System tune (.HES)"; bDetected = 1;
-		sVersion = "v"+X.U8(4);
-		/* TODO get what's going on! Most files are good but some just have codeseg up there...
+	else if(X.c("'HESM'00") && isWithin(X.U8(7),0x7D,0xFE) && X.c("FFF8", 8)
+	  && isWithin(X.I8(0xA),-8,0x20) && isWithin(X.I8(0xB),-8,0x20) && isWithin(X.I8(0xC),-8,0x20)
+	  && isWithin(X.I8(0xD),-8,0x20) && isWithin(X.I8(0xE),-8,0x20) && X.c("'DATA'", 0x10)
+	  && [0,0xE0].indexOf(X.U8(0x14)) >= 0 && X.c("002000000000000000", 0x17) && X.Sz() >= 0x100) {
+	 	//ref https://github.com/libgme/game-music-emu/blob/master/gme/Hes_Emu.cpp
+		sName = "Hudson Entertainment System multitrack tune (.HES)"; bDetected = 1;
+		sVersion = "v"+X.U8(4); startsong = X.U8(5); reqaddr = X.U16(6);
+		dtsz = X.U32(0x14); dtaddr = X.U32(0x18);
 		if(X.isVerbose()) {
-			t = ""; a = ""; c = ""; pn=0x40; dataat = X.U16(6,_BE);
-			if(pn<dataat && 31<X.U8(pn)<128) t = X.SA(pn,0x100);
-			if(t.length+1>0x1F) pn=Math.round((pn+t.length)/0x10)*0x10;
-			else pn += 0x20;
-			if(pn<dataat && 31<X.U8(pn)<128) a = X.SA(pn,0x100);
-			if(a.length+1>0x1F) pn=Math.round((pn+a.length)/0x10)*0x10;
-			else pn += 0x20;
-			if(pn<dataat && 31<X.U8(pn)<128) c = X.SA(pn,0x100);
-
-			sOptionT(t); sOptionT(a,"by: "); OptionT(c);
-			sOption(outSz(0x20+X.U32(0x14)),'sz:')
+			t = a = c = ""; p = 0x40;
+			function getText() { if(X.U8(p)) {
+				var len = 0x20; if(X.U8(p+0x1F) && !X.U8(p+0x2F)) len = 0x30; //some are longer than t'others
+				var s = readBytes(p,len), z = s.indexOf(0); if(z < 0) return '';
+				if(charStat(s.slice(0,z),1).indexOf('asc') < 0) return '';
+				p += len; s = decEncoding(s,true,Chars0to1F); if(s == '<?>') return ''; else return s
+			} else return '' }
+			if(X.U8(p) >= 0x20) { sOptionT(getText()); sOptionT(getText(),"by:"); sOptionT(getText()) }
+			sOption('from:'+startsong+' sz:'+outSz(dtaddr+dtsz))
 		}
-		*/
 	}
 	else if(X.c("'IM10'",0x3C) && X.U8(0x30)
 		&& X.U8(0x31) >= 0x20 && X.U8(0x32) <= 0x40
