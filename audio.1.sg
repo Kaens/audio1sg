@@ -3552,6 +3552,15 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sVersion = "ver."+X.SA(3,1)
 		//if(X.isVerbose()) sOption(X.SA(0x10,0x200))
 	}
+	else if((t = ((X.U8(0)+1) << 4) + ((X.U8(1)+1) << 7) + 0x365) >= 0x365
+	  && (X.c("'df'..':'",t) || X.c("'amp'",t+1))) {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ZoundMonitor/src/ZoundMonitor_v1.asm
+	sName = 'ZoundMonitor module (.SNG + Samples/)'; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption('ord:'+(X.U8(3)+1)+' ptn:'+(X.U8(1)+1)+' sz:'+outSz(t+101))
+	}
+}
+
 	else if(X.c("'SYND'") || X.c("'SYNF'") || X.c("'SYNH'")) {
 		sName = "Synder SNG-player Stereo module (.SNG)"; bDetected = 1;
 		sVersion = "ver."+X.SA(3,1);
@@ -4118,15 +4127,17 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Shiru's VGM Music Maker module (.VGE)"; bDetected = 1;
 		sV = X.SA(7,1); sVersion = "v"+sV;
 	}
-	else if( X.c("'Vgm '") && ( !X.U32(0x14,_LE) ||
-		X.c("'Gd3 '",X.U32(0x14,_LE)+0x14) )) {
+	else if( X.c("'Vgm '") && X.Sz() >= (eof = X.U32(4)+4)
+	  && (nV = X.U32(8)) && nV < 0x300 //give'em time tho
+	  && ( !X.U32(0x14) || X.c("'Gd3 '",X.U32(0x14)+0x14) )) {
 		//ref https://vgmrips.net/wiki/VGM_Specification
 		// & https://vgmrips.net/wiki/GD3_Specification
-		bDetected = 1; bad = false;
+		bDetected = 1; bad = '';
+		nV = 1000*(nV>>12)+100*((nV>>8)&0xF)+10*((nV>>4)&0xF)+(nV&0xF); //BCD be like...
 		sName = "Video Game Music chiptune stream (.VGM)";
-		eofofs = X.U32(4,_LE)+4;
-		sV = Hex(X.U32(8,_LE),8);
-		sVersion = "v"+sV.substr(5,1)+"."+sV.substr(6,2);
+		eoh = X.U32(0x34)+0x34; if(nV < 150 || eoh == 0x34) eoh = 0x40;
+		if(nV >= 150 && eoh < 0x40) bad = '!dataofs';
+		sVersion = "v"+(nV/100).toFixed(2);
 		if(X.isVerbose()) {
 			tags = []; //11 of them
 			gd3p = X.U32(0x14,_LE)+0x14;
@@ -4134,7 +4145,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(X.SA(gd3p,4) === "Gd3 ") {
 				sVersion += "/Gd3 v"+(readBytes(gd3p+4,4).join("")/100);
 				taglen = X.U32(gd3p+8,_LE); gd3p += 12;
-				if(gd3p+taglen > X.Sz()) bad = true;
+				if(gd3p+taglen > X.Sz()) bad = bad.addIfNone('!tagsz');
 				i = 0;
 				while(i < 11 && gd3p <= X.Sz()) {
 					tpos = X.fSig(gd3p,TOEOF,"0000");
@@ -4147,26 +4158,86 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 					}
 					i++;
 				}
-				if(i < 11) bad = true; else tagn = Math.max(0,i-1);
+				if(i < 11) bad = bad.addIfNone('!tagnum'); else tagn = Math.max(0,i-1);
 				sOption(slashTag(tags[0],tags[1])); sOption(slashTag(tags[6],tags[7]),"by: ");
 				sOption(slashTag(tags[2],tags[3]),"for: "); sOption(slashTag(tags[4],tags[5]),"on: ");
 				sOption(tags[8],"date: "); sOption(tags[9],"ripper: "); sOption(tags[10],"notes: ")
 			}
-			psgclk = X.U32(0x0C,_LE); //TODO add a chip list?
-			ym2413clk = X.U32(0x10,_LE);
-			rate = X.U32(0x24,_LE);
-			if(sV >= "v1.10") {
-				ym2612clk = X.U32(0x2C,_LE);
-				ym2151clk = X.U32(0x30,_LE)
+			smp = X.U32(0x18); if(!smp) bad = bad.addIfNone('!badlen');
+			lp = X.U32(0x1C)+0x1C; lpsmp = X.U32(0x20);
+			if(lp >= eof || lpsmp > smp) {lp = 0; bad = bad.addIfNone('!badloop') }
+			rate = X.U32(0x24);
+			if(nV > 100) if(!rate) rate = 'n/a'; else
+				if(rate == 50) rate += 'Hz(PAL)'; else if(rate == 60) rate += 'Hz(NTSC)'; else rate += 'Hz';
+			chips = [[0xC,'SN76489',0], [0x10,'YM2413',0], [0x2C,'YM2612',110], [0x30,'YM2151',110],
+				[0x38,'SegaPCM',151], [0x40,'RF5C68',151], [0x44,'YM2203',151], [0x48,'YM2608',151],
+				[0x4C,'YM2610/B',151], [0x50,'YM3812',151], [0x54,'YM3526',151], [0x58,'Y8950',151],
+				[0x5C,'YMF262',151], [0x60,'YM278B',151], [0x64,'YMF271',151], [0x68,'YMZ280B',151],
+				[0x6C,'RF5C164',151], [0x70,'PWM',151], [0x74,'AY8910',151], [0x80,'GameBoyDMG',161],
+				[0x84,'NES_APU',161], [0x88,'MultiPCM',161], [0x8C,'uPD7759',161], [0x90,'OKIM6258',161],
+				[0x98,'OKIM6295',161], [0x9C,'K051649/K052539',161], [0xA0,'K054539',161],
+				[0xA4,'HuC6280',161], [0xA8,'C140',161], [0xAC,'K053260',161], [0xB0,'Pokey',161],
+				[0xB4,'QSound',161], [0xB8,'SCSP',171], [0xC0,'WonderSwan',171], [0xC4,'VSU',171],
+				[0xC8,'SAA_1099',171], [0xCC,'ES5503',171], [0xD0,'ES5505/ES5506',171],
+				[0xD8,'X1-010',171], [0xDC,'C352',171], [0xE0,'GA20',171], [0xE4,'Mikey/Atari_Lynx',172]
+			]; chipn = 0;
+			xhdr = 0; if(nV >= 170) { t = X.U32(0xBC); if(t) xhdr = t+0xBC; if(xhdr) {
+				xhdsz = X.U32(xhdr); if(!xhdsz) { xhdr = 0; bad = bad.addIfNone('!badxhdr') } } }
+			for(i=0; i < chips.length; i++) {
+				if(chips[i][0] >= eoh || (xhdr && chips[i][0] > xhdr)) break; clk = X.U32(chips[i][0]);
+				b30 = Util.shru64(clk,30); b31 = b30 >> 1; b30 &= 1; clk &= 0x3FFFFFFF;
+				if(nV < chips[i][2] || !clk) continue; chipn++;
+//_log('@'+Hex(chips[i][0])+' b30:'+b30+' b31:'+b31+' clk:'+clk);
+				chip = chips[i][1]; //tentatively
+				switch(chips[i][0]) { //all the devils in the details
+				case 0xC: if(b30 && b31) chip = 'T6W28';
+					if(nV <= 151 && !(X.U8(0x2B)&4)) chip += "/GGStereo";
+					break;
+				case 0x10: if(nV <= 101 && clk > 5000000) chip = 'YM2612'; break;
+				case 0x2C:
+					if(nV >= 151) if(b31) chip = 'YM3438';
+					if(nV <= 101) { clk1 = X.U32(0x10)&0x3FFFFFFF; if(clk1 > 5000000) clk = clk1 }
+					break;
+				case 0x30:
+					if(nV >= 151) if(b31) chip = 'YM2164';
+					if(nV <= 101) { clk1 = X.U32(0x10)&0x3FFFFFFF; if(clk1 < 5000000) clk = clk1 }
+					break;
+				case 0x4C: if(b31) chip = 'YM2610B'; else chip = 'YM2610'; break;
+				case 0x74:
+					switch(X.U8(0x78)) {
+					case 0: break;  case 1: chip = 'AY8912'; break;  case 2: chip = 'AY8913'; break;
+					case 3: chip = 'AY8930'; break;  case 4: chip = 'AY8914'; break;
+					case 0x10: chip = 'YM2149'; break;  case 0x11: chip = 'YM3439'; break;
+					case 0x12: chip = 'YMZ284'; break;  case 0x13: chip = 'YMZ294'; break;
+					default: chip += "-ish"
+					}
+					break;
+				case 0x84: if(b31) chip += '/FDS'; break;
+				case 0x90: if(X.U8(0x94)&8) chip += '12bit'; else chip += '10bit'; break;
+				case 0x9C: if(b31) chip = 'K052539'; else chip = 'K051649'; break;
+				case 0xA8:
+					switch(X.U8(0x96)) {
+					case 0: chip = 'C140+NamcoSystem2'; break; case 1: chip = 'C140+NamcoSystem21'; break;
+					case 2: chip = '219_ASIC+NamcoNA-1/2'; break; default: chip += "-ish"
+					}
+					break;
+				case 0xCC: chip += ':'+X.U8(0xD4)+'ch'; break;
+				case 0xD0: if(b31) chip = 'ES5506'; else chip = 'ES5505'; chip += ':'+X.U8(0xD5)+'ch'; break;
+				}
+				sVersion = sVersion.appendS(chip/*+'@'+clk*/,'#');
 			}
-			if(eofofs < X.Sz())
-				if(X.SA(eofofs,4) == "Vgm ") sOption("multisong");
+			volmod = -1; if(eoh > 0x7C) {
+				volmod = X.U8(0x7C); if(volmod > 0xC0) volmod -= 0x100; if(volmod == -63) volmod = -64;
+				volmod = (2^(volmod/0x20))*100; volmod = Math.round(volmod)+'%' }
+			if(chipn > 2) bad = bad.addIfNone('!toomanychips');
+			if(eof < X.Sz())
+				if(X.SA(eof,4) == "Vgm ") sOption("multisong");
 				else sOption("+extra data");
-			sOption(X.U32(0x18,_LE),"smp: ")
+			sOption('rate: '+rate+' len: '+secondsToTimeStr(Util.divu64(smp+22000,44100))+(lp?' looped':'')
+				+(volmod !== -1 && volmod !== ' 100%'?' vol: '+volmod:'')+(xhdr?' xhdr':'')
+				+' sz:'+outSz(eof))
 		}
-		dataofs = X.U32(0x34,_LE);
-		if((sV >= "v1.50") && (!dataofs)) bad = true;
-		if(bad) sVersion+= "/malformed";
+		if(bad != '') sVersion = sVersion.appendS("malformed"+bad,'/')
 	}
 	else if(X.c("00'3T1'")) {
 		sName = "VicTracker module (.VT)"; bDetected = 1;
