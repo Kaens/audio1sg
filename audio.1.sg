@@ -1680,19 +1680,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 		if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/')
 	}
-	else if(X.c("'GYMX'")) {
-		sName = "Sega Genesis/Mega Drive YM2612 chiptune (.GYM)"; bDetected = 1;
-		e = X.SA(0x64,0x20).trim();
-		if(e != "") sVersion = e; sVersion.append("unpacked");
-		if(X.isVerbose()) {
-			sOptionT(X.SA(0x4,0x20));
-			sOptionT(X.SA(0x24,0x20),"for: ");
-			sOptionT(X.SA(0x44,0x20),"at: ");
-			sOptionT(X.SA(0x84,0x20),"by: ");
-			sOptionT(X.SA(0xA4,0x100));
-			sOptionT(X.U32(0x1A8),'orig.size:')
-		}
-	}
 	else if(X.c("'NuH.DAVIES'",0x22)) {
 		sName = "Howie Davies's module (.HD)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -3295,7 +3282,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	if(!bDetected)
-	if(/S98[1-3]/.test(X.SA(0,4))) {
+	if(X.Sz() > 0x20 && /S98[1-3]/.test(X.SA(0,4)) && X.U32(4) <= 0x20 && !X.U32(8) && X.U8(0x13) < 0x10 && X.U16(0x16) <= 2) {
 		//ref https://www.purose.net/befis/download/lib/t98/ins98131s.zip / s98spec1.txt,
 		//    http://www.purose.net/befis/download/kmp/old/s98spec2.txt,
 		//    https://github.com/rururutan/s98spec3/blob/master/s98spec3-ja.txt
@@ -3497,9 +3484,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("0100FEFF09000000'ALIM3'")) {
 		sName = "Skale Tracker module (.SKM)"; bDetected = 1;
 		if(X.isVerbose()) sOptionT(X.SA(0x19));
-	}
-	else if(X.c("6000000A60000090600000'xM'F900DFF00047FA07FC'=|'000F0096'=|'00FF009E700641EBFFF810FC000051C8FFFA41EB0006'p-'117C00000034117C00000068117C0000009C10FC000051C8FFE87600162B00DF1743FFFB610001E241EBFFFA1082176B00DD00DB08B9000100BFE001'J+'00E1660808F9000100BFE001'NuG'FA078C1740FFFD1740FFFC177C0001FFFE'NuM'F900DFF0007E0347FA07'pK'FA07'l3'EB00D200DFF096'7|'000000D0177C000000DA'Jm'001A661041EB00E6'-H'00A0'=|'000100A4600C'=m'001A00A4'-m'001C00A0'J+'FFF8660E'J+'FFF96604610000B2610001E4DDFC00000010DBFC000000'4Q'CFFFBC33EB00D000DFF096'7|'820000D0'7|'000000D44DF900DFF0007E0347FA06F24BFA06EE'J+'FFF8660461000200610003D8DDFC00000010DBFC000000'4Q'CFFFE46100008C'0+'00D0806B00D233C000DFF096'7k'00D400D2'J+'FFFD6706'S+'FFFD'`4'102BFFFC12000201007F'g('1741FFFD4A006B0C'J+'00D9671A'S+'00D960140C2B004000D96608177C0000FFFC6004'R+'00D9'Nur'007000122BFFFA41EB02E8D1ED000010301800D1FC000004001B70180000'0r'00122B00DEC2C041EB1068D288'+A'0016'Nuv'00162BFFFB142BFFFA122BFFF9102BFFF8'J+'00DA6706122B00DE55015200B02B00DB'f6p'005401B22B00DE'f,r'00B42B00D767045202'` R'03B62B00E06616162B00DF177C0000FFFC176B00DD00DB177C000000D961121743FFFB1742FFFA1741FFF91740FFF8'NuA'EB00E843EB00D6780212F03800D1FC000000'@Q'CCFFF41A'08'0043EB00'1x'03D1FC0000004012B03800D3FC000000'4Q'CCFFEE'J+'FFFE'fRJ'056B08177C0000FFFC")) {
-		sName = "Sound Master II module (.SMPRO)"; sVersion = "v1"; bDetected = 1
 	}
 	else if(X.c("'<track'") && (X.fStr(6,0x100,"rowhighliohtingminor=")>0)) {
 		sName = "Picatune module v1 (.SMUFI) or v2 (.PT2)"; bDetected = 1;
@@ -9759,7 +9743,103 @@ if(!bDetected && isROL()) {
 }
 
 
-// new stable detections :go here:
+function isGYM() {
+	if(X.Sz() < 0x1AC || !X.c("'GYMX'")) return false;
+	var t = readBytes(4,0x1A8); for(i=0; i < t.length; i++) if(isWithin(t[i],1,0xA) || isWithin(t[i],0xE,0x1F)) return false;
+	return true
+}
+if(!bDetected && isGYM()) {
+	sName = "Sega Genesis/Mega Drive YM2612 chiptune (.GYM)"; bDetected = 1;
+	if((unpsz=X.U32(0x1A8)) < 2) sVersion = sVersion.append('unpacked');
+	if(X.isVerbose()) {
+		sOptionT(X.SC(0x4,0x20,'CP1252'));
+		sOptionT(X.SC(0x24,0x20,'CP1252'),'for: ');
+		sOptionT(X.SC(0x44,0x20,'CP1252'),'at: ');
+		sOptionT(X.SC(0x64,0x20,'CP1252'),'emu: ')
+		sOptionT(X.SC(0x84,0x20,'CP1252'),'by: ');
+		sOptionT(X.SC(0xA4,0x100,'CP1252'));
+		if(unpsz > 2) sOptionT(X.U32(0x1A8),'unp.sz:')
+	}
+}
+
+
+function isSoundMaster() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SoundMaster/Sound%20Master_v1.asm
+	if(!X.c("6000.... 6000.... 6000") || (p=base=a6=X.I16(2,_BE)+2) <= 0 || p%2
+		|| (playp=X.I16(6,_BE)+6) <= 0 || playp%2) return false;
+	for(p1 = p+30; p < p1; p += 2) if(X.c("47FA",p-2)) break; if(p >= p1) return false; //LEA 1
+	var lea1 = p; t = Math.min(X.Sz(),0x20000);
+	for(; p < t; p += 2) if(X.c("4E75",p-2)) break; if(p >= X.Sz() || p >= t) return false; //RTS
+	fmt = 'old'/*0*/; if(X.c("177C0000",p-8)) { fmt = 'new'; p -= 6 }
+	if(!X.c("00BFE001",p-6)) return false;
+
+	p = base; x = 1; d0 = 0;
+	if(X.c("1740",p+6) || X.c("1740",p+4)) { a6_ = 31;
+		for(; p < X.Sz(); p += 2) if(X.c("47FA",p-2)) break;  p += X.I16(p,_BE); a6 = p;
+	} else skipold: do {//NoDoof. A one-time "loop" to have a way to break off
+		if(X.c("3C00",p)) {
+			p = lea1; a3 = a6 = p+X.I16(p,_BE); //FindLea
+			for(; p < X.Sz(); p += 2) if(X.c("7600",p-2)) break;  a3 += X.I16(p-4,_BE)/*songsPtr*/+3; d0 = 7;
+			for(; d0; a3+=3,x++,d0--) {
+				if(!X.U16(a3,_BE) && X.U8(a3+2) == 1) break;
+			}
+			d0 = X.U8(a3-1);
+			break skipold;
+		} else
+			if(X.c("4A00",p+0x28)) { x++; d0 = X.I16(p+0x34,_BE) }
+		//Skip3
+		for(; p < X.Sz(); p += 2) if(X.c("47FA",p-2)) break;  p += X.I16(p,_BE); a6 = p; //FindLea2
+	} while(0);
+	ord = d0;
+
+	for(p = 0xC; p < X.Sz(); p += 2) if(X.c("1743",p-2)) break; a3 = a6; pos = a6+X.I16(p,_BE);
+	for(p = 0xC; p < X.Sz(); p += 2) if(X.c("5203",p-2)) break;
+	sz = -1; patchable = X.c("177C", p+10);
+	if(patchable) {
+		a2 = base; a3 += X.I16(p+2,_BE);
+		if(!ord) ord = X.U8(a3);
+		if(fmt == 'new') {
+			for(p = base+2; p < X.Sz(); p += 2) if(X.c("41EB",p-2)) break;
+			a3 = a6; a6 += X.I16(p,_BE); a3 += X.I16(p+4,_BE); a6 += X.I32(a3,_BE); smpip = a6;
+			songsz = a6+X.I16(a3-2,_BE);
+			smp = smpsz = 0;
+			for(;a6 < X.Sz();) {
+				d3 = X.I32(a6,_BE); a6 += 4;
+				if(d3 > 0 && (ssz = X.U16(a6,_BE)<<1)) {
+					smp++; d3 += ssz;
+					if(smpsz < d3) smpsz = d3;
+				}
+				a6 += 6; if(a6 >= songsz) break
+			}
+		} else { // old format
+			for(p = base+2; p < X.Sz(); p += 2) if(X.c("3D70",p-2)) break;
+			for(; p < X.Sz(); p += 2) if(X.c("D5F0",p-2)) break;
+			a3 = a6+X.I16(p-4,_BE); a6 += X.I32(a3,_BE); t = a6; a6 += X.U16(p-0x12,_BE);
+			smpip = a6; smp = smpsz = 0; a3 = a6+0x80;
+			for(d1 = 32; d1; d1--) {
+				if(X.U16(a3,_BE) > 1) {
+					smp++; ssz = X.U16(a3,_BE)<<1; d3 = ssz+X.I32(a6,_BE); if(smpsz < d3) smpsz = d3;
+				}
+				a6 += 4; a3 += 2
+			}
+			songsz = t+X.U16(p-8,_BE);
+		}
+		sz = songsz+smpsz
+	}
+	return true
+}
+if(!bDetected && isSoundMaster()) {
+	sName = "Sound Master module (.SM,.SMPRO,.SM3)"; sVersion = fmt; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		if(patchable) sOption('ord:'+ord+' sz:'+outSz(sz));
+		//else sOption('unpatchable or precooked');
+	}
+}
+
+
+
+// new stable detections :go here: ↑
 
 
 function isUltima6M() {
@@ -10007,11 +10087,6 @@ if(X.isHeuristicScan()) { //parallel block
 		_setResult("audio","Vortex Project chiptune (.VTX)",sversion,sOptions); sOptions = ""
 	}
 
-	// everyone's fave let's-detect-by-Amiga-init-block ones grouped in here. TODO
-	if(X.c("600000..6000....6000") && X.c("177C00", 0xEA)
-	  && X.c("2BFF", 0x1D9) && X.c("000667", 0x4D4)) {
-		bDetected = 1; sName = "Sound Master II module (.SM3)"; sVersion = "v3"
-	}
 
 	function isMXDRVPDX() {
 		// the format is very very very basic so .ADL overlaps happen
