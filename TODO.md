@@ -98,7 +98,6 @@ This is where you can contribute the most! (sorted by extension)
  - Music Maker EXT `.MM4` & `.MM8` (info)
  - Megastation `.MS` & `.MSM` (info, size)
  - Medley `.MSO` (info, size)
- - MTC (Spectrum)
  - Master Tracker Adlib `.MTR` (size)
  - DOOM music (`.MUS` `\x1A`) (info)
  - MVS `.MUS` (info, size)
@@ -114,7 +113,6 @@ This is where you can contribute the most! (sorted by extension)
  - Onyx `.OMF` (info, size)
  - Synth Pack `.OSP` (info, size)
  - Pierre Adane Packer `.PAP`
- - Beni Tracker `.PIS`
  - Disorder Tracker 2 `.PLM` (size)
  - Palladix Adlib `.PLX` (info, size)
  - POKEYNoise chiptune `.PN` (info, size)
@@ -145,7 +143,6 @@ This is where you can contribute the most! (sorted by extension)
  - Sierra Alib `.SCI` (rewrite)
  - SCUMMVM `.SCUMM`
  - Synth Dream `SDR.`
- - Tomy Tracker `.SG`
  - Mario Paint's Shroom `.SHO` (info, size)
  - PlaySID, RealSID `.SID` (size if possible)
  - Sound Images Generation 2 `.SIG` (tighten, info, size... maybe just rewrite)
