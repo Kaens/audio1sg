@@ -3815,7 +3815,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'STP3'")) {
 		sName = "Soundtracker Pro II module (.STP)"; bDetected = 1;
 	}
-	else if(X.c("48E7FFFE 4DFA.... 4A2E....")) {
+	else if(X.c("48E7FFFE 4DFA.... 4A2E") && isWithin(X.I8(6),-1,6) && [0x61,0x66].indexOf(X.U8(0xC)) >= 0) {
 		sName = "SUNtronic module (.SUN)"; bDetected = 1
 	}
 	else if(X.c("'SVOX'00000000")) {
@@ -4070,7 +4070,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'S'8F'NG.'")) {
 		sName = "Unique Development module (UDS.+SMP.)"; bDetected = 1
 	}
-	else if((X.Sz() > 0x133) && X.c("'MAS_UTrack_V00'")) {
+	else if((X.Sz() > 0x133) && X.c("'MAS_UTrack_V00'") && isWithin(X.U8())) {
 		//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_ult.cpp
 		//TODO calcsize
 		sName = "UltraTracker module (.ULT)"; bDetected = 1;
@@ -9840,8 +9840,8 @@ if(!bDetected && isSoundMaster()) {
 function isTomyTracker() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TomyTracker/src/Tomy%20Tracker_v2.asm
 	if(X.Sz() < 0x6C0) return false;
-	sz = X.U32(0,_BE); if(sz > 0x200000 || sz%2) return false;
-	d2 = X.U32(4,_BE); if(d2 > sz || d2%2) return false;
+	if((sz=X.U32(0,_BE)) > 0x200000 || sz%2) return false;
+	if((d2=X.U32(4,_BE)) > sz || d2%2) return false;
 	d2 -= 0x2C0; if(d2 & 0x3FF) return false;
 	ptn = d2 >>= 10; d2--; p = 0x1BC; if(X.U8(p)) return false;
 	ord = d1 = X.I8(p+1); if(ord < 0) return false; p += 4; d2 <<= 10; d3 = 0;
@@ -9858,7 +9858,80 @@ if(!bDetected && isTomyTracker()) {
 }
 
 
-// new stable detections :go here: ↑
+function isSoundcontrol() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Soundcontrol/src/Soundcontrol_v3.asm
+	if(!X.c("0003",0x20))
+		if(!X.c("0002",0x20) || X.U32(0x1C,_BE)) return false;
+	if(X.U16(0x10,_BE)) return false;
+	if((p = X.I16(0x12,_BE)) < 0 || p % 2) return false;
+	if(!X.c("FFFF0000 0400",p+0x3E)) return false;
+	title = readBytes(0,0x10); if(charStat(title,1).indexOf('allasc') < 0) return false;
+	title = decEncoding(title,"CP437");
+	a2 = 0; a3 = sz = 0x40+X.U32(0x10,_BE);
+	d2 = X.U32(0x14,_BE); sz += d2; a4 = sz;
+	d1 = X.U32(0x18,_BE); sz += d1+X.U32(0x1C,_BE); d2 -= 0x400;
+	if (X.Sz() < sz) return false;
+	ord = d1 = Util.divu64(d1,12); d1--;
+	voc = 0;
+	for(d3 = 6; d3; d3--,a4 += 2)  for(p = a4,d4 = ord; d4; d4--,p += 12)  if(X.U16(p,_BE)) { voc++; break }
+	a3 += 0x43C; smp = d3 = 0;
+	while(d2 > d3) { d4 = X.U32(a3,_BE); a3 += d4; d3 += d4; smp++ }
+	x = 1; nv = 0; sv = '';
+	if(X.U32(0x1C,_BE)) //crude fixes, go
+		switch(sz) {
+		case 95960: x = 2; //hndongame2; fallthrough
+		case 54544: sv = 'v4.0'; break; //hndtitle
+		case 81906: sv = 'v5.0'; break //hndintro
+		}
+	else
+		switch(sz) {
+		case 126446: x = 3; sv = 'v3.0'; break; //number9
+		case 136612: x = 2; sv = 'v3.0'; break; //domination 1
+		case 154704: x = 2; //dynatsong; fallthrough
+		case 103808: sv = 'v3.2'; break; //eleven6
+		}
+	for(p = 0x40, ptn = 0; p < 0x240; p += 2) if(X.U16(p,_BE)) ptn++;
+	return true
+}
+if(!bDetected && isSoundcontrol()) {
+	sName = "Holger Gehrmann's Soundcontrol module (.SCT)"; sVersion = sv; bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(title); if(x > 1) sOption(x,'x');
+		sOption('ch:'+voc+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
+function isSoundfactory() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Soundfactory/src/Soundfactory_v2.asm
+	if((sz=X.U32(0,_BE)) > 0x200000 || sz > X.Sz()) return false;
+	x = 16; lastfound = false;
+	for(p=0x13; p >= 4; p--) { if((t=X.U8(p)) > 0xF) return false; if(!lastfound && t) {x = p-4; lastfound = true } }
+	m = X.U32(0x14,_BE);
+	for(p = 0x18; p < 0x114; p+=4) { if((t=X.U32(p,_BE)) > 0x200000 || t > sz) return false; if(m > t) m = t }
+	if(m != 0x114) return false;
+	if(X.isDeepScan()) {
+		p = 0x114; smp = smpsz = 0;
+		for(;p < sz-8;) {
+			//seek 84h at an even offset
+			do { q = X.fSig(p,sz-8-p,"84"); if(q < 0) { p = sz; continue} else p = q+(q%2) } while(p < sz && !q%2);
+//_log("found "+Hex(q))
+			if(p < sz && (d1=X.U8(p+1)) <= 0x1F) {
+				d1 >>= 2; smpp[d1] = p;
+				d4 = X.U16(p+2,_BE)<<1; smpsz += d4-38; smp++; p += d4
+			} else p += 2;
+		}
+		if(!smp || smp > 32) return false;
+	}
+	return true
+}
+if(!bDetected && isSoundfactory()) {
+	sName = "Soundfactory module (.PSF)"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		sOption((X.isDeepScan()?'smp:'+smp+' smpsz:'+Hex(smpsz)+' ':'')+'sz:'+outSz(sz))
+	}
+}
 
 
 function isBeniTracker() {
@@ -9900,6 +9973,81 @@ if(!bDetected && isBeniTracker()) {
 			+' notes:'+notes+' sz:'+outSz(sz))
 	}
 }
+
+
+function isSteveBarrett() {
+	//ref reversing the eagleplayer and the module's player code
+//SubSongs at +04; Samples at +1C; CalcSize at +24; Length at +3C;
+// LoadSize at +0C; SongSize at +14; SamplesSize at +2C; SpecialInfo at +34; ExtraInfo at +44;
+	for(p=0; p < 0x10; p += 4) if(!X.c("6000",p) || (t=X.U16(p+2,_BE)) > X.Sz() || t%2) return false;
+	
+	t = X.I16(6,_BE)+6; if(!X.c("49FA....1940....4E75 43FA.... 49FA.... 41FA.... 45FA",t)
+		|| !X.c("'FORM'66",t+0x1C)) return false;
+	t = X.I16(10,_BE)+10;
+	if(!X.c("49FA....4CFA00FF",t) || !X.c("103A.... 660C 1940.... 6100... .6000",t+10)
+		|| !X.c("2A4C DAD8 22CD 2A4C DAD8 22CD 2A4C DAD8 22CD",t+0x34)) return false;
+	t = X.I16(0xE,_BE)+0xE;
+	if(!X.c("70002A7C 00DFF0A8 3A803B40",t) || !X.c("1A801B40 00011B40 00021B40",t+0x1A)) return false; 
+	initp = X.I16(2,_BE)+2; if(!X.c("43FA....49FA....41FA....45FA",initp) || !X.c("'FORM'66",initp+0x12)) return false;
+	a0 = 0;
+	for(p = initp; p < initp+0x10; p += 2) //find the sample ptr
+		if(X.c("41FA",p-2)) { a0 = p+X.I16(p,_BE); break }
+	if((p=6+X.fSig(initp,0x1000,"E7404281")) < 6) return false; t = p+X.I16(p,_BE); //possibly orderlist ptr
+	for(; p < X.Sz(); p += 2) if(X.c("41FA",p-2)) break;
+	for(; p < X.Sz(); p += 2) if(X.c("D08043FA",p)) break; p += 4; p += X.I16(p,_BE);
+	x = (p-t)>>3;
+	for(p = a0,smp=0; p < X.Sz(); smp++) {
+		if(!X.c("'FORM'........'8SVXVHDR'",p)) { if(!X.U32(p)) p += 4; break }
+		p += 8+X.U32(p+4,_BE);
+	}
+	sz = p; if(!smp) return false;
+	return true;
+}
+if(!bDetected && isSteveBarrett()) {
+	sName = "Steve Barrett's module (.SB)"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		sOption('smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
+function isQuartetPSG() {
+	// ref the eagleplayer RE
+	if(X.Sz() < 0x400 || !X.c("49FA",0x10)) return false;
+	for(p=0; p < 0x10; p += 4)
+		if(!X.c("6000",p) || (t=X.I16(p+2,_BE)) <= 0 || t%2) return false;
+	if(!X.c("48E7FFFE 4DFA.... 51EE.... 41FA",p=2+X.I16(2,_BE))) return false; 
+	if(!X.c("48E7FFFE 4DFA.... 4A2E.... 6700.... 70033F00 49FA",p=6+X.I16(6,_BE))) return false; 
+	if(!X.c("48E7FFFE 4DFA.... 51EE.... 6100",p=10+X.I16(10,_BE))) return false; 
+
+	for(p = 0x10; p < X.Sz(); p += 2) if(X.c("40C2",p)) break;
+	for(; p < X.Sz(); p += 2) if(X.c("41FA",p)) break;
+	p += 6; sz = p+X.I16(p,_BE); p += 2;
+	for(; p < X.Sz(); p += 2) if(X.c("43E9",p-2)) break;
+	sz += X.I16(p,_BE) << 1; a3 = sz; if(sz > X.Sz()) return false;
+	for(a0 = 0; p < X.Sz(); p += 2) {
+		if(X.c("206C0032",p)) { a0 += 8; p += 4 } if(X.c("08380007",p) || X.c("08390007",p)) break
+	}
+	for(; p < sz; p += 2) if(X.c("40C1",p)) break;
+	for(p += 4; p < X.Sz(); p += 2) if(X.c("4CDF",p)) break;
+	for(; p < sz; p += 2) if(X.I32(p,_BE) == 0x56) break;
+	for(x = 0; p < a3; p += 2) if(X.I16(p,_BE) == 0x46) x++;
+	x >>= 2;
+	return true
+}
+if(!bDetected && isQuartetPSG()) {
+	sName = "Illusions/Microdeal Quartet module (SQT.)";
+	sVersion = "PSG synth"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		sOption(outSz(sz),'sz:')
+	}
+}
+
+
+// new stable detections :go here: ↑
+
 
 function isUltima6M() {
 	//ref https://github.com/adplug/adplug/blob/master/src/u6m.cpp
@@ -9946,6 +10094,36 @@ if(!bDetected && isUltima6M()) {
 }
 
 
+function isQuartetST() {
+	if(!isWithin(X.U16(0,_BE),4,0x10)) return false;
+	if(!isWithin(X.U16(2,_BE),8,0x20)) return false;
+	if(!isWithin(X.U16(4,_BE),4,0x30)) return false;
+	if(!isWithin(X.U8(6),1,4) || !X.c("0400000000",7)) return false;
+	if(!X.c("'WT'",0xC) && X.U32(0xC,_BE)) return false;
+	if(!isWithin(X.U8(0x17),3,0x77)) return false;
+	if((t=X.U32(0x18,_BE)) > 0x4C || (t&3)) return false;
+	sz = 0x10; var szlim = Math.min(X.Sz(),0xFFFF); x = 0;
+	for(p=0x1C; p < Math.min(X.Sz()-1,0x400); p+=12) if(!isWithin(X.U16(p,_BE),0x46,0x6C)) return false;
+	while(sz < szlim) {
+		if(!X.c("0056",sz)) break; x++;
+		for(i=0; i < 4; i++) for(sz += 2; sz < szlim; sz+=2) if(X.c("0046",sz)) break;
+		sz += 0xC;
+		break //TODO? Fugue.4v or Sweet Dreams.4v have more info after the 4 iterations, but it looks funny there
+//_log(Hex(sz))
+	}
+	spd0 = X.U16(0xE,_BE);
+	return !x || sz <= szlim
+}
+if(!bDetected && isQuartetST()) {
+	sName = "Illusions/Microdeal Quartet module (QTS.+SMP., .4V+.SET)";
+	sVersion = "samples"; bDetected = 1;
+	if(X.isVerbose()) {
+		//if(x > 1) sOption(x,'voices?'); //TODO for the same reason
+		sOption((spd0?'spd0:'+spd0+' ':'')+'sz:'+outSz(sz))
+	}
+}
+
+
 function isADL() {
 	//ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
 	if(X.Sz() < 720 || X.Sz() > 0xFFFF) return false; //v1 min. size
@@ -9958,8 +10136,8 @@ function isADL() {
 	}
 	p = ofs; var z = true;
 	if(nV < 4) {
-		nprogofs = 150; //for v1
-		for(i=0; i < nprogofs; i++) {
+		nprog = 150; //for v1
+		for(i=0; i < nprog; i++) {
 			w = X.U16(p,_LE); p += 2;
 			if(w) { z = false;
 				if(w != 0xFFFF && w+ofs > X.Sz()) return false;
@@ -9968,21 +10146,21 @@ function isADL() {
 			}
 			if(nV > 1) {
 				if(X.Sz() < 1120) return false; //v2/3 min. size
-				nprogofs = 250 /*0xFA*/;
-				for(i=150; i < nprogofs; i++) { //check the rest of'em
+				nprog = 250 /*0xFA*/;
+				for(i=150; i < nprog; i++) { //check the rest of'em
 					w = X.U16(p,_LE); p += 2;
 					if(w) { z = false;
-						if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprogofs)) return false;
-						if(w && w < 1000) return false;
+						if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprog)) return false;
+						if(w < 1000) return false;
 					}}}}
 		} else { //v4
 		if(X.Sz() < 2500) return false;
-		nprogofs = 500;
-		for(i=0; i < nprogofs; i++) { //check the rest of'em
+		nprog = 500;
+		for(i=0; i < nprog; i++) { //check the rest of'em
 			w = X.U16(p,_LE); p += 2;
 			if(w) { z = false;
-				if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprogofs)) return false;
-				if(w && w < 2000) return false;
+				if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprog)) return false;
+				if(w < 2000) return false;
 			}}}
 	return !z
 	//whilst it'd be nice to have instruments (same len as prog ptr tbl) subsong detection...
@@ -10072,15 +10250,6 @@ if(X.isHeuristicScan()) { //parallel block
 	}
 	else if(extIs("svar") && X.c("'PK'")) { //TODO detect in-zip
 		_setResult("audio","SVArTracker module (.SVAR)","","");
-	}
-
-	if(X.c("00000114000001", 0x24)
-	  && X.c("000001140000011400000114000001140000011400000114", 0x74)) {
-		_setResult("audio","Sound Factory module (.PSF)","","")
-	}
-	else if(X.c("'2a'16'I'FA",0x17)
-	  && X.c("'2a'0C'I'FA",0x21) && X.c("'Ff'EE'J@g'06')K'",0x45)) {
-		_setResult("audio","Quartet PSG module (.SQT)","","")
 	}
 
 	//these are compares at 0, so they can be non-parallel, to optimise it all
