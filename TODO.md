@@ -175,7 +175,6 @@ This is where you can contribute the most! (sorted by extension)
  - RamTracker `.TRK` (more info, size)
  - Sound Images `.TW`
  - Unique Development `.UDS` (info, size)
- - UltraTracker `.ULT` (info, size)
  - UNIMOD `.UNI` (size)
  - Shiru's VGM Music Maker `.VGE` (info, size - gotta reverse, it's funny & Shiru deleted the source)
  - Vibrants `.VIB` (I just have 1 file of this)
