@@ -6828,68 +6828,72 @@ if(!bDetected && X.isDeepScan() && isRobHubbardRH()) {
 function isPuma() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PumaTracker/src/PumaTracker_v2.asm
 	//ref http://lclevy.free.fr/amiga/exotic/puma_str.txt
-	if(X.U8(12)) return false;
-	ord = X.U8(13)+1;
-	a0 = 0x50+ord*14; //patterns table
-	if(a0 >= X.Sz()) return false;
-	if(!X.c("'patt'",a0)) return false; a0 += 4;
-	d1 = 32;
-	while(a0 < X.Sz()) {
-		t = X.U8(a0+3); if(!t) return false;
-		d1 -= t; if(d1 < 0) return false; if(!d1) break;
-		a0 += 4
-	}
-	if (!X.c("'patt'",a0+4)) return false; //Check2 finishes here
-	a0 = smp = d0 = d4 = 0;
-	ptn = X.U16(0xE,_BE);
-	synsmp = X.U16(0x10,_BE); //"number of sound data"
-	loop = X.U16(0x12,_BE);
-	a1 = 0x14; //+moduleptr = smp start offsets
-	for(d2 = 0; d2 < 10; d2++) { //NextSamp
-		smpp = X.U32(a1,_BE); a1 += 4;
-		if(!smpp) continue; //-> NoSamp
-		else smp++;
-		if(!d4 || smpp >= d4) d4 = smpp; //d4 <- maxsmpp
-	} //NoSamp
-	a1 = 0; bad = false; //moduleptr
-	if(!d4) { //jump to .Samples it if d4 != 0
-		d1 = synsmp;
-		a1 += 80;
-		while (d1 >= 0) { // .FindSample
-			if(a1 > X.Sz())
-				if(X.isHeuristicScan())
-					{ sz = -1; bad = true; return true } //too short
-				else return false;
-			t = X.c("'in'",a1); a1 += 2; if(!t) continue;
-			t = X.c("'st'",a1); a1 += 2; if(!t) continue;
-			d1--;
+	// && https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_puma.cpp
+	ord = X.U16(12,_BE)+1; if(ord > 256) return false;
+	ptn = X.U16(0xE,_BE); if(!ptn || ptn > 128) return false;
+	synsmp = X.U16(0x10,_BE); if(!isWithin(synsmp,1,32)) return false; //"number of sound data"
+	loop = X.U16(0x12,_BE); 	bad = ''; if(loop >= ord) bad = bad.addIfNone('!badloop');
+	if(charStat(readBytes(0,12),1).indexOf('allxsc') < 0) return false;
+	for(p=0x50,i=mp=0; i < ord && p < X.Sz(); p+=14,i++) //verify orderlist integrity
+		for(c=0; c < 4; c++) {
+			if((pt=X.U8(p+c*3)) >= 0x80 || !isWithin(X.I8(p+c*3+2),-0x30,0x30)) return false;
+			if(pt > mp) mp = pt
 		}
-		sz = a1
-	} else { // .Samples
-		a2 = a1+0x3C; //0x3C is the ofs of samples lengths in words
-		a1 += 0x14;
-		sz = 0; //max smp end
-		for(d2 = 0; d2 < 10; d2++) {// .FindSize
-			smpsz = X.U32(a1,_BE); a1 += 4;
-			d1 = X.U16(a2,_BE); a2 += 2;
-			if(d1&1) d1 --;
-			d1 += d1+smpsz;
-			if(sz < d1) sz = d1;
-		}
+	if(i < ord) return false; mp++;
+	minsz = p+ptn*8+4+synsmp*16+4; if(minsz >= X.Sz()) return false;
+	for(i=0; i < ptn; i++) { //test all patterns
+		if(!X.c("'patt'",p)) return false; p += 4; row = 0;
+		for(;row < 32; p += 4) {
+			var d = readBytes(p,4); if(d[0]%2 || !isWithin(d[3],1,32-row)) return false; row += d[3]
+		} }
+	if(!X.c("'patt'",p)) return false; p += 4;
+	smp = msmpp = mssz = evc = 0; plim = Math.min(X.Sz(),0x100000);
+	for(i = 0; i < 10; i++) { //test waveform tables
+		smpp = X.U32(0x14+i*4,_BE); if(!smpp) continue;
+		ssz = X.U16(0x3C+i*2,_BE); if(ssz&1) ssz--; ssz <<= 1;
+		if(smpp < minsz || smpp > 0x100000) return false;
+		if(smpp > msmpp) { msmpp = smpp; mssz = ssz}
+		smp++;
 	}
-	if(sz > X.Sz())
-		if(X.isHeuristicScan()) { bad = true; return true } //too short
-		else return false;
-	songsz = d4;
+	function checkScript(isVol) {
+		var isFirst = true;
+		while(p+4 < X.Sz()) {
+			var d = readBytes(p,4); p += 4;
+			if(isFirst && isVol && d[0] != 0xC0) return false;
+			switch(d[0]) {
+			case 0xA0: evc++; break;
+			case 0xB0: evc++; return !(d[1] & 3);
+			case 0xC0: if(!isVol) return false; evc++; break;
+			case 0xD0:
+				if(isVol) return false; evc++;
+				if(d[1]&1)/*freezes playback*/ bad = bad.addIfNone('!oddpitch'); break;
+			case 0xE0: evc++; return true;
+			default:
+				if(!isVol && decEncoding(d,CPAmiga) === 'inst') { p -= 4; return evc > 0 }
+				return false;
+			}
+			isFirst = false;
+		}
+		return evc > 0
+	}
+	for(i=0; i < synsmp && p < X.Sz(); i++) {
+		if(!X.c("'inst'",p)) return false; p += 4;
+		if(!checkScript(true)) return false;
+		if(!X.c("'insf'",p)) return false; p += 4;
+		if(!checkScript(false)) return false;
+	}
+	if(!X.c("'inst'",p)) return false; p += 4
+	if(p > X.Sz()) { sz = -1; bad = bad.addIfNone('!short'); return true }
+	sz = Math.max(msmpp+mssz, p);
 	return true;
 }
-if(!bDetected && X.isDeepScan() && isPuma()) {
+if(!bDetected && isPuma()) {
 	sName = "PumaTracker module (.PUMA)"; sVersion = "v1.1"; bDetected = 1;
-	if(bad) sVersion += "/malformed";
+	if(bad != '') sVersion = sVersion.appendS('/malformed'+bad,'/');
 	if(X.isVerbose()) {
-		sOption(X.SA(0,0x0C).trim());
-		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" synsmp:"+synsmp
-			+" lp:"+loop+" sz:"+outSz(sz))
+		sOption(decAnsi(0,0x0C,CPAmiga).trim());
+		sOption('ord:'+ord+' ptn:'+mp+(mp!=ptn?'/'+ptn:'')+(smp?' wf.smp:'+smp:'')
+			+' synsmp:'+synsmp+(loop?' lp:'+loop:'')+' events:'+evc+' sz:'+outSz(sz))
 	}
 }
 
@@ -8555,7 +8559,7 @@ if(!bDetected && isJasonBrooke()) {
 	sName = "Jason C. Brooke's module (.JB,.JCB)"; sVersion = fmt; bDetected = 1;
 	if(X.isVerbose()) {
 		if(x > 1) sOption(x,'x');
-		sOption((fmt=='new'?'wfsmp:'+smp:'steps:'+steps)+' synsmp:'+synsmp+' sz:'+outSz(sz))
+		sOption((fmt=='new'?'wf.smp:'+smp:'steps:'+steps)+' synsmp:'+synsmp+' sz:'+outSz(sz))
 	}
 }
 
