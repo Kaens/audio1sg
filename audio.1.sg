@@ -515,23 +515,32 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption("tempo:"+tempo+" ord:"+ord+" ptn:"+ptn+" loop:"+loop)
 		}
 	}
-	else if(X.c("'CTMF'")) {
+	else if(X.c("'CTMF'") && isWithin(X.U16(4),0x100,0x101) && isWithin(X.U16(8),0x25,X.Sz()-1)) {
 		sName = "Creative Music File (.CMF)"; bDetected = 1;
 		//ref https://github.com/adplug/adplug/blob/master/src/cmf.cpp
-		nV = X.U16(4,_LE);
-		sVersion = "v"+(nV>>8)+"."+(nV&0xFF); bad = 0;
-		pins = X.U16(6,_LE); //instruments ptr
-		tp = X.U16(0x0E,_LE); if(tp >= pins) { tp = 0; bad = 1 }
-		ap = X.U16(0x10,_LE); if(ap >= pins) { ap = 0; bad = 2 }
-		cp = X.U16(0x12,_LE); if(cp >= pins) { cp = 0; bad = 3 }
-		if(bad) sVersion += "/malformed"+bad;
-		if(X.isVerbose()) {
-			if(tp) sOptionT(X.SA(tp,0x100));
-			if(ap) sOptionT(X.SA(ap,0x100),"by: ");
-			if(cp) sOptionT(X.SA(cp,0x100));
+		// & https://moddingwiki.shikadi.net/wiki/CMF_Format
+		nV = X.U16(4,_LE); ic = 0 /*invalid values for heuristics*/; bad = '';
+		sVersion = "v"+(nV>>8)+"."+(nV&0xFF);
+		pins = X.U16(6,_LE); pmus = X.U16(8,_LE); //instruments, music ptr
+		if(pmus <= pins) {ic++; bad = bad.addIfNone('!badptr') }
+		if(nV >= 0x101) { p = 0x28; ins = X.U16(0x24) } else { p = 0x25; ins = X.U8(0x24) }
+		if((t=Util.divu64(pmus-pins,0x10)) != ins) { ic++; bad = bad.addIfNone('!inconsistentinscnt'+t) }
+		tp = X.U16(0x0E,_LE); if(tp && !isWithin(tp,p,pins-1)) { tp = 0; ic++; bad = bad.addIfNone('!badptr') }
+		ap = X.U16(0x10,_LE); if(ap && !isWithin(ap,p,pins-1)) { ap = 0; ic++; bad = bad.addIfNone('!badptr') }
+		cp = X.U16(0x12,_LE); if(cp && !isWithin(cp,p,pins-1)) { cp = 0; ic++; bad = bad.addIfNone('!badptr') }
+		ch = 0; for(i=0x14; i < 0x24; i++) { if((t=X.U8(i)) == 1) ch++; else if(t > 1) ic++} if(!ch) ic++;
+		if(ic > 5) bDetected = 0; else if(bad != '') sVersion += "/malformed"+bad;
+		if(bDetected && X.isVerbose()) {
+			if(tp) sOptionT(X.SC(tp,0x100,'CP437'));
+			if(ap) sOptionT(X.SC(ap,0x100,'CP437'),"by: ");
+			if(cp) sOptionT(X.SC(cp,0x100,'CP437'));
+			sz = X.fSig(pmus,Math.min(0x10000,X.Sz()),"00FF2F00"); if(sz > 0) sz += 4;
+			if(nV >= 0x101 && X.U8(sz) == 0xFF) sz++; //a lot of v1.1 CMFs end in FF, enough to be significant?
+			sOption('ch:'+ch+' ins:'+ins+' sz:'+outSz(sz))
 		}
 	}
-	else if(X.c("000003F3") && X.c("70FF4E75'S.PHIPPS'",0x20) &&
+	if(!bDetected)
+	if(X.c("000003F3") && X.c("70FF4E75'S.PHIPPS'",0x20) &&
 	  0 < X.I32(0x40,_BE) < X.Sz() && 0 < X.I32(0x44,_BE) < X.Sz() ) {
 		sName = "Core Design module (.CORE)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -3485,13 +3494,38 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(bpm != null) sVersion+=" bpm: "+bpm[1];
 		}
 	}
-	else if(X.c("'SNGs'")) {
-		sName = "Sound Club module (.SN)"; sVersion = "v1"; bDetected = 1;
-		if(X.isVerbose()) sOptionT(X.SA(0x0F));
+	else if(X.c("'SNGs'") && X.Sz() > 0x10 && X.U8(0xA) <= X.U8(7) && X.U8(0xB) <= 0x1E && isWithin(X.U8(0xC),0,0x78)
+	  && isWithin(X.U8(0xD),1,30) && isWithin(X.U8(0xE),1,30)) {
+	  	//TODO RE reading additional data
+		sName = "BlueMoon's Sound Club for DOS module (.SN)"; bDetected = 1;
+		if(!(ord=X.U8(7))) sVersion = 'malformed!0ord';
+		if(X.isVerbose()) {
+			sOptionT(X.SA(0x0F,0x1A));
+			lp = X.U8(0xA); gvol = X.U8(0xB)*5; tx = X.U8(0xC); tpb = X.U8(0xD); bpms = X.U8(0xE);
+			sOption('rhythm:'+tpb+'/'+bpms+' ord:'+X.U8(7)+' ins:'+X.U8(4)+' gvol:'+gvol+'%')
+		}
 	}
-	else if(X.c("'SN2'") && X.c("'NAM'",0x1F)) {
-		sName = "Sound Club module (.SN)"; sVersion = "v2"; bDetected = 1;
-		if(X.isVerbose()) sOptionT(X.SA(0x26,X.U32(0x22,_LE)));
+	else if(X.c("'SN2'") && isWithin(X.U32(0x13),0,0x78) && isWithin(X.U32(0x17),1,30) && isWithin(X.U32(0x1B),1,30)
+	  && X.c("'NAM'",0x1F) && X.c("'SEQ'",0x26+X.U32(0x22))) {
+		sName = "Bluemoon's Sound Club for Windows module (.SN2)"; bDetected = 1;
+		if(X.isVerbose()) {
+			sOptionT(addEllipsis(X.SA(0x26,X.U32(0x22)))); sz = X.U32(3)+7;
+			lp = X.U32(0x0F); tx = X.U32(0x13); tpb = X.U32(0x17); bpms = X.U32(0x1B);
+			//TODO instead of a quartic approximated curve, find out the actual calculation lol
+			tempop = Math.round(200 - tx*(4.27246 - tx*(0.0603477 + tx*(-0.000453202 + 1.33871*tx/1000000))));
+			p = 0x26+X.U32(0x22); ord = ptn = ins = 0;
+			end = false; while(!end && p < X.Sz()) {
+				hkhd = X.SA(p,3); hksz = X.U32(p+3); p += 7;
+				switch(hkhd) {
+				case 'PAT': ptn++; break;
+				case 'SEQ': ord = Util.divu64(hksz,4); break;
+				case 'INS': ins++; break;
+				}
+				p += hksz
+			}
+			sOption('rhythm:'+tpb+'/'+bpms+' tempo: '+tempop+'% ord:'+ord+(lp?' lp:'+lp:'')
+				+' ptn:'+ptn+' ins:'+ins+' sz:'+outSz(sz))
+		}
 	}
 	else if(X.c("'SNDH'",0x0C) && (X.isHeuristicScan() || X.c("6000............6000"))) {
 		//ref https://sndh.atari.org/files/sndhv21.txt
