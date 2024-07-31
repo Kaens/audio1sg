@@ -80,11 +80,9 @@ This is where you can contribute the most! (sorted by extension)
  - Jeroen Tel `.JT` (info, size)
  - JayTrax `.JXS` (info, size)
  - Kris Hatlelid's `.KH` (count subsongs)
- - Ken Silverman's Adlib `.KSM` (tighten, info, size)
  - Klystrack `.KT` (size, sources available)
  - Lucas Arts Adlib `.LAA` (info, size)
  - Sound Interface System `.LEM` (tighten, info, size)
- - Leonheart `.LION` (just for perfectionism, arrive at filesize without string searching)
  - Leggless `.LME` (info, size)
  - Music Assembler `.MA` (info, size)
  - Mlat Adlib Tracker `.MAD` (tighten, info, size)
@@ -240,13 +238,13 @@ I additionally follow the rule "don't overload it", like I don't show all sample
 
 It's generally nice to report files that are clearly of the detected format but are broken in some way, anyway. Two functions are there in "read" script to facilitate that: appendS and addIfNone. Quicker shown than explained, the code would look like this:
  ```js
-bad = ""; ...
-if(globalvolume > 0x40) bad = bad.addIfNone("!badgvol");
+bad = ''; ...
+if(globalvolume > 0x40) bad = bad.addIfNone('!badgvol');
 ...
 
 numericVersion = File.read_uint8(4);
-if(numericVersion > 0) sVersion = "v"+numericVersion;
-if(bad != "") sVersion.appendS("malformed"+bad,"/");
+if(numericVersion > 0) sVersion = 'v'+numericVersion;
+if(bad != "") sVersion.appendS('malformed'+bad,'/');
 ```
 And if `numericVersion` is 2 and globalvolume's malformed, the version line would look like this:
 `v2/malformed!badgvol`

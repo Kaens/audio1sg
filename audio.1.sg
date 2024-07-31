@@ -1802,10 +1802,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	  && X.c("4E754A79 0000028E 66D84A79 000002",0xAA) && X.c("4E7548E7 FFFFB1FC 00000000 67",0xD0)) {
 		sName = "Kris Hatlelid's module player (SONGPLAY+.KH)"; bDetected = 1
 	}
-	else if(X.c("00000000000000FD..FFFE",0x04) && X.c("F0F0F0F0F0F0F0",0x14)
-	  && X.c("000000000000010101",0x25) && X.c("'2222222'",0x44)) {
-		sName = "Ken Silverman's Adlib module (.KSM)"; bDetected = 1
-	}
 	else if((X.c("'KSCC'") && !X.U8(0xE) && !(X.U8(0xF) & 0xE0)) || //&meant to be 0xF0 but majutsushi*.kss have 0x10 there
 	  (X.c("'KSSX'") && !X.U32(0x14))) {
 		// ref https://sourceforge.net/p/nezplug/code/HEAD/tree/nezplug/trunk/src/nes/m_kss.c & trunk/in_nez.txt
@@ -10673,6 +10669,23 @@ function isLDS() {
 if(isLDS())
 	_setResult('audio','Loudness Sound System Ad Lib module (.LDS)','',
 		'ch:9 mode:'+mode+' spd:'+X.U16(1)+' tempo:'+tempo+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' sz:'+outSz(sz));
+
+function isKSM() {
+	for(i=0; i < 4; i++) if(!isWithin(X.U8(i),0,0x57)) return false;
+	for(; i < 0xB; i++) if(X.U8(i)) return false;
+	for(; i < 0x10; i++) if(X.U8(i) < 0xFB) return false;
+	for(; i < 0x20; i++) if([0xF0,4,6,8,0xC].indexOf(X.U8(i)) < 0) return false;
+	for(c=0; i < 0x25; i++) if(X.U8(i) > 5) return false; else if(!X.U8(i)) c++; if(c > 3) return false;
+	for(; i < 0x2A; i++) if(X.U8(i)) return false;
+	for(; i < 0x30; i++) if(X.U8(i) > 1) return false;
+	for(i=0x40; i < 0x50; i++) if(!isWithin(X.U8(i),0x20,0x3F)) return false;
+	if(!X.c("32323232 323232",0x44)) return false;
+	return true
+}
+if(isKSM()) {
+	if(X.isVerbose()) soption = 'notes:'+(notes=X.U16(0x50))+' sz:'+outSz(0x52+notes*4); else soption = '';
+	_setResult('audio',"Ken Silverman's Adlib module (.KSM)",'',soption)
+}
 
 } //isHeuristicScan parallel block
 
