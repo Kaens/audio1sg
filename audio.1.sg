@@ -10025,13 +10025,13 @@ if(!bDetected && isQuartetPSG()) {
 
 function isSonicArranger() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Sonic_Arranger/Sonic Arranger_v1.asm
-	p = modp = smp = synsmp = ord = ptn = 0; x = 1; sv = bad = '';
+	p = modp = smp = synsmp = ord = ptn = 0; x = 1; sv = bad = ''; owner = [];
 	if(X.c("'SOARV1.0STBL'")) {
 		x = X.I32(0xC,_BE); spd0 = X.U8(0x11); ptnlen0 = X.U8(0x13); pst0 = X.U16(0x14,_BE);
 		ped0 = X.U16(0x16,_BE); lp0 = X.U16(0x18,_BE); irqps0 = X.U16(0x1A,_BE);
 		if(!isWithin(spd0,2,16) || !isWithin(irqps0,16,120) || pst0 > ped0 || lp0 > ped0) return false;
 		p = 0x10+x*12; if(!X.c("'OVTB'",p)) return false; //"OverTable"
-		ord = X.I32(p+4,_BE); if(ped0 > ord) return false; if(ped0 == ord) bad = bad.addIfNone('!badEndAt')
+		ord = X.I32(p+4,_BE); if(ped0 > ord) return false;
 		p += 0x18+(ord << 4); if(!X.c("'NTBL'",p-0x10)) return false;
 		ntbl = X.I32(p-0xC,_BE); p += ntbl << 2; if(!X.c("'INST'",p-8)) return false;
 		ptn = Util.divu64(ntbl,0x10); ins = X.I32(p-4,_BE); inss = [];
@@ -10049,45 +10049,49 @@ function isSonicArranger() {
 		} else {
 		if(X.c("4EFA")) { //detect & skip replay
 			if((t=X.I16(2,_BE)) <= 0 || t%2) return false;
-_log(0)
 			if(!X.c("48E7FFFE 41FA",t+2) || !X.c("201045F0 0800228A 43FA",t+0xE)
 				|| !X.c("20280004 45F00800 228A 43FA",t+0x1A)) return false;
-_log(1)
 			if((p=X.I16(t+8,_BE)) <= 0 || p%2) return false;
-_log(2)
 			p += t+8; modp = p; sv = '+replayer';
 		} else sv = 'pure';
 		if(p+0x28 > X.Sz() || !X.c("00000028",p)) return false;
-_log(3)
 		spd0 = X.U16(p+0x28,_BE); irqps0 = X.U16(p+0x32,_BE); lp0 = X.U16(p+0x30,_BE);
 		if(!isWithin(spd0,2,16) || !isWithin(irqps0,16,120)) return false;
-_log(4)
 		x = (X.I32(p+4,_BE)-0x28)/12; if(x == 1 || X.I16(p+0x3C,_BE) < 0) x = 1;
 		var ptrs = [0];
 		for(i=0; i < 8; i++) {
 			t = X.I32(p,_BE); p += 4; if(t <= 0 || t%2 || t < ptrs[ptrs.length-1]) return false; ptrs.push(t)
 		}
-_log(5)
-		var ordp = ptrs[2], ptnp = ptrs[3], insp = ptrs[4];
-		//ord contain u16 references and a couple control bytes (transpose?)
-		ord = Util.div64(ptnp-ordp,0x10); ptn = Util.div64(insp-ptnp,0x40);
-		ins = Util.div64(ptrs[5]-insp,0x98);
+		var ordp = ptrs[2], ptnp = ptrs[3], insp = ptrs[4], a = ptrs[5], sc = X.I32(modp+t,_BE);
+		//ord recs contain u16 references and a couple control bytes ST and NT
+		ord = Util.div64(ptnp-ordp,0x10); ptn = Util.div64(insp-ptnp,0x40); ins = Util.div64(a-insp,0x98);
 		p = modp+t; if(p > X.Sz()) return false;
-_log(6)
-		smp = sc = X.I32(p,_BE); p += 4; //p currently points at "deadbeef" or waveform samples
-		if(smp) { pp = p; p += smp << 2; for(; sc-- && p < X.Sz(); pp += 4) p += X.U32(pp,_BE); }
-		if(!X.c("'deadbeef'",p)) if(X.isHeuristicScan()) bad = bad.addIfNone('!badsyn'); else return false;
-		p += 12; t = X.fSig(p+0xC,-1,"F500"); if(t > 0) p = t+2; else bad = bad.addIfNone('!badeof');
-		sz = p
+		for(i=0; i < ins; i++) if(X.U16(modp+insp+i*0x98,_BE)) synsmp++; else smp++;
+		if(smp != sc) bad = bad.addIfNone('!inconsistentsmpcnt'+sc); //be cool to understand how that happens...
+		p += 4;
+		if(smp) for(pp=p, p+=sc<<2; sc-- && p < X.Sz(); pp += 4) p += X.U32(pp,_BE);
+		if(!X.c("'deadbeef'",p)) if(X.isHeuristicScan()) bad = bad.addIfNone('!badeof'); else return false;
+		p += 12; sc = p; //skip 'deadbeef    '; sc is now for counting the string length
+		// There's no real need to include the "programowner" info into calcsize but let's;
+		// otherwise the eagleplayer thinks the file is "too short", although nobody really cares...
+		for(lim = Math.min(p+0x400,X.Sz()); p < lim;) {
+			c = X.U8(p++)^0xFF; if(c == 0xFF || isWithin(c,0,8) || isWithin(c,11,12) || isWithin(c,14,0x1F)) break;
+			if(c == 0xA) { c = 0x20; if(owner[owner.length-1] == 0x20) continue }
+			owner.push(c)
+		}
+		if(owner[owner.length-1] == 0x20) owner.pop();
+		sz = p;
+		if(c != 0xFF && p-sc != 0x50) bad = bad.addIfNone('!badinfo');
 	}
-	bpm0 = (15*irqps0/spd0).toFixed(1);
+	bpm0 = (15*irqps0/spd0).toFixed(1); owner = decEncoding(owner,CPAmiga).trim();
 	return true
 }
 if(!bDetected && isSonicArranger()) {
-	sName = "BrainTrace Design/MEDIA Verlags Sonic Arranger module (.SA,.LION)"; bDetected = 1;
+	sName = "BrainTrace Design's Sonic Arranger module (.SA"+(sv == 'pure'?',.LION':'')+")"; bDetected = 1;
 	sVersion = sv; if(bad != '') sVersion = sVersion.appendS('malformed:'+bad,'/');
 	if(X.isVerbose()) {
 		if(x > 1) sOption(x,'x');
+		if(owner != '') sOption(addEllipsis(owner,0xA0,0x80),'info:"','"');
 		sOption('bpm0:'+bpm0+(ord?' ord:'+ord:'')+(lp0?' lp0:'+lp0:'')+(ptn?' ptn:'+ptn:'')+(ins?' ins:'+ins:'')
 			+(smp?' wf.smp:'+smp:'')+(synsmp?' syn.smp:'+synsmp:'')+' sz:'+outSz(sz))
 	}
