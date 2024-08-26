@@ -1788,9 +1788,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(x > 1) sOption(x,"×"); sOption("smp:"+smp+" smpsz:"+Hex(smpsz)+" sz:"+outSz(sz))
 		}
 	}
-	else if(X.c("0239000100......6602'Nux'001839") && X.c("660A13F9",0x22) ) {
-		sName = "Jeroen Tel's module (.JT)"; bDetected = 1
-	}
 	else if(X.c("0040....0040....0040....0040....0040....0040",0x19D1) ) {
 		//unreliable for potential new modules (but there's not gonna be even one)
 		sName = "JayTrax module (.JXS)"; bDetected = 1;
@@ -10130,20 +10127,46 @@ if(!bDetected && X.c("'SASI'00000000000100")) {
 	sName = "BrainTrace Design/MEDIA Verlags Sonic Arranger synth instrument"; bDetected = 1
 }
 
-// else if(X.c("'SOARV1.0STBL'")) {
-// 	//TODO unify all SAs, rewrite the check, and extract the lengths using this source:
-// 	// https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Sonic_Arranger/Sonic Arranger_v1.asm
-// 	sName = "Sonic Arranger module (.SA)"; sVersion = "v1.0"; bDetected = 1
-// }
-// else if(X.c("4EFA002A 4EFA06FC 4EFA077C")) {
-// 	sName = "Sonic Arranger module (.SA)"; sVersion = "old"; bDetected = 1
-// }
-// else if(X.c("4EFA002A 4EFA06E4 4EFA0764")) {
-// 	sName = "Sonic Arranger module (.SA)"; sVersion = "v.E464"; bDetected = 1
-// }
-// else if(X.c("4EFA001A 4EFA06C6 4EFA073A")) {
-// 	sName = "Sonic Arranger module (.SA)"; sVersion = "v.C63A"; bDetected = 1
-// }
+
+function isJT() {
+	if(X.Sz() < 1700) return false;
+	for(p = 0; p < 40; p += 2) if(X.c("02390001",p)) break; if(p == 40) return false;
+	p += 8; if(!X.c("66..4E75",p++)) return false; if((t = X.I8(p++)) <= 0) return false;
+	p += t; if(X.c("4A39",p))  for(j=4; j--; p += 0x12) if(!X.c("4A39",p)) return false;
+	if(!X.c("78001839",p)) return false;
+	for(j = p;;) { p = X.fSig(j,0x40000,"1400E302"); if(p < 0) return false; else if(i % 2) { j = p+1; continue } else break }
+	var org = X.U32(p+6,_BE);
+	for(;;) { p = X.fSig(j,0x40000,"03580328"); if(p < 0) return false; else if(i % 2) { j = p+1; continue } else break }
+	org -= p;
+	for(p=0; p < 0x40000; p += 2) if(X.c("B23C00FF",p) || X.c("0C0100FF",p)) break;  if(p >= 0x40000) return false;
+	for(; p < 0x40000; p += 2) if(X.c("267C",p-2)) break;  if(p >= 0x40000) return false; p += 4; //?
+	for(; p < 0x40000; p += 2) if(X.c("49F9",p-2)) break;  if(p >= 0x40000) return false; smpip = X.U32(p,_BE)-org; p += 4;
+	for(; p < 0x40000; p += 2) if(X.c("0026267C",p-4)) break;  if(p >= 0x40000) return false; p += 4; //?
+	for(; p < 0x40000; p += 2) if(X.c("23F4",p)) break;  if(p >= 0x40000) return false;
+	subsongp = X.U32(p-4,_BE)-org; p += 6; x = 0;
+	for(p=subsongp; p < 0x40000; p += 0x12) {
+		if(X.U8(p+16) != 12) break; t = X.U32(p,_BE);
+		if(X.U32(p+4,_BE) != t || X.U32(p+8,_BE) != t || X.U32(p+12,_BE) != t) x++; else break
+	}
+	j = X.U32(smpip,_BE)-org; i = smpip+4; info = (j-i) >> 2;
+	d0 = X.I32(j+4,_BE); d1 = X.I16(j+2,_BE)*2 + d0;
+	for(smp = 1; i < j; i += 4) {
+		t = X.U32(i,_BE)-org; d3 = X.U32(t+4,_BE); if(!d3) continue;
+		d4 = X.I16(t+2,_BE)*2+d3; if(d3 < d0) d0 = d3; if(d4 > d1) d1 = d4; smp++
+	}
+	songsz = d0-org; sz = d1-org;
+	for(i=0; i < 0x40000; i+=2) if(X.c("4E75",i-2)) break;
+	specialmsg = ''; //I've no modules to test this on
+	if((d1=X.U8(i-3)) != 2) specialmsg = X.SC(i,0x100,CPAmiga);
+	return true;
+}
+if(!bDetected && isJT()) {
+	sName = "Jeroen Tel's module (.JT)"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(specialmsg != '') sOption(specialmsg); if(x > 1) sOption(x,'x');
+		sOption('smp:'+smp+' songsz:'+Hex(songsz)+' sz:'+outSz(sz))
+	}
+}
 
 
 // new stable detections :go here: ↑
