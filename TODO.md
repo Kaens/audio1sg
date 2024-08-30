@@ -109,7 +109,6 @@ This is where you can contribute the most! (sorted by extension)
  - NovoTrade Packer `.NTP` (tigthen, info, size)
  - Oktalyzer `.OKTA` (info, size)
  - Onyx `.OMF` (info, size)
- - Synth Pack `.OSP` (info, size)
  - Pierre Adane Packer `.PAP`
  - Disorder Tracker 2 `.PLM` (size)
  - Palladix Adlib `.PLX` (info, size)

@@ -2542,8 +2542,40 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			  +"/"+X.U8(9)+" notes:"+c+" sz:"+outSz(114+(c<<3)))
 		}
 	}
-	else if(X.c("'OBISYNTHPACK'")) {
-		sName = "Synth Pack module (.OSP)"; bDetected = 1
+	else if(X.c("'OBISYNTHPACK'") && X.Sz() > 0x510 && ( X.c("0100",0x50C) || !X.U32(0x50C,_BE) )) {
+		sName = "Karsten 'Obi' Obarski's Synth Pack module (.OSP+SMP.set)"; bDetected = 1;
+		if(X.isVerbose()) { //from initplayer RE
+			p = a2 = 0xC; // @650
+			for(x = ord = 0, d1 = 0x40; p < X.Sz() && d1--;) {
+				d2 = X.U32(p,_BE); p += 4; if(!d2) break; ord++; d2 &= 0xFFFF;
+				if(d2 == 0xF0) x++; // @656~664
+			}
+			for(d3 = d6 = 0; a2 < X.Sz() && d6 < 0x40;) { // @668~698
+				d4 = X.U32(a2,_BE); a2 += 4;
+				if(!d4) { if(X.U32(a2,_BE)) d6++;
+				} else {
+					d4 &= 0xFF00;
+					if(d4 == 0xFE00 || d4 == 0xFC00) d3++;
+					d6++;
+				}
+				if(d6 >= 0x40) break;
+			}
+			if(d3 > x) { x = d3; ord = d6 } // @69a~6a0
+			if(X.c("2000",0xC) || X.c("FE",0xE)) x = 7; // @6a2~6b8
+			d1 = 0x100;
+			if(p < X.Sz()) p = 0x10C; ptn = 0; // @6bc~6c4
+			for(; p < X.Sz() && d1--;) { if((t = X.U8(p)) > ptn) ptn = t; p += 4 } // @6c6~6d2
+			if(p < X.Sz()) p = 0x50C; // @6d6...
+			if(!X.U32(0x50C,_BE)) // to @6fe
+				p += (ptn+1)*0x180; //
+			else {
+				for(; p < X.Sz(); p += 2) if(!X.U16(p,_BE)) break;
+				for(p += X.U16(p-2,_BE); p < X.Sz(); p += 2) if(X.c("FFFFFFFF5FFF",p)) break; // @6e8~f2
+				p += 6;
+			}
+			if(x > 1) sOption(x,'x');
+			sOption('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(p))
+		}
 	}
 	else if(X.c("'PACG'........'PAIN'") && (t=X.fSig(0xC,0x100,"'SOIN'")+8) > 0x10 && X.U16(t+2)
 	  && X.U8(t+4) && X.c("4005",t+5) && X.U32(4)+8 <= X.Sz()) {
@@ -5722,6 +5754,7 @@ function isIT() {
 			}
 			if(lastsmpofs < p) lastsmpofs = p; if(sz < lastsmpofs) sz = lastsmpofs
 		}
+		if(!ch) ch = 1;
 //find the expected length of the final compressed sample
 		if(lastsmpofs) { p = lastsmpofs;
 			if(lastsmpco) {
