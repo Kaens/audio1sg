@@ -347,14 +347,107 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(!songend) p = -1; sOption('ins:'+ins+' notes:'+notes+' sz:'+outSz(p))
 		}
 	}
-	else if(X.c("'BBSONG'00")) {
-		sName = "Beepola module (.BBSONG)"; bDetected = 1;
-		sVersion = "v"+X.SA(7,5)+":"+X.SA(X.fStr(10,1000,"Engine=")+7);
+	else if(X.c("'BBSONG'00'0001'00")) {
+		//ref https://github.com/atsidaev/beepola/blob/master/STSong.pas etc.
+		sName = "Shiru's Beepola module (.BBSONG)"; bDetected = 1;
+		p = 0xC; var layouttag = false;
+		ord = orn = ptn = svgptn = svgwarp = phains = 0; bad = title = auth = engine = '';
+		while(p < X.Sz()) {
+			if(p >= X.Sz()) break;
+			if(X.U8(p++) != 0x3A) { p--; break }
+			t = X.SA(p,254); p += t.length+1;
+//_log(t+' @'+Hex(p));
+			switch(t) {
+			case 'INFO':
+				for(; p < X.Sz();) {
+					t = X.SC(p,TOEOF,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'Title': title = xx[1]; break;
+					case 'Author': auth = xx[1]; break;
+					case 'Engine': engine = xx[1]; break;
+					}
+				}
+				break;
+			case 'LAYOUT':
+				layouttag = true;
+				while(p < X.Sz()) {
+					t = X.SC(p,TOEOF,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'LoopStart': lp = +xx[1]; break;
+					case 'Length': ord = +xx[1]; ptn = 0;
+						for(i=0; i < ord; i++) if(ptn <= (t=X.U8(p++))) ptn = t+1; break;
+					}
+				}
+				break;
+			case 'PATTERNDATA':
+				while(p < X.Sz()) {
+					t = X.SC(p,0x400,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'PatternCount': ptns = +xx[1];
+						for(i = 0; i < ptns && p < X.Sz(); i++) {
+							t = X.SC(p,0x500,'CP1251'); p += t.length + 1; if(t === ':END') break;
+							xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+							if(xx[0] === 'PatternName') p += 8+5*X.U32(p);
+						}
+						break;
+					}
+				}
+				break;
+			case 'SVGPATTERNDATA':
+				while(p < X.Sz()) {
+					t = X.SC(p,0x400,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'PatternCount': svgptn = +xx[1];
+						for(i = 0; i < svgptn && p < X.Sz(); i++) p += 4+16*X.U32(p);
+						break;
+					}
+				}
+				break;
+			case 'SVGWARPDATA':
+				while(p < X.Sz()) {
+					t = X.SC(p,0x400,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'PatternCount': svgwarp = +xx[1];
+						for(i = 0; i < svgwarp && p < X.Sz(); i++) p += 4+2*X.U32(p);
+						break;
+					}
+				}
+				break;
+			case 'P1INSTR':
+				while(p < X.Sz()) {
+					t = X.SC(p,0x400,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'Length': phains = +xx[1]; p += phains; break;
+					}
+				}
+				break;
+			case 'SVGORNAMENTS':
+				while(p < X.Sz()) {
+					t = X.SC(p,0x400,'CP1251'); p += t.length + 1; if(t === ':END') break;
+					xx = t.split('='); if(xx.length > 2) xx = [xx[0], xx.slice(1,xx.length).join('=')];
+					switch(xx[0]) {
+					case 'OrnamentCount': orn = +xx[1];
+						for(i = 0; i < orn && p < X.Sz(); i++) p += 4+X.U32(p);
+						break;
+					}
+				}
+				break;
+			default: bad = bad.addIfNone('!badchunk')
+			}
+//_log('   ...ends @'+Hex(p));
+		}
+		if(!layouttag) bad = bad.addIfNone('!corrupt');
+		sVersion = 'engine:'+engine; if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
 		if(X.isVerbose()) {
-			title = X.SA(0x18,100);
-			sOptionT(title);
-			auth = X.SA(0x18+title.length+8,100);
-			sOptionT(auth,"by: ")
+			sOptionT(title); sOptionT(auth,"by: ");
+			sOption('ord:'+ord+(lp?' lp:'+lp:'')+' ptn:'+ptn+(svgptn?'+svg':'')
+				+(svgwarp?' warp':'')+(orn?' orn':'')+(phains?' phasers':'')+' sz:'+outSz(p))
 		}
 	}
 	else if(X.c("000003F3") && X.U8(0x14)
@@ -4816,7 +4909,7 @@ function isProtrackerMOD() {
 	else if(/FA0[4-8]/.test(s)) { chn = b[3]-0x30; tracker = "Digital Tracker"; hdr = 0x440 }
 	else if(/(FLT|EXO)[48]/.test(s)) { chn = b[3]-0x30; isStarTrekker = setMODVBlankTiming = true;
 		tracker = "Startrekker" }
-	else if(/CHN[1-9]/.test(s)) { chn = b[0]-0x30; isGenericMCh = true; tracker = "generic MOD-compatible" }
+	else if(/[1-9]CHN/.test(s)) { chn = b[0]-0x30; isGenericMCh = true; tracker = "generic MOD-compatible" }
 	else if(/[1-9][0-9]C[HN]/.test(s)) {
 		chn = b[0]*10+b[1]-0x210; isGenericMCh = true; tracker = "generic MOD-compatible" }
 	else if(/TDZ[1-9]/.test(s)) { chn = b[3]-0x30; tracker = "TakeTracker" }
