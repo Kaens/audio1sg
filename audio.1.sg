@@ -938,23 +938,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption("tbase:"+tbase+" tck:"+tick1+":"+tick2+" freq:"+Hz); //+" ins:"+ins+" arp.tick:");
 		}
 	}
-	else if(X.c("' MUGICIAN/SOFTEYES 1990 '")) {
-		bDetected = 1; //TODO change to prowizard's method for the tampered-with tracks
-		sName = "Digital Mugician module (.DMU)";
-		sVersion = "v1";
-		if(X.isVerbose())
-			for (var i = 0x50; i<0xC0; i+=0x10)
-				sOptionT(X.SA(i,12))
-	}
-	else if(X.c("' MUGICIAN2/SOFTEYES 1990'")) {
-		sName = "Digital Mugician 2 module (.MUG)"; bDetected = 1;
-		sVersion = "v2";
-		var c = 0;
-		for (var i = 0x50; i<0xC0; i+=0x10) {
-			t = X.SA(i,12).trim();
-			if(t!="") {
-				c++; sOption(t);
+	else if(X.c("' M'........'IAN'") && X.c("0000....0000....0000....0000",0x1C) && (smp=X.U32(0x44,_BE)) <= 255
+		&& ( !((smpsz=X.U32(0x48,_BE)) && !smp) || (smp && smpsz) ) && isWithin(ins=X.U32(0x3C,_BE),1,255)) {
+		sName = "Reinier 'Rhino' van Vliet's Digital Mugician module (.DMU,.MUG)";
+		if((sv=X.SA(9,1)) == '/') sVersion = 'v1'; else if(sv == '2') sVersion = 'v2'; bDetected = 1;
+		if(X.isVerbose()) {
+			x = ord = 0; ptn = X.U16(0x1A,_BE); wf = X.U32(0x40,_BE);
+			for (i=0x4C, p = 0x1C, a2 = 0xCC; i < 0xCC; i += 0x10, p += 4) {
+				if(!X.U32(i,_BE)) break; if(X.U32(p,_BE) != 1 || X.U32(a2,_BE) || X.U32(a2+4,_BE)) x++;
+				a2 += X.U32(p,_BE) << 3;
+				t = X.SA(i+4,12); while(t[t.length-1] < ' ') t = t.slice(0,t.length-1); sOptionT(t)
 			}
+			for(i=0x1C; i < 0x3C; i += 4) ord += X.U32(i,_BE);
+			sz = smp*0x20+ins*0x10+smpsz+0x1CC+ptn*0x100+wf*0x80+ord*8;
+			if(x > 1) sOption(x,'x');
+			sOption('ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp/syn:'+smp+'+'+wf+' sz:'+outSz(sz))
 		}
 	}
 	else if(X.c("'DBRAWOPL'")) {
