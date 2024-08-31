@@ -4171,12 +4171,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "The 0ok Amazing Synth Tracker instrument file"; bDetected = 1;
 		if(X.isVerbose()) sOption(outSz(8+25),"sz:")
 	}
-	else if(X.c("'AN COOL'")) {
-		//ref ftp://ftp.scene.org/pub/resources/gotpapers/manuals/tcb_tracker_1.0_manual_1990.pdf
-		sName = "-TCB TRACKER- module (.TCB)"; bDetected = 1;
-		if(X.isVerbose())
-			sOption("ptn:"+X.U32(8,_BE)+" tempo:"+X.U8(0x0C));
-	}
 	else if(X.c("'TFMD'")) {
 		sName = "TFM Music Maker tune (.TFD)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -10313,6 +10307,24 @@ if(!bDetected && isJT()) {
 	}
 }
 
+
+function isTCBTracker() {
+	//ref ftp://ftp.scene.org/pub/resources/gotpapers/manuals/tcb_tracker_1.0_manual_1990.pdf
+	if(X.Sz() <= 0x132 || !X.c("'AN COOL'") || (ptn = X.U32(8,_BE)) > 127 || (tmp0 = X.U8(0xC)) > 15
+		|| X.U8(0xD) || (ord = X.I8(0x8E)) <= 0) return false;
+	if(X.SA(7,1) == '!') fmt = 0; else if(X.SA(7,1) == '.') fmt = 1; else return false;
+	if(!fmt) ptnp = 0x110; else ptnp = 0x132; smpp = ptnp+ptn*0x200; if(smpp+0xD4 > X.Sz()) return false;
+	if(!X.c("FFFFFFFF00000000",smpp+0xCC) || X.U32(smpp+0x44,_BE) != 0xD4) return false;
+	smp = 0; p = smpp+0x48;
+	for(i=0; i < 16 && p < X.Sz(); i++) if(X.U32(p,_BE) != 1) smp++;
+	sz = smpp+X.U32(smpp,_BE);
+	return true
+}
+if(!bDetected && isTCBTracker()) {
+		sName = "Anders 'AN Cool' Nilsson's TCB Tracker module (.TCB)"; sVersion = 'f.'+fmt; bDetected = 1;
+		if(X.isVerbose())
+			sOption('tempo:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz));
+	}
 
 // new stable detections :go here: ↑
 
