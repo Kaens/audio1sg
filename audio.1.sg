@@ -2577,6 +2577,25 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(p))
 		}
 	}
+	else if(X.c("'OBISYNTHPACK'")) { //this must be the sample set
+		for(p=0xC,i=smp=0; p < X.Sz() && i < 0x40; i++) {
+			t = X.U32(p+4,_BE)-X.U32(p,_BE); p += 4; if(t) smp++;
+		} p -= 4; sz = X.U32(p,_BE);
+		if(sz <= X.Sz()) {
+			sName = "Synth Pack's sample set (SMP.SET)"; bDetected = 1;
+			if(X.isVerbose()) sOption('smp:'+smp+' sz:'+outSz(sz))
+		}
+	}
+	else if(X.c("00800404 1214191C 1FCE26D6 328E35EA 3CF23CF2") && X.c("0C000384000000000000",0x80)) {
+		// I'm specifically detecting the one for Dyter-07 here
+		for(p=0,i=smp=0; p < X.Sz() && i < 0x40; i++) {
+			t = X.U16(p+2,_BE)-X.U16(p,_BE); p += 2; if(t) smp++;
+		} p -= 2; sz = X.U16(p,_BE);
+		if(sz <= X.Sz()) {
+			sName = "Synth Pack's sample set (SMP.SET)"; sVersion = "headerless"; bDetected = 1;
+			if(X.isVerbose()) sOption('smp:'+smp+' sz:'+outSz(sz))
+		}		
+	}
 	else if(X.c("'PACG'........'PAIN'") && (t=X.fSig(0xC,0x100,"'SOIN'")+8) > 0x10 && X.U16(t+2)
 	  && X.U8(t+4) && X.c("4005",t+5) && X.U32(4)+8 <= X.Sz()) {
 	  	//ref https://web.archive.org/web/20151027142155/http://hackipedia.org/File%20formats/Music/Sample%20based/text/SBStudio%20II%20PAC%20format.cp437.txt.utf-8.txt
