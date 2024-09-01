@@ -1046,14 +1046,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(X.SA(25,20),"by: ");
 		}
 	}
-	else if(X.c("02647373")) {
-		sName = "Digital Speech Standard audio (.DSS)"; bDetected = 1;
-		sVersion = "v2";
-	}
-	else if(X.c("03647373")) {
-		sName = "Digital Speech Standard audio (.DSS)"; bDetected = 1;
-		sVersion = "v3";
-	}
 	else if(X.c("'DSFmt1'0D0A")) {
 		sName = "DreamStation module (.DSS)"; bDetected = 1;
 		sVersion = "v1.0";
