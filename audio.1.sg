@@ -584,10 +584,19 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOptionT(misc);
 		}
 	}
-	else if(X.c("'CBA'F9")) {
-		sName = "CBA module (.CBA)"; bDetected = 1;
-		if(X.isVerbose())
-			sOptionT(X.SA(4,0x20))
+	else if(X.c("'CBA'F9") && X.U8(0x24) == 0x1A && 0x14C+X.U16(0x25)+X.U8(0x29)*0x30 <= X.Sz()
+	  && isWithin(X.U8(0x27),1,32) && X.U8(0x2B) && X.U8(0x2C) >= 32) {
+		sName = "Chuck Biscuits / Black Artist module (.CBA)"; bDetected = 1;
+		if(X.isVerbose()) {
+			msglen = X.U16(0x25); ch = X.U8(0x27); ptn = X.U8(0x28)+1; ord = X.U8(0x29);
+			smp = X.U8(0x2A); spd0 = X.U8(0x2B); tmp0 = X.U8(0x2C);
+			for(i=smpsz=0; i < smp; i++) smpsz += X.U32(0x14C+i*0x30+0x24);
+			sz = 0x14C + smp*0x30 + ptn*64*5*ch + smpsz;
+			msg = X.SC(sz,msglen,"CP437").trim(); sz += msglen;
+			sOptionT(X.SA(4,0x20)); //some sample names have user messages but few, no good way to tell
+			sOption(addEllipsis(msg,0xC0,0xA0),'msg:"','"');
+			sOption('spd:'+spd0+' tempo:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+		}
 	}
 	else if(X.c("'<CUD-FM-File>'1ADEE0")) {
 		//ref https://github.com/adplug/adplug/blob/master/src/cff.cpp
