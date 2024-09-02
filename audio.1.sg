@@ -4703,11 +4703,13 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sVersion = "v"+(V>>8)+"."+(V&0xFF)+bad+(anyADPCM?"/ADPCMpacked":"");
 	}
 
-	else if(X.c("'FORM'........'XDIRINFO'")) {
+	else if(X.c("'FORM' 0000000E 'XDIRINFO'  00000002 .... 'CAT ' ........ 'XMIDFORM' ........ 'XMID'")) {
 		bDetected = 1;
 		sName = "Extended MIDI chiptune (.XMI)";
-		if(X.isVerbose())
-			sOption(X.U16(0x14,_LE),"×")
+		if(X.isVerbose()) {
+			if((x=X.U8(0x14)) > 1) sOption(x,'×')
+			sOption(outSz(0x1E+X.U32(0x1A,_BE)),'sz:')
+		}
 	}
 	else if(X.c("'ofTAZ!'")) {
 		sName = "Extra Simple Music module (.XSM)"; bDetected = 1
@@ -6868,7 +6870,7 @@ function isPMD() {
 if(/*!bDetected && */X.isDeepScan() && isPMD() ) {
 	bDetected = 1;
 	sName = "Professional Music Driver module (.M,.M2)";
-	sVersion = "v"+nV+" t"+Hex(extra_type).substr(0,2)+":"+ttype+" tagptrs:"+Hex(extra);
+	sVersion = "v"+nV+" t"+Hex(extra_type).substr(0,2)+":"+ttype/*+" tagptrs:"+Hex(extra)*/;
 	if(X.isVerbose()) {
 		fnames = [];
 		if(extra_type >= 0x48) {
@@ -10435,7 +10437,7 @@ function isADL() {
 	return !z
 	//whilst it'd be nice to have instruments (same len as prog ptr tbl) subsong detection...
 	//... it's too much already
-	//TODO false positive: modland/pmd/- unknown/Akai suishou no hitomi/ano-s01.m
+	//TODO false positives keep occurring though! Gotta invent and do some more sanity checks
 }
 if(!bDetected && X.isDeepScan() && isADL()) {
 	sName = "Westwood ADL module (.ADL)"; bDetected = 1;
