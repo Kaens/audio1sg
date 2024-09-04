@@ -9044,24 +9044,17 @@ if(!bDetected && X.isDeepScan() && isDMM()) {
 
 function isComposer670() {
 	// from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_c67.cpp
-	if(X.Sz() < 1954+1024) return false; //7A2+400 = BA2
-	spd = X.U8(0);
-	if(!spd || spd > 15) return false;
-	ord = 0;
-	for (i=0; i < 256; i++) { // check orders
-		o = X.U8(1698+i);
-		if(o >= 128 && o != 0xFF) return false;
-		if(o > ord && o != 0xFF) ord = o;
-	}
-	ord++;
-	nonz = false;
+	if(X.Sz() < 0xBA2) return false; //7A2+400
+	spd = X.U8(0); if(!isWithin(spd,1,15)) return false;
+	ord = 0; ptn = [];
+	for (i=0; i < 256; i++) if((o=X.U8(0x6A2+i)) != 0xFF) { // check orders
+		if(o >= 128) return false; if(i > ord) ord = i; if(ptn.indexOf(o) < 0) ptn.push(o) }
+	ord++; ptn = ptn.length; nonz = false; smpsz = 0;
 	for (i=0; i < 32; i++) { // checking sample records
-		_z = X.U8(2+i*13+12); if(_z) return false;
-		_t = X.U32(0x1A2+i*16,_LE); if(_t) return false;
-		_l = X.U32(0x1A2+i*16+4,_LE); if(_l > 0xFFFFF) return false;
-		_ls = X.U32(0x1A2+i*16+8,_LE);
-		_le = X.U32(0x1A2+i*16+12,_LE);
-		_z = X.U8(0x3A2+i*13+12); if(_z) return false;
+		if(X.U8(2+i*13+12) || X.U32(0x1A2+i*16) || X.U8(0x3A2+i*13+12)) return false;
+		var _l = X.U32(0x1A2+i*16+4,_LE); if(_l > 0xFFFFF) return false; smpsz += _l;
+		var _ls = X.U32(0x1A2+i*16+8,_LE);
+		var _le = X.U32(0x1A2+i*16+12,_LE);
 		if(X.U8(0x542+i*11) & 0xF0) return false;
 		if(X.U8(0x542+i*11+5) & 0xFC) return false;
 		if(X.U8(0x542+i*11+10) & 0xFC) return false;
@@ -9070,20 +9063,29 @@ function isComposer670() {
 			nonz = true;
 	}
 	if(!nonz) return false;
-	bad = false;
+	bad = false; ptnend = notes = 0;
 	for (i=0; i < 128; i++) { // checking patterns
-		ptnofs = X.U32(0x7A2+i*4,_LE);
-		ptnlen = X.U32(0x9A2+i*4,_LE);
-		if(ptnofs > 0xFFFFFF || (X.Sz() < 0xBA2+ptnofs+ptnlen))
-			return false;
+		ptnofs = 0xBA2+X.U32(0x7A2+i*4,_LE); ptnlen = X.U32(0x9A2+i*4,_LE);
+		if(ptnofs > 0xFFFFFF || (X.Sz() < ptnofs+ptnlen)) return false;
+		if(ptnofs+ptnlen > ptnend) ptnend = ptnofs+ptnlen;
+		if(i < Math.max(ptn,8)) //arbitrary limit because we even have to sanity-check empty files
+			for(p = ptnofs, r = 0; r < 64 && p < ptnend;) {
+				var cmd = X.U8(p++);
+				if(cmd <= 0xC) { p += 2; notes++ }
+				else if(cmd >= 0x20 && cmd <= 0x2C) p++;
+				else if(cmd == 0x40) r += X.U8(p++);
+				else if(cmd == 0x60) break;
+				else return false
+			}
 	}
 	if(!bad) bad = (ptnlen < 3 || ptnlen > 0x1000);
+	sz = ptnend+smpsz;
 	return true
 }
 if(!bDetected && X.isDeepScan() && isComposer670()) {
 	sName = "CDFM/Composer 670 module (.C67)"; bDetected = 1;
 	if(bad) sVersion = "malformed!badptn";
-	if(X.isVerbose()) sOption("spd:"+spd+" ord:"+ord)
+	if(X.isVerbose()) sOption('spd:'+spd+' ord:'+ord+' ptn:'+ptn+' notes:'+notes+' sz:'+outSz(sz))
 }
 
 
