@@ -9042,50 +9042,90 @@ if(!bDetected && X.isDeepScan() && isDMM()) {
 }
 
 
-function isComposer670() {
+function isComposerC67() {
 	// from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_c67.cpp
 	if(X.Sz() < 0xBA2) return false; //7A2+400
-	spd = X.U8(0); if(!isWithin(spd,1,15)) return false;
-	ord = 0; ptn = [];
+	spd = X.U8(0); if(!isWithin(spd,1,15)) return false; ord = 0; ptn = [];
 	for (i=0; i < 256; i++) if((o=X.U8(0x6A2+i)) != 0xFF) { // check orders
 		if(o >= 128) return false; if(i > ord) ord = i; if(ptn.indexOf(o) < 0) ptn.push(o) }
-	ord++; ptn = ptn.length; nonz = false; smpsz = 0;
+	ord++; ptn = ptn.length; nonz = false; lp = X.U8(1); if(lp > ord) return false; smp = opl = smpsz = 0;
 	for (i=0; i < 32; i++) { // checking sample records
 		if(X.U8(2+i*13+12) || X.U32(0x1A2+i*16) || X.U8(0x3A2+i*13+12)) return false;
-		var _l = X.U32(0x1A2+i*16+4,_LE); if(_l > 0xFFFFF) return false; smpsz += _l;
-		var _ls = X.U32(0x1A2+i*16+8,_LE);
-		var _le = X.U32(0x1A2+i*16+12,_LE);
+		var _l = X.U32(0x1A2+i*16+4), _ls = X.U32(0x1A2+i*16+8), _le = X.U32(0x1A2+i*16+12);
+		if(_l > 0xFFFFF) return false; if(_l && _le < 0xFFFFF && (_le > _l || _ls > _le)) return false;
+		_opl = !X.c("00000000 00000000 000000",0x542+i*11);
 		if(X.U8(0x542+i*11) & 0xF0) return false;
 		if(X.U8(0x542+i*11+5) & 0xFC) return false;
 		if(X.U8(0x542+i*11+10) & 0xFC) return false;
-		if(_l && _le < 0xFFFFF) if(_le > _l || _ls > _le) return false;
-		if(!nonz && (_l || !X.c("00000000 00000000 000000",0x542+i*11)))
-			nonz = true;
+		if(_l) { smp++; smpsz += _l }  if(_opl) opl++;
 	}
-	if(!nonz) return false;
 	bad = false; ptnend = notes = 0;
 	for (i=0; i < 128; i++) { // checking patterns
-		ptnofs = 0xBA2+X.U32(0x7A2+i*4,_LE); ptnlen = X.U32(0x9A2+i*4,_LE);
-		if(ptnofs > 0xFFFFFF || (X.Sz() < ptnofs+ptnlen)) return false;
-		if(ptnofs+ptnlen > ptnend) ptnend = ptnofs+ptnlen;
-		if(i < Math.max(ptn,8)) //arbitrary limit because we even have to sanity-check empty files
-			for(p = ptnofs, r = 0; r < 64 && p < ptnend;) {
-				var cmd = X.U8(p++);
-				if(cmd <= 0xC) { p += 2; notes++ }
-				else if(cmd >= 0x20 && cmd <= 0x2C) p++;
-				else if(cmd == 0x40) r += X.U8(p++);
-				else if(cmd == 0x60) break;
-				else return false
-			}
+		p = 0xBA2+X.U32(0x7A2+i*4,_LE); ptnlen = X.U32(0x9A2+i*4,_LE);
+		if(!bad) bad = (ptnlen < 3 || ptnlen > 0x1000);
+		if(p > 0xFFFFFF || (X.Sz() < p+ptnlen)) return false;
+		if(p+ptnlen > ptnend) ptnend = p+ptnlen;
+		for(r = 0; p < ptnend;) {
+			var cmd = X.U8(p++);
+			if(cmd <= 0xC) { p += 2; notes++ }
+			else if(cmd >= 0x20 && cmd <= 0x2C) p++;
+			else if(cmd == 0x40) r += X.U8(p++);
+			else if(cmd == 0x60) break;
+			else return false
+		}
+		if(r > 64) return false;
 	}
-	if(!bad) bad = (ptnlen < 3 || ptnlen > 0x1000);
 	sz = ptnend+smpsz;
-	return true
+	return smp+opl > 0
 }
-if(!bDetected && X.isDeepScan() && isComposer670()) {
+if(!bDetected && isComposerC67()) {
 	sName = "CDFM/Composer 670 module (.C67)"; bDetected = 1;
 	if(bad) sVersion = "malformed!badptn";
-	if(X.isVerbose()) sOption('spd:'+spd+' ord:'+ord+' ptn:'+ptn+' notes:'+notes+' sz:'+outSz(sz))
+	if(X.isVerbose()) sOption('spd:'+spd+' ord:'+ord+(lp?' lp:'+lp:'')+' ptn:'+ptn+' smp:'+smp+' fm:'+opl+' notes:'+notes+' sz:'+outSz(sz))
+}
+
+
+function isComposer670() {
+	spd = X.U8(0); if(!isWithin(spd,1,15)) return false;
+	ord = X.U8(1); if(!ord || ord >= 128) return false;
+	ptn = X.U8(2); if(!ptn) return false; //while 0 is possible, there's no way we'll reliably detect the file then
+	smp = X.U8(3); if(smp > 0x20) return false;
+	opl = X.U8(4); lp = X.U8(5); if(lp > ord) return false;
+	smpp = X.U32(6); if(smpp > X.Sz()) return false;
+	p = 0xA; for(i=0; i < ord; i++) if(X.U8(p++) >= ptn) return false;
+	ptnpt = p; p += ptn*4;
+	for(i=smpsz=0; i < smp; i++,p+=16) {
+		if(X.U32(p)) return false;
+		var _l = X.U32(p+4), _ls = X.U32(p+8), _le = X.U32(p+12);
+		if(!_l || _l > 0xFFFFF) return false; smpsz += _l;
+		if(_le < 0xFFFFF && (_le > _l || _ls > _le)) return false
+	}
+	for(i=0; i < opl; i++,p+=11) {
+		if(X.U8(p) & 0xF0) return false;
+		if(X.U8(p+5) & 0xFC) return false;
+		if(X.U8(p+10) & 0xFC) return false;
+	}
+	for(i=notes=0,ptnp=p,bad=false; i < ptn; i++) {
+		p = ptnp+X.U32(ptnpt+i*4); if(p > smpp-3) return false;
+		if(i >= ptn-1) ptnend = smpp; else ptnend = ptnp+X.U32(ptnpt+i*4+4);
+		if(!isWithin(ptnend - p, 3,0x1000)) return false;
+		for(r = 0; p < ptnend;) {
+			var cmd = X.U8(p++);
+			if(cmd <= 0xC) { p += 2; notes++ }
+			else if(cmd >= 0x20 && cmd <= 0x2C) p++;
+			else if(cmd == 0x40) r += X.U8(p++);
+			else if(cmd == 0x60) break;
+			else return false
+		}
+		if(r > 64) return false
+	}
+	sz = smpsz+smpp;
+	return opl+smp > 0
+}
+if(!bDetected && isComposer670()) {
+	sName = "CDFM/Composer 670 module (.670)"; sVersion = 'compact'; bDetected = 1;
+	if(bad) sVersion = "malformed!badptn";
+	if(X.isVerbose()) sOption('spd:'+spd+' ord:'+ord+(lp?' lp:'+lp:'')+' ptn:'+ptn+' smp:'+smp+' fm:'+opl+' notes:'+notes+' sz:'+outSz(sz))
 }
 
 
