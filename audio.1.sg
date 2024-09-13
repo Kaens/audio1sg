@@ -28,21 +28,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				sOption(X.SA(l+7,r-l-7),"spd:") }
 		}
 	}
-	else if( (X.c("'if'") || X.c("'JN'")) && X.Sz()>0x1F1+0x600
-	  && X.U8(0x6E)<=0x40 && X.U8(0x6F)<=0x80 && X.U8(0xF0)==0xFF) {
-		sName = "Composer 669 / UNIS 669 module (.669)"; bDetected = 1;
-		smp = X.U8(0x6E);
-		c = 0; for(i = 0; i < smp; i++) c += X.U32(0x01F1+i*0x19+13,_LE);
-		c += 0x1F1+(smp*0x19)+smp*0x600;
-		if(X.isVerbose()) {
-			if(X.SA(0,2) == "JN") sVersion = "extended";
-			//if(X.Sz() != c) sVersion += "malformed";
-			sOptionT(X.SC(0x02,36,'CP850')); //the seemingly most-used encoding for'em
-			sOptionT(X.SC(0x26,36,'CP850'));
-			sOptionT(X.SC(0x4A,36,'CP850'));
-			sOption("ptn:"+X.U8(0x6F)+" smp:"+smp+" loop:"+X.U8(0x70))
-		}
-	}
 	else if(X.c("'_A2module_'")) {
 		bDetected = 1; bad = false;
 		sName = "AdLib Tracker II module (.A2M)";
@@ -10368,6 +10353,37 @@ if(!bDetected && isTCBTracker()) {
 		if(X.isVerbose())
 			sOption('tempo:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz));
 	}
+
+
+function is669() {
+	//from https://modland.com/pub/documents/format_documentation/Composer%20669,%20Unis%20669%20(.669).txt
+	if(!X.c("'if'") && !X.c("'JN'") || X.Sz() < 0x1F1+0x600) return false; //not easy to make the signature more deficient
+	if((smp=X.U8(0x6E)) > 0x40 || (ptn=X.U8(0x6F)) > 0x80 || (lp=X.U8(0x70)) >= 0x80) return false;
+	for(ic=0,i=2; i < 0x6D; i++) if(isWithin(X.U8(i),1,31) && ++ic > 40) return false;
+	for(i=ord=0; i < 0x80; i++) { //from 71h: order list; from F1h: ptn tempos; from 171h: ptn breaks
+		if((o=X.U8(0x71+i)) >= ptn && o < 0xFE) return false; if(o < 0x80 && !(t=X.U8(0xF1+i))) return false;
+		if(t > 15 || X.U8(0x171+i) >= 0x40) return false; if(o < 0xFE) ord++
+	}
+	sz = 0x1F1+smp*0x19+ptn*0x600;
+	if(X.Sz() < sz) return false;
+	for(i = rsmp = 0; i < smp; i++) { //smp filename may have custom messages (the lunar forest), but too rarely
+		ssz = X.U32(0x1FE+i*0x19); slps = X.U32(0x202+i*0x19); slpe = X.U32(0x206+i*0x19);
+		if(ssz) rsmp++; else continue;
+		if(ssz > 0x4000000) return false; //a sanity check from openmpt
+		if([0xFFFFF,0xF0FFFF,0xFFFFFFFF].indexOf(slps) < 0 && slps > ssz) return false;
+		if([0xFFFFF,0xF0FFFF,0xFFFFFFFF].indexOf(slpe) < 0 && (slpe > ssz || slpe < slps)) return false;
+		sz += ssz;
+	}
+	return true
+}
+if(!bDetected && is669()) {
+	sName = ( X.c("'if'")? "Composer": "UNIS" )+" 669 module (.669)"; bDetected = 1;
+	if(X.isVerbose()) {
+		t = X.SC(0x02,36,'CP850').trim(); //the seemingly most-used encoding for'em
+		t = t.appendS(X.SC(0x26,36,'CP850').trim(),' '); t = t.appendS(X.SC(0x4A,36,'CP850').trim(),' ');
+		sOption(t); sOption('ord:'+ord+(lp?' loop:'+lp:'')+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+	}
+}
 
 // new stable detections :go here: ↑
 
