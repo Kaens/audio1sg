@@ -9850,29 +9850,30 @@ function isPaulShields() {
 	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PaulShields/src/Paul%20Shields_v3.asm
 	if(!X.c("00000000 0000000 0000")) return false;
 	if((t = X.U16(0xA4)) === X.U16(0xA8) && t === X.U16(0xAC) && t === X.U16(0xB0)
-	&& (t = X.I16(0xA0,_BE)) > 0 && !(t%2) && X.c("00B400B6",t)) { fmt = 1; p = 0xA6 }
-	else if((t = X.U16(0x204)) === X.U16(0x208) && t === X.U16(0x20C) || t === X.U16(0x210)
-	&& (t = X.I16(0x200,_BE)) > 0 && !(t%2) && X.c("02140216",t)) { fmt = -1; p = 0x206 }
-	else if((t = X.U16(0x202)) === X.U16(0x206) && t === X.U16(0x20A) || t === X.U16(0x20E)
-	&& (t = X.I16(0x204,_BE)) > 0 && !(t%2) && (X.c("FFEC",t-2) || X.c("FFE8",t-2))) { fmt = 0; p = 0x204 }
+	  && (t = X.I16(0xA0,_BE)) > 0 && !(t%2) && X.c("00B400B6",t)) { fmt = 1; p = 0xA6 }
+	else if((t = X.U16(0x204)) === X.U16(0x208) && t === X.U16(0x20C) && t === X.U16(0x210)
+	  && (t = X.I16(0x200,_BE)) > 0 && !(t%2) && X.c("02140216",t)) { fmt = -1; p = 0x206 }
+	else if((t = X.U16(0x202)) === X.U16(0x206) && t === X.U16(0x20A) && t === X.U16(0x20E)
+	  && (t = X.I16(0x204,_BE)) > 0 && !(t%2) && (X.c("FFEC",t-2) || X.c("FFE8",t-2))) { fmt = 0; p = 0x204 }
 	else return false;
 	mp = 0; a3 = 0;
 	for(i=0; i < 4; i++) { t = X.U16(p,_BE); if(mp < t) mp = t; p += 4 }
 	a3 += mp; mp = X.U16(a3-2,_BE); while(a3 < X.Sz()) { t = X.U16(a3,_BE); a3 += 2; if(t == mp) break }
-	smpp = a3;
-	if(fmt == 0) a3 += 0x204; else a3 += 0x20A;
+	smpp = a3; if(!isWithin(smpp,0x400,0x4000)) return false;
+	if(fmt == 1) a3 = X.I16(0xAA,_BE); else if(fmt == 0) a3 = X.I16(0x204,_BE); else a3 = X.I16(0x20A,_BE);
 	ord = 0; while(a3 < X.Sz()) { t = X.U16(a3,_BE); a3 += 2; if(t == mp) break; ord++ }
-	smpsz = smp = p = 0;
-	for(i=0; i < 0x10; i++) {
+	if(!isWithin(ord,1,0x80)) return false;
+	for(i=p=smp=smpsz=0; i < 0x10; i++) {
 		p += 2; if(fmt != 1) p += 20; if(t = X.U16(p,_BE)) { smpsz += t; smp++ } p += 8; if(fmt != 1) p += 2;
 	}
-	smpsz <<= 1; sz = smpp+smpsz;
+	smpsz <<= 1; if(!smp || !isWithin(smpsz,0x1000,0x20000)) return false;
+	sz = smpp+smpsz;
 	return true;
 }
 if(!bDetected && isPaulShields()) {
 	sName = "Paul Shields' module (.PS)"; sVersion = 'f.'+fmt; bDetected = 1;	
 	if(X.isVerbose()) {
-		sOption('ord:'+ord+' smp:'+smp+' sz:'+outSz(sz))
+		sOption('ord:'+ord+' smp:'+smp+' songsz:'+Hex(smpp)+' sz:'+outSz(sz))
 	}
 }
 
