@@ -70,15 +70,26 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'AM01'000000") && X.c("'ASD1'00", 0x38)) {
 		sName = "Ace Tracker module (.AM)"; bDetected = 1;
 	}
-	else if(X.c("'ZXAYAMAD'")) {
-		//the format seems similar to .EMUL
-		sName = "AY Amadeus module (.AMAD)"; bDetected = 1;
-		if(X.isVerbose()) {
-			ptitle = 0x14 + X.U16(0x14,_LE);
-			sOptionT(X.SA(ptitle))
+	else if(X.c("'ZXAYAMAD'") && X.U8(9) <= 3) {
+		//the underlying format is the same as FXM
+		//ref https://vgmrips.net/wiki/AY_File_Format
+		bDetected = true;
+		authp = 0x0C+X.I16(0x0C,_BE); if(authp < X.Sz()) auth = authp?X.SA(authp,0x100):''; else bDetected = false;
+		miscp = 0x0E+X.I16(0x0E,_BE); if(miscp < X.Sz()) misc = miscp?X.SA(miscp,0x100):''; else bDetected = false;
+		x = X.U8(0x10)+1; p = 0x12+X.I16(0x12,_BE); if(p > X.Sz()) bDetected = false;
+		titles = []; for(i=0; i < x; i++,p+=4) if(t = p+X.I16(p,_BE))
+			if(t < X.Sz()) titles.push(X.SA(t,0x100).trim()); else { bDetected = false; break }
+		if(bDetected) {
+			sName = "Fuxoft's AY Amadeus module (.AMAD)";
+			sVersion = [X.U8(8)?'Rel '+X.U8(8):'', X.U8(9)?'Plr '+X.U8(9):''].join(' ').trim();
+		 	if(X.isVerbose()) {
+				sOptionT(titles.join(',')); if(x > 1) sOption(x,'×');
+				if(authp) sOptionT(auth,'by: '); if(miscp) sOptionT(misc);
+			}
 		}
 	}
-	else if(X.c("'AMC V'......' REPLAY!'")) {
+	if(!bDetected)
+	if(X.c("'AMC V'......' REPLAY!'")) {
 		sName = "A.M. Composer module (.AMC)"; bDetected = 1;
 		sVersion = "v"+X.SA(5,3);
 	}
@@ -1123,23 +1134,27 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Electronic Music System module (.EMS)"; bDetected = 1;
 		sVersion = "v6."+X.SA(10,2)
 	}
-	else if(X.c("'ZXAYEMUL'")) {
+	else if(X.c("'ZXAYEMUL'") && X.U8(9) <= 3) {
 		// ref https://vgmrips.net/wiki/AY_File_Format
-		sName = "AY Emul module (.EMUL)"; bDetected = 1;
-		sVersion = "Rel "+X.U8(8)+" Plr "+X.U8(9);
-		if(X.isVerbose()) {
-			psongst = 0x12 + X.U16(0x12,_BE);
-			title0 = X.SA(psongst + X.U16(psongst,_BE),0x100);
-			auth = X.SA(0x0C + X.U16(0x0C,_BE),0x100);
-			misc = X.SA(0x0E + X.U16(0x0E,_BE),0x100);
-			more = X.U8(0x10);
-			sOptionT(title0);
-			if(more > 0) sOption(more+1,"×");
-			sOptionT(auth);
-			sOptionT(misc);
+		bDetected = true;
+		authp = 0x0C+X.I16(0x0C,_BE);
+		if(authp < X.Sz()) auth = authp?X.SC(authp,0x100,'CP1250'):''; else bDetected = false;
+		miscp = 0x0E+X.I16(0x0E,_BE);
+		if(miscp < X.Sz()) misc = miscp?X.SC(miscp,0x100,'CP1250'):''; else bDetected = false;
+		x = X.U8(0x10)+1; p = 0x12+X.I16(0x12,_BE); if(p > X.Sz()) bDetected = false;
+		titles = []; for(i=0; i < x; i++,p+=4) if(t = p+X.I16(p,_BE))
+			if(t < X.Sz()) titles.push(X.SC(t,0x100,'CP1250').trim()); else { bDetected = false; break }
+		if(bDetected) {
+			sName = "AY Emul chiptune (.EMUL)"; bDetected = 1;
+			sVersion = [X.U8(8)?'Rel '+X.U8(8):'', X.U8(9)?'Plr '+X.U8(9):''].join(' ').trim();
+		 	if(X.isVerbose()) {
+				sOptionT(titles.join(',')); if(x > 1) sOption(x,'×');
+				if(authp) sOptionT(auth,'by: '); if(miscp) sOptionT(misc);
+			}
 		}
 	}
-	else if(X.c("'ENF '....'scor'")) {
+	if(!bDetected)
+	if(X.c("'ENF '....'scor'")) {
 		sName = "Extended Notation Format sheet music (.ENF)"; bDetected = 1;
 		p = 6; staf = brln = 0; hkhd = "dumm";
 		while(p < X.Sz()) {
@@ -1617,7 +1632,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'FWMP'00")) {
 		sName = "Forgotten Worlds BGM module (.FW)"; bDetected = 1;
 	}
-	else if(X.c("'FXSM'")) {
+	else if(X.c("'FXSM'")) { //same as AY Amadeus!
 		sName = "Fuxoft AY Language module (.FXM)"; bDetected = 1;
 	}
 	else if(X.c("'GBRF'")) {
@@ -9866,14 +9881,14 @@ function isPaulShields() {
 	for(i=p=smp=smpsz=0; i < 0x10; i++) {
 		p += 2; if(fmt != 1) p += 20; if(t = X.U16(p,_BE)) { smpsz += t; smp++ } p += 8; if(fmt != 1) p += 2;
 	}
-	smpsz <<= 1; if(!smp || !isWithin(smpsz,0x1000,0x20000)) return false;
+	smpsz <<= 1; if(!smp || !isWithin(smpsz,0x2000,0x20000)) return false;
 	sz = smpp+smpsz;
 	return true;
 }
 if(!bDetected && isPaulShields()) {
 	sName = "Paul Shields' module (.PS)"; sVersion = 'f.'+fmt; bDetected = 1;	
 	if(X.isVerbose()) {
-		sOption('ord:'+ord+' smp:'+smp+' songsz:'+Hex(smpp)+' sz:'+outSz(sz))
+		sOption('ord:'+ord+' smp:'+smp+' smpsz:'+Hex(smpsz)+' sz:'+outSz(sz))
 	}
 }
 
@@ -10618,7 +10633,7 @@ if(X.isHeuristicScan()) { //parallel block
 		//ref https://bulba.untergrund.net/Ay_Emul30alpha11.src.7z / Formats.pas
 		// & https://f.rdw.se/AY-3-8910-datasheet.pdf
 		hdr = X.SA(0,2);
-		if(['AY','YM','ay','ym'].indexOf(hdr) < 0) return false;
+		if(['AY','YM','ay','ym'].indexOf(hdr) < 0 || X.U8(2) > 6) return false;
 		hasyear = ['AY','YM'].indexOf(hdr) < 0; yr = 0;
 		if(hasyear) {
 			yr = X.U16(0xA,_LE);
