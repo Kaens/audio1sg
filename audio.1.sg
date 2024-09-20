@@ -310,14 +310,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption(s);
 		}
 	}
-	else if(X.c("'AudioSculpture'")) {
-		sName = "Audio Sculpture module (.AS)"; bDetected = 1
+	else if(X.c("'AudioSculpture10'00180018")) {
+		sName = "Synchron Assembly's Audio Sculpture module (.AS)"; bDetected = 1
 	}
 	else if(X.c("'##synth'0D0A")) {
 		sName = "Athtune module (.ATHTUNE)"; bDetected = 1
 	}
-	else if(X.c("'FORM'.... ....'AXSFUSER'")) {
-		sName = "AXS module (.AXS)"; bDetected = 1
+	else if(X.c("'FORM'.... ....'AXSFUSER'") && X.c("'SHDR'", t=X.U32(0x10,_BE)+0x14)
+	  && X.c("'SONG'",X.U32(t+4,_BE)+t+8)) {
+	  	//ref https://web.archive.org/web/20141129231503/http://www.resolutionaudio.nl/
+		sName = "Resolution's AXS module (.AXS)"; bDetected = 1;
+		if(X.isVerbose())
+			sOption(outSz(X.U32(4,_BE)+8),'sz:')
 	}
 	else if(X.c("'CBMF'")) {
 		sName = "Bob's Adlib Music module (.BAM)"; bDetected = 1;
@@ -340,10 +344,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				}
 				if(X.U8(p) >= 0x80) p++;
 			}
-			if(!songend) p = -1; sOption('ins:'+ins+' notes:'+notes+' sz:'+outSz(p))
+			if(!songend || !ins || notes < 0x10) bDetected = 0; else sOption('insdef:'+ins+' notes:'+notes+' sz:'+outSz(p))
 		}
 	}
-	else if(X.c("'BBSONG'00'0001'00")) {
+	if(!bDetected)
+	if(X.c("'BBSONG'00'0001'00")) {
 		//ref https://github.com/atsidaev/beepola/blob/master/STSong.pas etc.
 		sName = "Shiru's Beepola module (.BBSONG)"; bDetected = 1;
 		p = 0xC; var layouttag = false;
