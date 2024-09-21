@@ -28,20 +28,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				sOption(X.SA(l+7,r-l-7),"spd:") }
 		}
 	}
-	else if(X.c("'_A2module_'")) {
+	else if(X.c("'_A2module_'") && isWithin(nV = X.U8(0xE),1,14)) {
 		bDetected = 1; bad = false;
 		sName = "AdLib Tracker II module (.A2M)";
-		nV = X.U8(0xE); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV;
+		sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV;
 		ptn = X.U8(0xF); if(!ptn || ptn>64) bad = "!badptn";
 		if(bad) sVersion += "/malformed"+bad;
 		else if(X.isVerbose()) sOption('ptn:'+ptn); //TODO extract more, ver.-dependent
 	}
-	else if(X.c("'_A2tiny_module_'")) {
+	else if(X.c("'_A2tiny_module_'") && isWithin(nV = X.U8(0x13),1,14)) {
 		sName = "AdLib Tracker II module (.A2T)"; bDetected = 1; bad = false;
-		nV = X.U8(0x13); sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV+' tiny';
+		sVersion = "/┤DLiB TR/┤CK3R ][ v"+nV+' tiny';
 		ptn = X.U8(0x14); if(!ptn || ptn>64) bad = "!badptn";
+		tmp = X.U8(0x15); spd = X.U8(0x16); rows = X.U16(0x18); trk = X.U8(0x1A);
 		if(bad) sVersion += "/malformed"+bad;
-		else if(X.isVerbose()) sOption('tempo:'+X.U8(0x15)+' spd:'+X.U8(0x16)+' ptn:'+ptn); //TODO extract more
+		else if(X.isVerbose()) sOption('tempo:'+tmp+' spd:'+tmp+' trk:'+trk+' ptn:'+ptn); //TODO extract more
 	}
 	else if(X.c("'EXITgB'2018201820182F18201024C94AA80004660A558006A80000000200042200D28924C1D0A8000424C0D1DF2018D1D82018D1D82018201812D804800000000166F660B4610000'H|'017E01610000'Z|'027E02610000'R|'037E03610000'JL'DF7FFF'NuH'E7FFFE7E01610000AC7E02610000A67E03610000A04CDF7FFF'Nu`'0A602260000092600000'~A'FA....4BF900DFF000'p0;|'000000AA0440001064F4'NuK'F900DFF0003007C0FC",0x1A) //check D0h bytes
 		) {
@@ -4731,7 +4732,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'YM'3.'!'") || X.c("'YM3b!'")
 		  || X.c("'YMT'3.'LeOnArD!'") || X.c("'MIX1LeOnArD!'")) {
 		//ref https://github.com/cpcsdk/libstsound/blob/master/Ymload.cpp
-		bDetected = 1; bad = 0; frm = 0; smp = 0; voc = 0; loop = 0; ddn = 0;
+		bDetected = 1; bad = ''; frm = smp = voc = loop = ddn = 0;
 		sName = "ST-Sound chiptune stream (.YM)";
 		sV = X.SA(0,4).replace(/!/g,"");
 		switch(sV) {
@@ -4739,27 +4740,25 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		case "YM2": sVersion = "MADMAX specific"; break;
 		case "YM3": sVersion = "YM-Atari"; break;
 		case "YM3b": sVersion = "YM-Atari+loopinfo";
-			loop=X.U32(X.Sz()-4,_LE); break;
+			loop = X.U32(X.Sz()-4,_LE); break;
 		case "YM4": sVersion = "YM-Atari extended"; break;
 		case "YM5": case "YM6": sVersion = "Generic YM2149 extended"; break;
 		case "MIX1": sVersion = "Atari Remix digital"; break;
 		case "YMT1": case "YMT2": sVersion = "YM-Tracker"; break;
 		}
-		if(["YM2","YM3","YM3b"/*,"YM4"*/].indexOf(sVersion) >= 0) {//No YM4 in the wilderness, ignoring
-			frm = (X.getSize-4)/14;
-		}
+		if(["YM2","YM3","YM3b"/*,"YM4"*/].indexOf(sV) >= 0) //No YM4 in the wilderness, ignoring
+			frm = Util.divu64(X.Sz()-4,14);
 		if(["YM5","YM6","YMT1","YMT2","MIX1"].indexOf(sV) >= 0) {
-			if(X.SA(4,8)!="LeOnArD!") bad = 1;
+			if(X.SA(4,8)!="LeOnArD!") bad = bad.addIfNone('!badsig');
 			if((["YM6!","YMT1","YMT2"].indexOf(sV) >=0)
-				&& (X.SA(X.Sz()-4)!="End!")) bad = 2;
+				&& (X.SA(X.Sz()-4)!="End!")) bad = bad.addIfNone('!badfilesz');
 			//if(sV==="YM4") p=0x1C; else
 			if(["YM5","YM6"].indexOf(sV) >= 0) {
 				ddn = X.U16(0x14,_BE);
 				loop = X.U32(0x1C,_BE);
 				p = X.U16(0x20,_BE)+0x22;
-				for(i=0;i<ddn;i++) {
-					ds = X.U16(p,_BE); p += 2+ds;
-					if(p >= X.Sz()) {bad = 3; break}
+				for(i=0; i < ddn; i++) {
+					ds = X.U16(p,_BE); p += 2+ds; if(p >= X.Sz()) {bad = bad.addIfNone('!tooshort'); break}
 				}
 			} else
 			if(sV === "MIX1") {
@@ -4768,28 +4767,23 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				mixblk = X.U32(0x14,_BE);
 				for(i=0;i<mixblk;i++) p+=12; //u32 smpst,smplen; u16 repeat,rplfreq skipped
 			} else
-			if(["YMT1","YMT2"].indexOf(sV)>=0) {
+			if(["YMT1","YMT2"].indexOf(sV) >= 0) {
 				ddn = X.U16(0x18,_BE);
 				voc = X.U16(0x0D,_BE);
 				frm = X.U32(0x10,_BE);
 				p = 0x1E;
 			}
 			//read the three tags from here
-			if(p>=X.Sz()) bad = 4;
+			if(p>=X.Sz()) bad = bad.addIfNone('!nodata');
 			else {
-				t = p;
-				t_ = X.fSig(p,TOEOF,"00")-p;
+				t = p; t_ = X.fSig(p,TOEOF,"00")-p;
 				if(t_ >= 0) {
-					p += t_+1; a = p;
-					a_ = X.fSig(p,TOEOF,"00")-p;
-					p += a_+1; c = p;
-					c_ = X.fSig(p,TOEOF,"00")-p;
+					p += t_+1; a = p; a_ = X.fSig(p,TOEOF,"00")-p;
+					p += a_+1; c = p; c_ = X.fSig(p,TOEOF,"00")-p;
 					p += c_+1;
-					if(["YM5","YM6"].indexOf(sV) >= 0) {
-						frm = X.U32(0x0C,_BE);
-						if(frm<<4 != X.Sz()-p-4) {
-							bad = 5; sOption("frm/frames: "+(frm<<4)+"/"+(X.Sz()-p-4)) }
-					}
+					if(["YM5","YM6"].indexOf(sV) >= 0)	
+						if(!X.c("'End!'",p+((frm = X.U32(0xC,_BE)) << 4))) {
+							bad = bad.addIfNone('!badframes'); sOption("frm/frames: "+(frm<<4)+"/"+(X.Sz()-p-4)) }
 				}
 			}
 			if(X.isVerbose()) {
@@ -4800,28 +4794,20 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 		if(X.isVerbose()) {
 			if(voc) sOption(voc,"voc:");
-			if(smp) sOption(smp,"smp:");
+			if(smp) sOption(outSz(p+smp),'sz:');
 			if(ddn) sOption(ddn, "digidrums:")
-			if(frm) sOption(frm,"len:");
+			if(frm) sOption('len:'+frm+' sz:'+outSz(p+(frm<<4)+4));
 		}
-		if(bad) sVersion+="/malformed"+bad;
+		if(bad != '') sVersion= sVersion.appendS('malformed'+bad,'/')
 	}
 	else if(X.c("'YMST'")) {
-		bDetected = 1;
-		sName = "MYST ST-YM module (.YMST,.YM)";
+		sName = "MYST ST-YM module (.YMST,.YM)"; bDetected = 1;
 		if(X.isVerbose()) {
-			p=4;
-			for(i=0;i<48;i++) {
-				p+=8; if(X.U16(p-8,_BE)==0) break;
-			}
-			t=p;
-			t_=X.fSig(p,TOEOF,"00")-p;
-			if(t_>=0) {
-				p+=t_+1; a=p;
-				a_=X.fSig(p,TOEOF,"00")-p;
-				p+=a_+1; c=p;
-				c_=X.fSig(p,TOEOF,"00")-p;
-				//p+=c_+1 //unused
+			for(i=0,p=4; i < 48; i++) { p += 8; if(!X.U16(p-8,_BE)) break }
+			t = p; t_ = X.fSig(p,TOEOF,"00")-p;
+			if(t_ >= 0) {
+				p += t_+1; a = p; a_ = X.fSig(p,TOEOF,"00")-p;
+				p += a_+1; c = p; c_ = X.fSig(p,TOEOF,"00")-p;
 				if(X.isVerbose()) {
 					sOptionT(X.SA(t,t_));
 					sOptionT(X.SA(a,a_),"by: ");
