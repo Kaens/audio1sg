@@ -4328,9 +4328,33 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			  +" spd0:"+spd0+" tmp0:"+tmp0)
 		}
 	}
-	else if(X.c("'VGEfmtV'3.")) {
+	else if(X.c("'VGEfmtV'") && isWithin(nV=X.U8(7),0x31,0x33)) {
 		sName = "Shiru's VGM Music Maker module (.VGE)"; bDetected = 1;
-		sV = X.SA(7,1); sVersion = "v"+sV;
+		sVersion = 'v'+(nV-0x30);
+		if(X.isVerbose()) {
+			// function getRLE(len) { //just for this check. Uses the external offset "p".
+			// 	var buf = [], b = 0x3F; //default: '?'
+			// 	for(i=0; i < len && p < X.Sz(); i++) {
+			// 		var c = X.U8(p++);
+			// 		if(c < 0x80) { buf.push(c); b = c } else {
+			// 			if(c == 0x80) { c = (X.U8(p++) & 0x7F)-1; for(j=0; j < c; j++) buf.push(b); i += c }
+			// 			else i = len //skip what seems to be other control characters with unclear functions
+			// 		}
+			// 	}	return buf
+			// }
+			switch(nV) {
+			case 0x31: case 0x32:
+				spd = X.U8(0x10)+'/'+X.U8(0x11);
+				break;
+			case 0x33:
+				//frfm = X.U32(0x10); frpsg = X.U32(0x14); //PAL: 7600489 & 3546894; NTSC: 7670453 & 3579545
+				spd = X.U8(0x1A)+'/'+X.U8(0x1B);
+				// p = 0x2A; x = getRLE(0x80); TODO write a proper RLE extractor
+				// _log2r('VGE',p,'read bytes:'+Hex(x.length))
+				// ptn = 1; for(i=0; i < x.length; i++) { if(x[i]+1 > ptn) ptn = x[i]+1 }
+			}
+			sOption('spd:'+spd)
+		}
 	}
 	else if( X.c("'Vgm '") && X.Sz() >= (eof = X.U32(4)+4)
 	  && (nV = X.U32(8)) && nV < 0x300 //give'em time tho
