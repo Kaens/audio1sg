@@ -68,23 +68,29 @@ File.readShort = function(nOffset) {
 
 // -------- END OF PRE-v3.06 CODE
 
-//the encoding tables start with 0x7F, not 0x80!
+// The encoding tables start with 7F, not 80! 7F is undefined in many charsets but it's good to have something
+// The N(on)B(reakable)SP(ace) and S(oft)HY(phen) are kept as actual A0 and AD characters in this file 
 const CP437 = "⌂"+
 	"ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒ"+
 	"áíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐"+
 	"└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀"+
 	"αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
-const CP1252 = "⌂"+
-	"€?‚ƒ„…†‡ˆ‰Š‹Œ?Ž??‘’“”•–—˜™š›œ?žŸ"+
-	" ¡¢£¤¥¦§¨©ª«¬?®¯°±²³´µ¶·¸¹º»¼½¾¿"+
+const CP1251 = "⌂"+
+	"ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—・™љ›њќћџ"+
+	" ЎўЈ¤Ґ¦§Ё©Є«¬­®Ї°±Ііґµ¶·ё№є»јЅѕї"+
+	"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"+
+	"абвгдежзийклмнопрстуфхцчшщъыьэюя";
+const CP1252 = "⌂"+ //aka. Western aka. ISO-8859-1
+	"€・‚ƒ„…†‡ˆ‰Š‹Œ・Ž・・‘’“”•–—˜™š›œ・žŸ"+
+	" ¡¢£¤¥¦§¨©ª«¬・®¯°±²³´µ¶·¸¹º»¼½¾¿"+
 	"ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞß"+
 	"àáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ";
-const CP866 = "⌂"+
+const CP866 = "⌂"+ //DOS Cyrillic
 'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'+
 'абвгдежзийклмноп░▒▓│┤╡╢╖╕╣║╗╝╜╛┐'+
 '└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀'+
 'рстуфхцчшщъыьэюяЁёЄєЇїЎў°∙·√№¤■ ';
-const KOI8R = "⌂"+
+const KOI8R = "⌂"+ //aka. RFC 1489, Morse code based
 '─│┌┐└┘├┤┬┴┼▀▄█▌▐░▒▓⌠■∙√≈≤≥ ⌡°²·÷'+
 '═║╒ё╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡Ё╢╣╤╥╦╧╨╩╪╫╬©'+
 'юабцдефгхийклмнопярстужвьызшэщчъ'+
@@ -241,7 +247,7 @@ function Bin(a, padz) {
 
 function Oct(a, padz) {
 	if(typeof a === 'undefined') return "!Oct("+a+")";
-	if(typeof padz === 'undefined') padz = 4;
+	if(typeof padz === 'undefined') padz = 3;
 	var minus = ""; if(a < 0) { a = -a; minus = "-" }
 	var r = a.toString(8); var pads="";
 	if(r.length < padz) pads = Array(1 + padz - r.length).join('0');
@@ -294,18 +300,18 @@ function BitReader(nOffset, nEndian) {
 		if(nBits > 64) nBits = 64; if(nBits < 0) return 0;
 		if(this.endian === _LE) {
 			while(this.n < nBits) { // while the buffer is not enough
-				this.buf |= File.read_uint8(this.offset++) << this.n; // read a byte and append it to the buffer
+				this.buf |= Util.shlu64(File.read_uint8(this.offset++),this.n); // read a byte and append it to the buffer
 				this.n += 8; // increase the bit number by 8
 			}
-			var v = this.buf & ((1 << nBits) - 1); // extract the desired bits from the buffer
-			this.buf >>= nBits; // shift the buffer to the right
+			var v = this.buf & (Util.shlu64(1,nBits) - 1); // extract the desired bits from the buffer
+			this.buf = Util.shru64(this.buf,nBits); // shift the buffer to the right
 		} else {
 			while(this.n < nBits) {
-				this.buf = (this.buf << 8) | File.read_uint8(this.offset++); // shift the buffer to the left and append a byte
+				this.buf = Util.shlu64(this.buf,8) | File.read_uint8(this.offset++); // shift the buffer to the left and append a byte
 				this.n += 8;
 			}
-			var v = this.buf >> (this.n - nBits); // extract the desired bits from the most significant part of the buffer
-			this.buf &= ((1<<this.n)-1) >> nBits; // clear the extracted bits from the buffer
+			var v = Util.shru64(this.buf,this.n - nBits); // extract the desired bits from the most significant part of the buffer
+			this.buf &= Util.shru64((Util.shlu64(1,this.n)-1),nBits); // clear the extracted bits from the buffer
 		}
 		this.n -= nBits; // decrease the bit number by b
 		return v; // return the value even if the file is exhausted
@@ -587,3 +593,14 @@ function _logBase64(buf) { //simply plops the buffer contents into log stream wi
 	'Content-Transfer-Encoding: base64\nContent-Disposition: attachment; filename="'+fn+'.dec"\n');
 	_log(buf)
 }
+
+function _logHex(buf) { //same but no header and in hex
+	var o = ''; for(i=0; i < buf.length; i++) o = o.appendS(buf[i].padStart(2,'0').toUpperCase())
+	_log('-8<---'); _log(o); _log('--->8-')
+}
+
+function _logText(buf) { //same but as text put through CP866, with zeroes as spaces and control characters as emoji
+	_log(decEncoding(readBytes(0,X.Sz(),true),CP866,Chars0to1F)); _log('--->8-')
+}
+
+function _l2r(name,pos,issue) { _setResult('debug',name,'@'+Hex(pos),issue); }
