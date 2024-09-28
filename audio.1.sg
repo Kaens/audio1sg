@@ -1139,11 +1139,25 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.c("'EASO'")) {
 		sName = "EarAche module (.EA,.EAS)"; bDetected = 1;
 	}
-	else if(X.c("'FORM'.... ....'EMODEMIC'")) {
-		sName = "Quadra Composer module (.EMOD)"; bDetected = 1;
+	else if(X.c("'FORM'.... ....'EMODEMIC'")
+	  && X.c("'PATT'",pt=0x14+X.U32(0x10,_BE)) && X.c("'8SMP'",q=pt+8+X.U32(pt+4,_BE))) {
+		//ref https://github.com/libxmp/libxmp/blob/master/src/loaders/emod_load.c
+		sName = "Bo Lincoln's Quadra Composer module (.EMOD)"; bDetected = 1; sVersion = 'v'+X.U16(0x14,_BE);
+		smp = X.U8(0x3F); if(smp) smps = []; sz = X.U32(4,_BE)+8;
+		for(i=ssz=0,p=0x40; i < smp; i++,p+=0x22) {
+			if((t=X.SC(p+4,0x14,'CP1252').trim()) != '') smps.push(t);
+			ssz += X.U16(p+2,_BE) << 1;
+		}
+		bad = ''; if(ssz != X.U32(q+4,_BE)) bad = bad.addIfNone('!badsmplen:'+X.U32(q+4,_BE)+' vs '+ssz)
+		ptn = X.U8(++p); p++;  p += 0x1A*ptn;
+		// for (i=0; i < ptn; i++,p+=0x1A) if((t=X.SC(p+2,0x14,'CP1252').trim()) != '') smps.push(t);
+		if(X.c("'MDIN'",q1=q+8+X.U32(q+4,_BE))) q = q1;
+		if(Math.abs(sz-(sz1=q+8+X.U32(q+4,_BE))) > 1) bad = bad.addIfNone('!badlen:'+sz+' vs '+sz1);
+		if(sz < sz1) sz = sz1; ord = X.U8(p++); if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
 		if(X.isVerbose()) {
-			sOptionT(X.SA(0x16,0x28));
-			sOptionT(X.SA(0x44,0x18),"by: ");
+			sOptionT((t=X.SA(0x16,0x14)) === '<sans titre>'? '': t);
+			if(smp) sOptionT(addEllipsis(smps.join(' '),0xC0,0xA0),'smp/msg: "','"'); delete smps;
+			sOption('bpm:'+X.U8(0x3E)+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 		}
 	}
 	else if(X.c("'E.M.S. V6.'")) {
