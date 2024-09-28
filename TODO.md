@@ -50,7 +50,7 @@ This is where you can contribute the most! (sorted by extension)
  - Ay Emul `.EMUL` (size)
  - Euphony `.EUP` (info, size)
  - Farandole Composer `.FAR` (more info, size)
- - Future Composer `.FC`, `.BSI`, `.SMOD` (tighten, info, size)
+ - Future Composer `.BSI` (tighten, info, size)
  - Pixel Painters `.FMF`, `.FTF`
  - FM-Kingtracker `.FMK` (info, size)
  - FM Tracker `.FMT` (info, size)
