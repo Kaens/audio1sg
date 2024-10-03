@@ -45,7 +45,8 @@ This is where you can contribute the most! (sorted by extension)
  - DigiTrekker `.DTM` (info, size - should be easy)
  - DarkWave Studio `.DWP` (info, size)
  - EarAche `.EA` (info, size)
- - Edlib .`EDL`
+ - Edlib `.EDL`
+ - Electronic Music System `.EMS` (info)
  - Ay Emul `.EMUL` (size)
  - Euphony `.EUP` (info, size)
  - Farandole Composer `.FAR` (more info, size)
