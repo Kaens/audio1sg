@@ -9,6 +9,7 @@ debug = 0; //verbosity up to 3, where every note/command is shown
 
 function detect(bShowType,bShowVersion,bShowOptions) {
 // Due to the extreme script file size, many good code practices were sacrificed to ensure it loads
+/* beautify ignore:start */
 
 	if(X.c("'[1tracker module]'0D0A")) {
 		sName = "Shiru's 1tracker module (.1TM)"; bDetected = 1;
@@ -11085,7 +11086,8 @@ if(X.isHeuristicScan()) { //parallel block
 
 
 	function isTwinTeam() {
-		if(!X.c("01000000", 0x06) || X.Sz() < 1500 || X.Sz() > 9000 || X.calculateEntropy(12,1200) < 7.8) return false; //a quick check because that's a lot of algo
+		if(!X.c("01000000", 0x06) || X.Sz() < 1500 || X.Sz() > 9000 || X.calculateEntropy(12,1200) < 7.8)
+			return false; //a quick check because that's a lot of algo
 		//ideally, get the checks from https://github.com/adplug/adplug/blob/master/src/dmo.cpp
 		return true
 	}
@@ -11096,5 +11098,6 @@ if(X.isHeuristicScan()) { //parallel block
 
 } //isHeuristicScan parallel block
 
+/* beautify ignore:end */
 	return result(bShowType,bShowVersion,bShowOptions);
 }
