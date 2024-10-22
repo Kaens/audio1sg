@@ -3451,75 +3451,135 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Amstrad CPC Soundtrakker module (.STK)"; bDetected = 1;
 		sVersion = "headerless"
 	}
+
 	else if(X.c("'SCRM'", 0x2C) && X.c("10",0x1D)
 	  && [1,2].indexOf(X.U8(0x2A)) >= 0 && X.Sz() > 0x60) {
 		//ref https://moddingwiki.shikadi.net/wiki/S3M_Format
 		//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/S3MTools.h & Load_s3m.cpp
 		// & http://asle.free.fr/prowiz/prowiz.src.zip / r/S3M.c
-		//TODO perform deep version detection
-		bDetected = 1; sName = "ScreamTracker 3 module (.S3M)"
-		_V = Hex(X.U16(0x28,_LE)); tracker = '';
-		sVersion = "v"+_V.substr(1,1)+"."+_V.substr(2,2);
-		if(_V === "1300") sVersion = "v3.00"; else //because they're weird duh
-		if(_V === "1320") sVersion = "v3.20"; else
-		if(_V === "1301") sVersion = "v3.01";
-		switch(_V.substr(0,1)) {
-			case "1": tracker = "ScreamTracker 3"; break;
-			case "2": tracker = "Imago Orpheus"; break;
-			case "3": tracker = "Impulse Tracker"; break;
-			case "4":
-				if(_V === "4100") { tracker = "BeRoTracker v.2004-2012"; sVersion = ''}
-				else tracker = "Schism Tracker";
-				break;
-			case "5":
-				if(_V=== "4754") { tracker = "GraoumfTracker"; sVersion = '' }
-				else tracker = "OpenMPT"; break;
-			case "6": tracker = "BeRoTracker"; break;
-			case "7": tracker = "CreamTracker"; break;
-			case "C":
-				if(_V === "CA00") {
-					tracker = "Camoto/libgamemusic"; sVersion = ""; break }
-			default: tracker = "ScreamTracker-compatible";
+		sName = "ScreamTracker 3 module (.S3M)"; bDetected = 1;
+		keepmidims = fmttrkstr = trknc = isST3 = isSchism = false;
+		tracker = lswv = bad = ''; sus = 0;
+		if(!X.c("1A",0x1C)) {sus++; bad = bad.addIfNone('!badsig1a') }
+		z1 = X.U16(0x1E); if(z1) { sus++; bad = bad.addIfNone('!badsig0') }
+		ord = X.U16(0x20); if(ord & 1) { sus++; bad = bad.addIfNone('!oddord') }
+		smp = X.U16(0x22); ptn = X.U16(0x24);
+		fl = X.U16(0x26); cwtv = X.U16(0x28); tv = cwtv >> 12; wtv = cwtv & 0xFFF; fmtv = X.U16(0x2A);
+		gvol = X.U8(0x30); spd = X.U8(0x31); tmp = X.U8(0x32); mvol = X.U8(0x33); uc = X.U8(0x34);
+		usept = (X.U8(0x35) && 0xFC) > 0; r2 = X.U16(0x36); special = X.U16(0x3E);
+		ch = 4; for(i=0; i < 0x20; i++) if(X.U8(0x40+i) != 0xFF) ch = i+1;
+		t = Hex(cwtv); sv = t.substr(1,1)+'.'+t.substr(2,2).padStart(2,'0');
+		switch(tv) {
+		case 0x208 & tv: tracker = 'Akord'; break;
+		case 1: if(X.c("'SCLUB2.0'",0x36)) tracker = 'Sound Club 2';
+			else if(cwtv == 0x1320 && !special && !(ord & 0xF) && !uc && !(fl & ~0x50) && usept) {
+				if(mvol) { lswv = '1.16'; tracker = 'ModPlug Tracker/OpenMPT 1.17' }
+				else { lswv = '1.00.00.A0'; tracker = 'ModPlug Tracker 1.0 alpha' }
+				keepmidims = trknc = true
+			} else if(cwtv == 0x1320 && !special && !uc && !fl && !usept) {
+				if(gvol == 64 && mvol == 48) tracker = 'PlayerPRO';
+				else tracker = 'Velvet Studio'
+			} else if(cwtv == 0x1320 && !special && !uc && fl == 8 && !usept)
+				tracker = 'Impulse Tracker < 1.03';
+			else {
+				isST3 = true; if(cwtv == 0x1320) tracker = 'Scream Tracker 3.20-21'; else {
+					tracker = 'Scream Tracker'; fmttrkstr = true }
+			} break;
+		case 2: fmttrkstr = cwtv != 0x2013; if(fmttrkstr) tracker = 'Imago Orpheus'; else tracker = 'PlayerPRO';
+			trknc = true; break;
+		case 3: if(cwtv == 0x3320) tracker = 'Impulse Tracker 1.03';
+			else { if(r2 > 0x214) tracker = "Impulse Tracker 2.15";
+				else if(isWithin(wtv,0x215,0x217))
+						tracker = 'Impulse Tracker 2.14p'+(wtv == 0x215? '1-2': wtv == 0x216? '3': '4-5');
+					else tracker = 'Impulse Tracker '+((wtv&0xF00)>>8)+'.'+(wtv&0xFF).toString(16).padStart(2,'0');
+			}
+			// if(cwtv >= 0x3207 && X.U32(0x38)) {} // could decode the total edit time here if you wanted
+			trknc = true; break;
+		case 4: if(cwtv == 0x4100) tracker = 'BeRoTracker';
+			else {
+				isSchism = true;
+				var dt = 734016 + (wtv < 0xFFF? wtv-0x050: r2);
+				var y = Util.div64(dt*10000+14780, 3652425);
+				var ddd = dt - (365*y + Util.div64(y,4) - Util.div64(y,100) + Util.div64(y,400));
+				if(ddd < 0) { y--; ddd = dt - (365*y + Util.div64(y,4) - Util.div64(y,100) + Util.div64(y,400)) }
+				var mi = Util.div64(100*ddd+52, 3060);
+				tracker = 'Schism Tracker '+(y+Util.div64(mi+2,12)).padStart(4,'0')+'-'
+					+((mi+2)%12+1).padStart(2,'0')
+					+'-'+(ddd - Util.div64(mi*306+5,10) + 1).padStart(2,'0')
+			}
+			trknc = true; break;
+		case 5: if((cwtv >> 8) == 0x57) { tracker = 'NESMusa'; fmttrkstr = true
+			} else if(!r2 && uc == 16 && X.U8(0x41) != 1) { tracker = 'Liquid Tracker'; fmttrkstr = true
+			} else if(cwtv != 0x5447) {
+				v = wtv << 16; if(v >= 0x01290000) v |= r2;
+				function itV(v) { return v.slice(0,1)+'.'+v.slice(1,3)+'.'+v.slice(3,5)+'.'+v.slice(5,7) }
+				lswv = itV(v.toString(16).toUpperCase().padStart(7,'0')); tracker = 'OpenMPT '+lswv
+			} else tracker = 'Graoumf Tracker';
+			break;
+		case 6: tracker = 'BeRoTracker'; break;
+		case 7: tracker = 'CreamTracker'; break;
+		default:
+			if(cwtv == 0xCA00) tracker = 'Camoto';
 		}
-		bad = ""; sus = 0;
-		if(!X.c("1A",0x1C)) {sus++; bad = bad.addIfNone("!badsig1a") }
-		z1 = X.U16(0x1E); if(z1) { sus++; bad = bad.addIfNone("!badsig0") }
-		ord = X.U16(0x20); if(ord&1) { sus++; bad = bad.addIfNone("!oddord") }
-		if(sus > 1) bDetected = 0;
-		else if(X.isVerbose()) {
-			smp = X.U16(0x22); ptn = X.U16(0x24);
-			gvol = X.U8(0x30); spd = X.U8(0x31);
-			tmp = X.U8(0x32); mvol = X.U8(0x33);
-			p = 0x60+ord+smp*2;
-			max = sz = 0;
+		if(fmttrkstr) tracker += ' '+sv;
+		charset = lswv != ''? 'CP1252': 'CP437';
+		if(sus >= 2) bDetected = 0;
+		else {
+			p = 0x60+ord+smp*2; max = sz = 0;
 			for (i=0; i < ptn; i++) {
 				var p1 = X.U16(p+i*2) << 4;
 				if(!p1) continue;
 				if (p1 > max) { max = p1; sz = max + X.U16(p1) }
 			}
 			if(sz%16) sz += 16-(sz%16);
-			p = 0x60+ord;
+			if(usept) { var anyunpannedch = false; p += ptn*2;
+				for(i=0; i < ch; i++)
+					if(isST3 && isWithin(X.U8(0x40+(i&0xFF)), 16, 29) && X.U8(p+i) < 0x10)
+						anyunpannedch = true;
+				if(ch < 32 && lswv.indexOf('1.16') >= 0)
+					if(anyunpannedch) tracker = 'ModPlug Tracker 1.16/OpenMPT 1.17';
+					else tracker = 'ModPlug Tracker'
+			}
+			p = 0x60+ord; anysmp = anyADPCM = false; gus = 0; smps = [];
 			for(i=0; i < smp; i++) {
-				si = X.U16(p+i*2) << 4; if(!si) continue;
+				si = X.U16(p+i*2) << 4; if(!si) continue; else if(si > X.Sz()) { bad = bad.addIfNone('!short'); continue }
+				st = X.U8(si); ssz = X.U32(si+0x10); t = X.SC(si+0x30,0x1C,charset).trim(); if(t != '') smps.push(t);
+				if(st < 2) {
+					if(ssz) {
+						anysmp = true; sf = X.U8(0x1F);
+						if(!anyADPCM && X.U8(si+0x14) == 4 && !(sf & 6)) anyADPCM = true }
+					gus |= X.U16(si+0x28) }
 				if(X.U8(si) === 1) {
 					sofs = X.U16(si+14) << 4;
 					if (sofs > max) {
-						ssz = X.U32(si+16);
-						if (X.U8(si+31)&4) ssz *= 2;
-						if(ssz%16) ssz += 16-ssz%16; //the padding might be important
+						if (sf & 4) ssz *= 2; //16-bit
 						max = sofs; if(sz < max+ssz) sz = max+ssz;
 					}
-//_log("sofs:"+Hex(sofs)+" ["+Hex(ssz)+"] -> "+Hex(sofs+ssz)+", max="+Hex(max))
 				}
 			}
-
-			if(bad != "") sVersion += "/malformed"+bad;
-			sOptionT(X.SC(0,0x1C,'CP1252')); sOption(tracker,'in:');
-			ch = 1 + (mvol >> 7); mvol &= 0x7F;
-			sOption("ch:"+ch+" ord:"+ord+" ptn:"+ptn+" smp:"+smp
-				+" gvol:"+gvol+" mvol:"+mvol+" r/s:"+(tmp/spd).toFixed(1)+" sz:"+outSz(sz));
+			usegus = gus > 1;
+			if(isST3 && anysmp && !gus && cwtv != 0x1300) {
+				isST3 = false; tracker = 'Unknown';
+				if(cwtv == 0x1301 && !uc) {
+					if(!(fl & ~0x50) && (mvol & 0x80) && usept) tracker = 'UNMO3';
+					else if(!fl && gvol == 48 && mvol == 176 && tmp == 150 && !usept)
+						tracker = 'deMODifier';
+					else if(!fl && gvol == 64 && (mvol & 0x7F) == 48 && spd == 6 && tmp == 125 && !usept)
+						tracker = 'Kosmic To-S3M'
+				}
+			} else if(isST3) tracker += usegus? ' (GUS)': ' (SB)';
+			if(anyADPCM) tracker += ' (ADPCM packed)';
+			if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
+			if(X.isVerbose()) {
+		//if(!spd || spd == 0xFF && isST3) spd = 6; if(tmp < 33) tmp = isST3? 125: 32; //fixes for playback, include?
+				sOptionT(X.SC(0,0x1C,charset)); sOption(tracker,'in:');
+				sOption(addEllipsis(smps.join(' '),0xA0),'smp/msg:"','"');
+				sOption('ch:'+ch+' tempo0:'+tmp+' spd0:'+spd+' ord:'+ord+' ptn:'+ptn+' smp:'+smp
+					+' gvol:'+gvol+' mvol:'+(mvol&0x7F)+' sz:'+outSz(sz));
+			}
 		}
 	}
+
 	if(!bDetected)
 	if(X.Sz() > 0x20 && /S98[1-3]/.test(X.SA(0,4)) && X.U32(4) <= 0x20 && !X.U32(8) && X.U8(0x13) < 0x10 && X.U16(0x16) <= 2) {
 		//ref https://www.purose.net/befis/download/lib/t98/ins98131s.zip / s98spec1.txt,
@@ -5767,7 +5827,7 @@ function isIT() {
 			if(sz < t) sz = t; if(t && t < minp) minp = t; ptnp.push(t) }
 		if(special & sEmbedMsg) { minp = Math.min(minp,msgofs);
 			if(sz < msgofs+msglen) sz = msgofs+msglen }
-		var possiblyUNMO3 = cmwt === 0x214 && (!cwtv || cwtv === 0x0214)
+		var possiblyUNMO3 = cmwt === 0x214 && (!cwtv || cwtv === 0x214)
 		  && !X.U16(0x1E) && !pwd && !nreserved && !(flags & 0xC0);
 		if(possiblyUNMO3 && !ins && smp && p+4*smpp.length+2 <= minp) {
 			var oldUNMO3 = true;
@@ -6162,8 +6222,9 @@ _log("! @"+Hex(p)+" w="+Hex(w)+" > "+defW+" rs:"+rs+" clen:"+Hex(clen)+" cend:"+
 				else if(!cwtv && tracker === "") tracker = "Unknown";
 				else if(cmwt < 0x300 && tracker === "") {
 					if(cmwt > 0x214) tracker = "Impulse Tracker 2.15";
-					else if(cwtv > 0x214) tracker = "Impulse Tracker 2.14p"+(cwtv-0x214)
-					else tracker = "Impulse Tracker "+((cwtv&0xF00)>>8)+"."+(cwtv&0xFF).toString(16);
+					else if(isWithin(cwtv,0x215,0x217))
+						tracker = 'Impulse Tracker 2.14p'+(cwtv == 0x215? '1-2': cwtv == 0x216? '3': '4-5');
+					else tracker = 'Impulse Tracker '+((cwtv&0xF00)>>8)+'.'+(cwtv&0xFF).toString(16).padStart(2);
 					//a good place to find the total edit time if you care
 				}
 				break;
