@@ -3875,16 +3875,37 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(X.isVerbose())
 			sOptionT(X.SA(4,20));
 	}
-	else if(/GTS[25!]/.test(X.SA(0,4))) {
-		sName = "GoatTracker module (.SNG)"; bDetected = 1;
-		if([0x32,0x35].indexOf(X.U8(3)) >= 0) sVersion = "v2"
-		else sVersion = "v1";
+	else if(/GTS[25!]/.test(X.SA(0,4)) && X.U8(0x64) <= 32) {
+		//ref https://github.com/leafo/goattracker2/blob/a78e7e5273bfbeb17c3777b1f5ceb63b8e6b4667/src/gsong.c#L177
+		sName = "Lasse Öörni's GoatTracker module (.SNG)"; bDetected = 1;
+		nV = X.U8(3)-0x30; if(nV < 0) nV = 1;
+		if(nV >= 2) sVersion = 'v2.'+nV; else sVersion = 'v1.x';
+		x = X.U8(0x64); p = 0x65; ords = []; ptn = mptn = 0; bad = '';
+		for(ordc = 0; p < X.Sz(); ) { q = X.U8(p); if(!X.c("FF",p+q)) break;
+			for(i=0, p++; i < q; i++) if((t=X.U8(p++)) <= 0xCF && t+1 > mptn) mptn = t+1;
+			ordc++; ords.push(q); p++ }
+		ch = 3; if(ordc == x*6) { sVersion += ' stereo'; ch = 6 }
+		else if(ordc != x*3) bad = bad.addIfNone('!badordcnt');
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+		ins = nV >= 2? X.U8(p++): 31; inss = [];
+		for(i=0; i < ins; i++) {
+			t = X.SC(p+(nV > 1? 9: 8),0x10,'CP1250').trim(); if(t.length) inss.push(t);
+			if(nV > 1) p += 0x19; else p += 0x18+2*(X.U8(p+7)>>1);
+		}
+		for(i=0; i < (nV == 1? 0: nV == 2? 3: 4); i++) p += 1+2*X.U8(p); //skip the tables
+		ptn = X.U8(p++); for(i=0; i < ptn; i++) p += 1 + (nV == 1? 1: 4) * X.U8(p);
+		if(nV == 1 && X.Sz() != p) p += 0x100; //the (optional?) filtertable at the end
 		if(X.isVerbose()) {
 			sOptionT(X.SC(4,0x20,'CP1250'));
-			tc = X.U8(0x64);
-			if(tc > 1) sOption(tc,"×");
-			sOptionT(X.SC(0x24,0x20,'CP1250'),"by: ");
-			sOptionT(X.SC(0x44,0x20,'CP1250'))
+			if(x > 1) sOption(x,'×');
+			sOptionT(X.SC(0x24,0x20,'CP1250'),'by: ');
+			sOptionT(X.SC(0x44,0x20,'CP1250'));
+			sOptionT(addEllipsis(inss.join(', '),0xA0),'ins/msg:"','"');
+			for(i=0, ordc = []; i < ords.length/ch; i++) {
+				for(c = j = 0; j < ch; j++) c += ords[i*ch+j];
+				ordc.push(c)
+			}
+			sOption('ch:'+ch+' ord:'+ordc.join('+')+' ptn:'+(ptn == mptn? mptn: '/'+ptn)+' ins:'+ins+' sz:'+outSz(p))
 		}
 	}
 	else if(X.c("'ObsM'")) {
@@ -4520,17 +4541,17 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			  +" spd0:"+spd0+" tmp0:"+tmp0)
 		}
 	}
-	else if(X.c("'VGEfmtV'") && isWithin(nV=X.U8(7),0x31,0x33)) { // this format is similar to TFM Music Maker
+	else if(X.c("'VGEfmtV'") && isWithin(nV=X.U8(7)-0x30,1,3)) { // this format is similar to TFM Music Maker
 		sName = "Shiru's VGM Music Maker module (.VGE)"; bDetected = 1;
-		sVersion = 'v'+(nV-0x30);
+		sVersion = 'v'+nV; //TODO determine whether to unpack from 0 or 0x10, and RE v1
 		if(X.isVerbose()) {
 			p = 0; ptn = 1; n = next = 0; tobuf = true; x = [];
-			for(c = X.U8(p++); n < 0x6E59D1 && p < X.Sz(); ) { //see description in .TFM
+			if(nV > 1) for(c = X.U8(p++); n < 0x6E59D1 && p < X.Sz(); ) { //see description in .TFM
 				if(tobuf && n > 0x327) tobuf = false;
 				if(c != 0x80) { b = c; n++; c = X.U8(p++); if(tobuf) x.push(b) }
 				else {
 					c = X.U8(p++);
-					if(nV == 0x31 && !c) { x.push(0x80); n++; c = X.U8(p++); continue }
+					if(nV == 1 && !c) { x.push(0x80); n++; c = X.U8(p++); continue }
 					next = true; reps = shl = 0;
 					while (next && shl < 57 && p <= X.Sz()) { //read the vari-len int
 						next = !(c & 0x80); c &= 0x7F; reps |= Util.shlu64(c,shl); shl += 7; c = X.U8(p++)
@@ -4539,20 +4560,20 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 					else { reps--;
 						n += reps; shl = 0; if(tobuf) for(i=0; i < reps; i++) x.push(b) }
 				}
-			}
+			} else p = 1;
 			p--;
 			switch(nV) {
-			case 0x31:
+			// case 1: // n/a for now: the compression seems to be kinda quirky, the algo fails
+			// 	spd1 = x[0x10]; spd2 = x[0x11]; intlv = x[0x12];
+			// 	d1 = x[0x14]+(x[0x15] << 8); d2 = x[0x16]+(x[0x17] << 8); saves = x[0x18]+(x[0x19] << 8);
+			// 	ord = x[0x1B]; lp = x[0x1C];
+			// 	break;
+			case 2:
 				spd1 = x[0x10]; spd2 = x[0x11]; intlv = x[0x12];
 				d1 = x[0x14]+(x[0x15] << 8); d2 = x[0x16]+(x[0x17] << 8); saves = x[0x18]+(x[0x19] << 8);
 				ord = x[0x1B]; lp = x[0x1C];
 				break;
-			case 0x32:
-				spd1 = x[0x10]; spd2 = x[0x11]; intlv = x[0x12];
-				d1 = x[0x14]+(x[0x15] << 8); d2 = x[0x16]+(x[0x17] << 8); saves = x[0x18]+(x[0x19] << 8);
-				ord = x[0x1B]; lp = x[0x1C];
-				break;
-			case 0x33:
+			case 3:
 				spd1 = x[0x1A]; spd2 = x[0x1B]; intlv = x[0x1C];
 				ord = x[0x25]; lp = x[0x26];
 				d1 = x[0x1F]+(x[0x20] << 8); d2 = x[0x21]+(x[0x22] << 8); saves = x[0x23]+(x[0x24] << 8);

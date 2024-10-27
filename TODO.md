@@ -166,7 +166,7 @@ This is where you can contribute the most! (sorted by extension)
  - Sound Images `.TW`
  - Unique Development `.UDS` (info, size)
  - UNIMOD `.UNI` (size)
- - Shiru's VGM Music Maker `.VGE` (info, size - gotta reverse, it's funny & Shiru deleted the source)
+ - Shiru's VGM Music Maker `.VGE` (info - gotta RE v1 and unpack)
  - Vibrants `.VIB` (I just have 1 file of this)
  - VicTracker `.VT` (info, size)
  - Voodoo Supreme Synthesizer `.VSS` (rewrite)
@@ -176,7 +176,6 @@ This is where you can contribute the most! (sorted by extension)
  - Exotic AdLib `.XAD` (tighten, info, size)
  - Extended MIDI `.XMI` (info, size)
  - SVArTracker `.SVAR` (when unzipped (the password is "14"), check info)
- - GoatTracker `.SNG` (info, size)
  
  - Extra Simple Music `.XSM` (info, size)
  - Optionally (desirably), various sample formats
