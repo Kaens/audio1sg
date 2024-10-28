@@ -9762,23 +9762,23 @@ if(!bDetected && isSilmarils()) {
 
 function isDUX() {
 	//from the UADE player's RE
-	sz = X.U32(0,_BE); if(sz > X.Sz() || (sz&1)) return false;
-	if(!X.c("FFFF FFFFFFFF",sz-6)) return false;
-	for(smp=0,a0=4,d1=8; d1; a0+=12,d1--) { //samples
-		t = X.U32(a0,_BE); if((t&1) || t > sz) return false; if(t) smp++
-	}
-	smpsz = X.U32(a0,_BE); a1 = a0+smpsz+0x10;
-	d0 = 0; while(a1 < X.Sz()) { t = X.I16(a1,_BE); if(t < 0) break; d0 += t; a1 += 4 }
-	d0 >>= 4; unpsz = Util.div64(d0*14187, 44336);
-	for(d1=3; d1; a0 += 4, d1--) { t = X.U32(a0,_BE); if(!t || (t&1) || t > sz) return false } //voices?
-	if(!X.c("FFFF FFFFFFFF",a0+t-6)) return false;
+	t = X.U32(0,_BE); if(t < 0x70 || (t&1) || !X.c("FFFF FFFFFFFF",t-6)) return false; sz = t;
+	for(smp=0,p=4; p < 0x64; p+=12) { //8 samples
+		t = X.U32(p,_BE); if((t&1) || t && t < 0x70 || t > sz) return false; if(t) smp++
+	} if(!smp) return false;
+	for(; p < 0x70; p += 4) { t = X.U32(p,_BE); if(t < 0x70 || (t&1) || t > sz) return false }
+	if(!X.c("FFFF FFFFFFFF",p+t-6)) return false;
+	smpsz = X.U32(0x64,_BE); p = 0x74+smpsz; //q points to patterns? orderlist?
+	// what does this do?..
+	//for(q = 0; p < sz; p += 4) if((t = X.I16(p,_BE)) >= 0) q += t; else break;
+	//q >>= 4; unpsz = Util.div64(q*14187, 44336);
 	return true
 }
 if(!bDetected && isDUX()) {
 	sName = "GT Game Systems module (.DUX)"; bDetected = 1;
 	if(X.isVerbose()) {
-		ord = 1+Util.div64(X.U32(0x68,_BE)-smpsz, 0x3C);
-		sOption("ord:"+ord+" smp:"+smp+" songsz:"+Hex(unpsz)+" smpsz:"+Hex(smpsz-0x70)+" sz:"+outSz(sz))
+		ord = 1+Util.div64(X.U32(0x68,_BE)-smpsz, 0x3C); smpsz -= 0x70;
+		sOption('ord:'+ord+' smp:'+smp+' smpsz:'+Hex(smpsz)+' sz:'+outSz(sz))
 	}
 }
 
