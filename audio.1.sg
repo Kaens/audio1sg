@@ -1022,9 +1022,27 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	if(!bDetected)
-	if(X.c("'DSM'10")) {
+	if(X.c("'DSM'10") && X.c("1A",0x24) && X.U16(0xB2)-X.U16(0xB0) == 4
+	  && X.c("'DSI'10",X.U16(0xB0) << 4) && X.c("'DSI'10",X.U16(0xB0+X.U8(0x27)*2-2) << 4)) {
+	  	//see also Digital Audio Sound Interface Kit spec (.dsm)-v0.1.txt
 		sName = "Digital Audio Sound Interface Kit module (.DSM)"; bDetected = 1;
-		sOptionT(X.SA(4,32));
+		if(X.isVerbose()) {
+			for(i=0xAF; i >= 0x30 && X.U8(i) == 0xFF; i--) {} rord = i-0x2F;
+			for(mptn = 0; i >= 0x30; i--) if((t=X.U8(i)+1) > mptn) mptn = t;
+			ord = X.U8(0x26); ptn = X.U8(0x28);
+			p = X.U16(0xB0)<<4; inss = []; mp=0;
+			for(i=ins=0; i < X.U8(0x27); i++,p+=0x40) {
+				if(!X.c("'DSI'10",p)) bad = bad.addIfNone('!badins');
+				t = X.SC(p+4,0x20,'CP437').trim(); if(t.length) inss.push(t);
+				sp = X.U16(p+0x24)<<4; if(sp) ins++; if(sp > mp) mp = sp+X.U16(p+0x26)
+			}
+			p = 0xB0+X.U8(0x27)*2+ptn*2-2; p = X.U16(p) << 4; p += 2+X.U16(X.U16(p)); //past the last pattern
+			sz = Math.max(mp,p);
+			sOptionT(X.SC(4,0x20,'CP437'));
+			sOption(addEllipsis(inss.join(' '),0xA0),'ins/msg:"','"');
+			sOption('ord:'+(rord==ord?'':rord+'/')+ord+' ptn:'+(mptn==ptn?'':mptn+'/')+ptn
+				+' ins:'+ins+' sz:'+outSz(sz))
+		}
 	}
 	else if(X.c("'RIFF'........'DSMFSONG'") && X.U16(0x36) <= 128 && X.U16(0x38) <= 128
 	  && X.U16(0x3C) <= 256 && X.U16(0x3E) <= 16) {
