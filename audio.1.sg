@@ -4387,7 +4387,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			p = 0;
 			//WELP, time to read the entire file, or at least the fun part
 			x = [], tobuf = true, p = 0, b = 0x3F; // '?' by default. If this pops up, the file's garbled
-			for(n=0, c = X.U8(p++); n < 0x423DD9 && p < X.Sz(); ) {
+			for(n=0, c = X.U8(p++); n < 0x223DD9 && p < X.Sz(); ) {
 				// The logic is:
 				// a byte is read and if it's not 0x80, put to buffer (and memorised)
 				// if the following byte is 80, it's RLE:
@@ -4414,7 +4414,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			title = decEncoding(x.slice(0x53,0x94),CP1251);
 			cmt = decEncoding(x.slice(0x93,0x214),CP1251);
 			for(i=ptn=0; i < ord; i++) if(x[i+0x213]+1 > ptn) ptn = x[i+0x213]+1;
-			sz = n == 0x423DD9 ? p : -1; if(sz < 0) sVersion = sVersion.appendS('malformed:'+Hex(n),'/');
+			sz = n == 0x223DD9 ? p : -1; if(sz < 0) sVersion = sVersion.appendS('malformed:'+Hex(n),'/');
 			sOptionT(title); sOptionT(auth,'by: '); sOptionT(cmt);
 			sOption('on: '+d1+(d1 != d2? ' to '+d2: ''));
 			sOption('spd:'+spd1+'/'+spd2+' ord:'+(lp?lp+'-':'')+ord+' ptn:'+ptn+" intlv:"+intlv+' saves:'+saves+(X.isDeepScan()? ' sz:'+outSz(sz):''));
@@ -4436,13 +4436,51 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption("ord:"+ord+" ptn:"+ptn)
 		}
 	}
-	else if(X.c("'S'8F'NG.'")) {
-		sName = "Unique Development module (UDS.+SMP.)"; bDetected = 1
+	else if(X.c("'S'8F'NG.'") && /[BW][48]/.test(X.SA(5,2))
+	  && (pp=X.fSig(8,0x80*(ch=X.U8(6)-0x30),"DD48")) > 0 && !(pp % 2)) {
+		//ref the eagleplayer BladePacker(?!)
+		sName = "Unique Development/BladePacker module (UDS.+SMP.)"; bDetected = 1;
+		if(X.isVerbose()) {
+			ptn = mptn = 0; maxp = Math.min(X.Sz(), 0x10000);
+			bw = X.SA(5,1) == 'B'? 1: 2; ord = (pp-8) >> (bw+1);
+			for(p = 8; p < pp; p++) if((t=X.U8(p)+1) > mptn) mptn = t;
+			p += 2; t = 0;
+			if(bw == 1) for(; X.U16(p,_BE) != 0xD8F1 && p < maxp; ) { //for() twice for speed opt
+				if((q=X.U8(p++)) > t) t = q; if((q=X.U8(p++)) > t) t = q }
+			else
+				for(; (q=X.U16(p,_BE)) != 0xD8F1 && p < maxp; p += 2) if(q > t) t = q;
+			ptnp = p; ptn = (p-pp-2) >> (bw+5); p += 2 + ((t+1) << 2); //if p > Sz undetect
+			sz = p;
+			//subsongs @f732:
+			p = o = x = 0; a2 = pp+2;
+			_f742: for(; p < maxp; ) {
+				p = 8 + o * ch;
+				if(p != pp) {
+					a0ch = a0 = p+ch; o++;
+					_f756: for(; p < maxp; ) {
+						a0 = pp+2+(X.U8(p++) << (bw+5));
+						_f76a: for(d6 = 0x40; d6 && p < maxp; ) {
+							if(bw == 1) d1 = X.U8(a0++); else { d1 = X.U16(a0,_BE); a0 += 2 }
+							d1 <<= 2;
+							if([0x2C,0x20].indexOf(X.U8(ptnp+4+d1)) >= 0) {
+								x++;
+								continue _f742
+							}
+							else {
+								if(--d6) continue _f76a;
+								if(p != a0ch) continue _f756; else continue _f742;
+							}
+						}
+					}
+				} else break _f742;
+			}
+			if(!x) x = 1; if(x > 1) sOption(x,'x');
+			sOption('ch:'+ch+' ord:'+ord+' ptn:'+(mptn==ptn?'':mptn+'/')+ptn+' sz:'+outSz(sz))
+		}
 	}
 	else if((X.Sz() > 0x133) && X.c("'MAS_UTrack_V00'") && isWithin(X.U8(0xE),0x31,0x34)
 	  && X.Sz() > X.U8(0x2F)*0x20+0x50) {
 		//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_ult.cpp
-		//TODO calcsize
 		sName = "UltraTracker module (.ULT)"; bDetected = 1;
 		nV = X.U8(0xE)-0x30; sVersion = 'v'+['<1.4','1.4','1.5','1.6'][nV-1]; bad = '';
 		msgn = X.U8(0x2F); p = 0x30+msgn*0x20;
