@@ -1016,7 +1016,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	if(!bDetected)
 	if(X.c("'DSM'10") && X.c("1A",0x24) && X.U16(0xB2)-X.U16(0xB0) == 4
 	  && X.c("'DSI'10",X.U16(0xB0) << 4) && X.c("'DSI'10",X.U16(0xB0+X.U8(0x27)*2-2) << 4)) {
-	  	//see also Digital Audio Sound Interface Kit spec (.dsm)-v0.1.txt
+	  	//see also https://modland.com/pub/documents/format_documentation/Digital%20Audio%20Sound%20Interface%20Kit%20spec%20(.dsm)-v0.1.txt
 		sName = "Digital Audio Sound Interface Kit module (.DSM)"; bDetected = 1;
 		if(X.isVerbose()) {
 			for(i=0xAF; i >= 0x30 && X.U8(i) == 0xFF; i--) {} rord = i-0x2F;
@@ -1225,7 +1225,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	else if(X.Sz() > 0x24 && X.c("'ETracker (C) BY ESI.'",10) ||
 	  (X.Sz() > 0x4D4 && (X.c("21B384") ||X.c("21B304")) && X.c("'ETracker (C) BY ESI.'",0x4BD))) {
 		//kudos to horsicq for helping narrow down the bad samples in modland files
-		sName = "SAM Coupe E-Tracker file (.ETC,.SAA)"; bDetected = 1;
+		sName = "SAM Coupé E-Tracker file (.ETC,.SAA)"; bDetected = 1;
 		if(X.c("21B384") || X.c("21B304")) { sVersion = "&player"; ofs = 0x4B3 } else ofs = 0;
 		p = ofs; x = mp = sz = 0; ords = []; ptns = [];
 		while(p < X.Sz()-0x24 && X.c("'ETracker (C) BY ESI.'",p+10)) {
@@ -3688,30 +3688,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			}
 			if(bad) sVersion += "/malformed";
 			sOption(t); sOption(a,"by: "); sOption(dt,"'"); sOption(tm,"len: ")
-		}
-	}
-	else if(X.c("'SAdT'")) {
-		//ref http://www.adlibtracker.net/files/at2_sourcecode_09-09-2019.zip
-		// in /adt2play/iloaders.inc -> sat_file_loader
-		bDetected = 1; nV = X.U8(4); sVersion = "v"+nV;
-		if(nV < 8)  sName = "Surprise! AdLib Tracker module (.SAT)";
-		else sName = "Surprise! AdLib Tracker 2 module (.SA2)";
-		if(X.isVerbose()) {
-			if(nV < 5) {
-				instnp = 0x15A;
-				ptn = X.U16(0x448,_LE);
-				ord = X.U8(0x44A);
-				ticks = X.U8(0x44C)
-			} else { //v5,6, 8,9 are the same
-				instnp = 0x1D6;
-				ptn = X.U16(0x446,_LE);
-				ord = X.U8(0x448);
-				ticks = X.U8(0x44A)
-			}
-			inst=[];
-			for(i=0; i < 3 /*31*/; i++) //that's enough title info
-				inst.push(X.UCSD(instnp+i*17).trim());
-			t = inst.join(" ").trim(); sOption(addEllipsis(t)); sOption("rate:"+ticks+"Hz ord:"+ord+" ptn:"+ptn)
 		}
 	}
 	else if(X.c("'SC68 Music-file / (c) (BeN)jamin Gerard / SasHipA-Dev  '00'SC68'........'SCFN'")) {
@@ -10875,6 +10851,52 @@ if(!bDetected && isDSMIAMF()) {
 	}
 }
 
+
+function isSAdT() {
+	//the signature's good enough but there also are sanity checks
+	//ref https://github.com/adplug/adplug/blob/master/src/sa2.cpp
+	if(!X.c("'SAdT'") || !isWithin(nV=X.U8(4),1,9)) return false;
+	const hasArpList = 0x80, hasV7Ptn = 0x40, hasActCh = 0x20, hasTrkOrd = 0x10,
+		hasArp = 8, hasOldBPM = 4, hasOldPtn = 2, hasUnk127 = 1; var notedis=0, fl;
+	switch(nV) {
+	case 1: notedis = 0x18; fl = hasUnk127 | hasOldPtn | hasOldBPM; break;
+	case 2: notedis = 0x18; fl = hasOldPtn | hasOldBPM; break;
+	case 3: notedis = 0xC; fl = hasOldPtn | hasOldBPM; break;
+	case 4: notedis = 0xC; fl = hasArp | hasOldPtn | hasOldBPM; break;
+	case 5: notedis = 0xC; //fallthru
+	case 6: fl = hasArp | hasArpList | hasOldPtn | hasOldBPM; break;
+	case 7: fl = hasArp | hasArpList | hasV7Ptn; break;
+	case 8: fl = hasArp | hasArpList | hasTrkOrd; break;
+	case 9: fl = hasArp | hasArpList | hasTrkOrd | hasActCh
+	}
+	p = 5 + 31*(fl & hasArp? 15: 11);
+	for(i=0,inst=[]; i < 29; i++) { if((t=X.SC(p+1,X.U8(p),'CP437').trim()) != '') inst.push(t); p += 0x11 }
+	p += 3; var orderlist = readBytes(p,128); p += 128;
+	if(fl & hasUnk127) p += 0x7F;
+	if(!isWithin(ptn=X.U16(p),1,64)) return false; p += 2;
+	if(!isWithin(ord=X.U8(p++),1,0x80)) return false;
+	for(i=rptn=0; i < ord; i++) if((orderlist[i]+1) > rptn) rptn = orderlist[i]+1;  delete orderlist;
+	if(rptn > ptn || (lp=X.U8(p++)) >= ord) return false;
+	bpm = X.U16(p); p += 2; if(fl & hasOldBPM) bpm = bpm*5/2;
+	if(fl & hasArpList) p += 0x200; if(fl & hasTrkOrd) p += 9*0x40;
+	if(fl & hasActCh) { actch = X.U16(p) << 16; p += 2 } else actch = -1;
+	trk = 0;
+	if(fl & hasOldPtn) while(trk < ptn && p < X.Sz()) { p += 64*9*5; trk++ }
+	else if(fl & hasV7Ptn) while(trk < ptn && p < X.Sz()) { p += 64*9*3; trk++ }
+	else while(trk < 64*9 && p < X.Sz()) { p += 64*3; trk++ }
+	sz = p;
+	return true
+}
+if(!bDetected && isSAdT()) {
+	if(nV < 8) sName = "Surprise! AdLib Tracker module (.SAT)";
+	else sName = "Surprise! AdLib Tracker 2 module (.SA2)";
+	sVersion = "v"+nV; bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(addEllipsis(inst.join(" "),0xA0),'ins/msg:"','"');
+		sOption('bpm:'+bpm+(actch>=0?'ch:'+actch:'')
+			+' ord:'+(lp?lp+'-':'')+ord+' ptn:'+(rptn!=ptn?rptn+'/':'')+ptn+(trk!=ptn?' trk:'+trk:'')+' sz:'+outSz(sz))
+	}
+}
 
 // new stable detections :go here: ↑
 
