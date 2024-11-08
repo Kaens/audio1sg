@@ -1,4 +1,4 @@
-// https://github.com/horsicq/Detect-It-Easy signature file
+// Detect It Easy: detection rule file
 // Authors:
 // Kaens TG@kaens (for all the https://en.wikipedia.org/wiki/Music_tracker stuff)
 // hypn0 <hypn0@mail.ru>
@@ -8,7 +8,7 @@
 
 init("audio", "");
 includeScript("read");
-debug = 0; //verbosity up to 3, where every note/command is shown
+debug = 0; //verbosity up to 3, where every note/command is shown. Overrides the debug() function; use _l2r
 
 function detect(bShowType,bShowVersion,bShowOptions) {
 
@@ -4740,14 +4740,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		//TODO thaaat's not a good way to detect a thing...
 		sName = "Voodoo Supreme Synthesizer audio (.VSS)"; bDetected = 1
 	}
-	else if(X.c("'Vortex Tracker II 1.0'")) {
-		sName = "Vortex Tracker II audio (.VT2)"; bDetected = 1;
-		sVersion = "v"+X.SA(0x12,3).trim();
-		if(X.isVerbose()) {
-			sOptionT(X.SC(0x1E,0x20,'CP1251'));
-			sOptionT(X.SC(0x42,0x20,'CP1251'),"by: ");
-		}
-	}
 	else if(X.c("6000") && X.c("48E7FFFE610000",0x04)
 		&& X.c("4CDF7FFF'Nu'",0x0C)) {
 		sName = "Wally Beben's module (.WB)"; bDetected = 1
@@ -6703,67 +6695,125 @@ if(!bDetected && X.isDeepScan() && isProTracker1()) {
 
 function isProTracker2() {
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker2.cpp
-	// & https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundPT2
-	if(X.Sz() < 132) return false; //the smallest actual mod in all collections is 521 long
-	tmp = X.U8(0); if(tmp<2 || tmp>15) return false;
-	ord = X.U8(1); if(!ord) return false;
-	loop = X.U8(2); if(loop > ord) return false;
-	smp0 = X.U16(3,_LE); orn0 = X.U16(0x43,_LE);
-	if(orn0-smp0>X.Sz()+2 || orn0<smp0) return false;
-	ptnp = X.U16(0x63,_LE); if(ptnp<0x65 || ptnp>X.Sz()) return false;
-	for(i=0; i < 0x30; i++) { //sample pointers and ornament pointers
-		p = X.U16(3+i*2,_LE);
-		if(!p && (/*p < 0x65 ||*/ p > X.Sz()-2)) return false; // Ashnar/HBKSA2.pt2 .___.
+	// & https://bulba.untergrund.net/Ay_Emul29.src.7z /Players.pas & /Help/html/ay_ru_fmt_pt2.htm
+	if(X.Sz() < 132) return false; //the smallest pt2 in all actual collections is 521 bytes long
+	tmp = X.U8(0); if(!isWithin(tmp,2,15)) return false;
+	ord = X.U8(1); lp = X.U8(2); if(!ord || lp > ord) return false;
+	smp0 = X.U16(3); orn0 = X.U16(0x43); if(orn0-smp0 > X.Sz()+2 || orn0 < smp0) return false;
+	ptnp = X.U16(0x63); if(!isWithin(ptnp,0x65,orn0)) return false; smp = orn = 0;
+	for(i=mps=0,p=3; i < 0x20; i++,p+=2) { t = X.U16(p);
+		if(t) { smp++; if(!isWithin(t,0x65,X.Sz()-2)) return false } if(t > mps) mps = t }
+	for(mp=0; i < 0x30; i++,p+=2) { t = X.U16(p); if(t > mp) mp = t;
+		if(t) { orn++; if(orn <= 2 && !isWithin(t,Math.max(mps,orn0),X.Sz())) return false }
+		//just check the first two orns. Ornament records seem to be optional, and,
+		//despite the pointers being present, some modules are just cut off early 
 	}
-	if(X.U8(0x64) > 1) return false;
-	for(ptn=0; ptn <= 0xFF; ptn++) {
-		if(0x83+ptn > X.Sz()-2) return false;
-		posn = X.U8(0x83+ptn);
-		if(posn == 0xFF) break;
+	for(ptn=ro=0; ro <= 0xFF; ro++) {
+		if(0x83+ro > X.Sz()-2) return false; if((o=X.U8(0x83+ro)) == 0xFF) break; if(o+1 > ptn) ptn = o+1
 	}
-	if(!ptn || ptn>0xFF) return false; //how can it be >0xFF...
-	return (ord == ptn)
+	if(ord != ro) return false; p = 0x83+ro+1; if(ptnp != p) return false;
+	for(rptn=0; p < X.Sz(); rptn++,p+=2) { if(!(t=X.U16(p))) break;
+		else if(!isWithin(t,ptnp+ptn*6,X.Sz())) return false }
+	if(rptn != ptn*3) return false;  sz = mp+2+X.U8(mp);
+	return true
 }
-if(!bDetected && X.isDeepScan() && isProTracker2()) {
-	sName = "ProTracker module (.PT2)"; sVersion = "v2.x"; bDetected = 1;
+if(!bDetected && isProTracker2()) {
+	sName = "ProTracker module (.PT2)"; sVersion = 'v2.x'; bDetected = 1;
 	if(X.isVerbose()) {
-		if(smp0>0x82 && orn0>0x82 && ptn>0x82)
-			sOptionT(X.SA(0x65,0x1E));
-		sOption("tmp:"+tmp+" ord:"+ord+" ptn:"+ptn)
+		nc = charStat(t=readBytes(0x65,0x1E), 1);
+		if(nc.indexOf('allxsc') >= 0) sOptionT(decEncoding(t,CPSpeccy)); else sOption('<broken title>');
+		sOption('tmp:'+tmp+' ord:'+(lp?lp+'-':'')+ord+' ptn:'+ptn+' smp:'+smp+' orn:'+orn+' sz:'+outSz(sz))
 	}
 }
 
 
-function isProTracker3() { //PT3's detection, ALSO sanity checks because SOME people -_-
+function isProTracker3() { //PT3's detection but sanity checks because SOME people -_-
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker3_compiled.cpp
-	ftn = X.U8(0x63); //0=Pro Tracker, 1=Sound Tracker, 2=ASM or PSC, 3=RealSound.
-	tmp = X.U8(0x64); if((tmp<3)||(tmp>63)) return false;
-	len = X.U8(0x65); if(len>0x55) return false;
-	loop = X.U8(0x66); if(loop>63) return false;
-	pptn = X.U16(0x67,_LE); if(pptn>X.Sz()-2) return false;
-	for(i=0;i<0x30;i++) if(X.U16(0x69+i*2,_LE)>X.Sz()-2) return false;
-	for(ord=0;ord<=0xFF;ord++) {
-		if(0xC9+ord>X.Sz()-2) return false;
-		posn=X.U8(0xC9+ord);
-		if(posn==0xFF) break;
-	}
-	if((ord==0) || (ord>0xFF)) return false;
-	return (ord==len)
+	// & https://bulba.untergrund.net/Ay_Emul29.src.7z /Help/html/ay_ru_fmt_pt3.htm
+	if(X.Sz() < 0xCA) return false; p = 0; var maxsz = Math.min(65535,X.Sz());
+	function rf(msg) { if(debug>1)_l2r('pt3',p,msg); return false }
+	ttn = X.U8(0x63); //if(ttn > 4) return rf('badtuning'); Scarab's 'cod' stuff just breaks this
+	tmp = X.U8(0x64); if(!tmp) return false;
+	ord = X.U8(0x65); ptnp = 0xCA+ord; if(ptnp != X.U16(0x67) || ptnp > X.Sz()-2) return false;
+	lp = X.U8(0x66); if(lp > ord-1) return false;
+	orn = smp = mp = 0;
+	var smps=[], orns=[], trks=[], ptns=[]; bad = '';
+	for(p=0x69; p < 0xA9; p+=2) if(X.U16(p)) smp++;  for(; p < 0xC9; p+=2) if(X.U16(p)) orn++;
+	for(ptn=i=0,p=0xC9; i <= 0xFF; i++) { if((o=X.U8(p++)) == 0xFF) break; if(o%3) return false;
+		if(ptns.indexOf(o/3) < 0) ptns.push(o/3);
+		if(o/3 > ptn) ptn = o/3; }
+	ptn++; if(!i || i != ord) return rf('realord:'+i+' != ord:'+ord);
+	t = readBytes(0,10); tracker = '';
+	if(charStat(t,1).indexOf('allasc') >= 0) { t = decEncoding(t,CPSpeccy);
+		if(t == 'ProTracker') { tracker = 'Pro Tracker'; sv = 'v'+X.SA(0xB,4).trim(); nv = X.U8(0xD)-0x30 }
+		else if(t == 'Vortex Tra') { tracker = 'Vortex Tracker ]['; sv = 'v'+X.SA(0x12,4).trim(); nv = 7 }
+		else { tracker = '"'+X.SA(0,14)+'"'; sv = 'v3.x'; nv = 7 }
+	} else { tracker = 'hacked Pro Tracker'; sv = 'v3.x'; nv = 7 }
+	//track parser
+	function isTrkIn(tracks,track) {
+		for(var i=0; i < tracks.length; i++) if(tracks[i][0] == track[0]) return true;  return false }
+	for(i=notes=0; i < ptn*3 && p < maxsz; i++,p+=2) {
+		// echo track addresses, pertinent to debugging:
+		// 6F3, 719, 745...
+		if(!isWithin(t=X.U16(p),p,maxsz)) return rf('badptnp2:'+Hex(t));
+		if(ptns.indexOf(Util.divu64(i,3)) < 0) continue;
+		trk = [t,0]; if(isTrkIn(trks,trk)) continue;
+		var lines = 0, eot = false;
+		trkparse: while(!eot && lines < 256 && t < maxsz) {
+			eol = false; z = 0; // counter of all effect parameters
+//_l2r('pt3',t,'  line:'+Hex(lines-1))
+			while(!eol && t < X.Sz()) {
+//_l2r('pt3',t,'    #'+Hex(X.U8(t))+' +'+z)
+				if((x=X.U8(t++)) == 0) eol = eot = true;
+				else if(x == 1 || x == 8) z += 3;  else if(x == 2) z += 5;  else if([3,4,6,9].indexOf(x) >= 0) z++;
+				else if(x == 5) z += 2;  else if(x == 7) bad = bad.addIfNone('badcmd07h');
+				else if(x == 0x10) { x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
+					if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
+				else if(x < 0x20) { t += 2; x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
+					if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
+				else if(x < 0x40) { /* could check if this isn't channel B but may be too much */ }
+				else if(x < 0x50) { x &= 0xF; if(orns.indexOf(x) < 0) { orns.push(x); if(mp < (y=X.U16(0xA9+x*2))) mp = y } }
+				else if(x < 0xB0) { notes++; eol = true } else if(x == 0xB0) { /*envoff*/ }
+				else if(x == 0xB1) { lines += X.U8(t++) } else if(x < 0xC0) t += 2; else if(x == 0xC0) eol = true;
+				else if(x < 0xD0) { /*setvol*/ } else if(x == 0xD0) eol = true;
+				else if(x < 0xF0) { x = (x&0x1F)<<1; y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
+					if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
+				else { x &= 0xF; if(orns.indexOf(x) < 0) { orns.push(x); if(mp < (y=X.U16(0xA9+x*2))) mp = y }
+					x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
+						if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
+			}
+			lines++; t += z; z = 0; if(lines > 256) if (!X.isHeuristicScan()) return rf('badlines'); else bad = bad.addIfNone('!badlns')
+		}//trkparse
+		trk[1] = t-trk[0]; if(!isTrkIn(trks,trk)) trks.push(trk); if(mp < t) mp = t
+	}//all tracks parsed
+//	function tupleSort(lst) { function sf(a, b) { if(a[0] != b[0]) return a[0]-b[0]; else return a[1]-b[1] } return lst.sort(sf) }
+//_l2r('pt3',0,outArray(tupleSort(trks),16)+'::: '+outArray(findGaps(trks,0),16)+' :: '+outArray(findIntersections(trks,true),16))
+	if(t=findIntersections(trks,true).length) if(!X.isHeuristicScan() || t > 5) return rf('trackintersections');
+		else bad = bad.addIfNone('!trkxsec'); //so there are some broken files, like echo.pt3 (5753 bytes)
+	if(t=findGaps(trks,0).length) if(!X.isHeuristicScan() || t > 5) return rf('trackgaps');
+		else bad = bad.addIfNone('!trkgap'); //tracks are monolithic BUT SOME PEOPLE
+	rsmp = smps.length; rorn = orns.length; rptn = ptns.length; if(!rptn || !isWithin(rsmp,1,32)) return false;
+	sz = mp+2+X.U8(mp+1); //ornaments! either at the last orn ptr, or just straight after the patterns
+	return true
 }
-if(!bDetected && X.isDeepScan() && isProTracker3()) {
-	sName = "ProTracker module (.PT3)"; sVersion = "v3."+X.SA(0x0D,1);
-	bDetected = 1;
+if(!bDetected && isProTracker3()) {
+	sName = "Pro Tracker module (.PT3)"; sVersion = sv; bDetected = 1;
+	tsmode = (nv >= 7 && (X.U8(0x62) != 0x20 || X.c("'Vortex Tra'",sz) || X.c("'ProTracker v'",sz)));
+	if(tsmode) sVersion += ' TurboSound';
+	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
-		sOptionT(X.SA(0x1E,0x20));
-		sOptionT(X.SA(0x42,0x20),"by: ")
-		sOption("tmp:"+tmp+" ord:"+len)
-	}
-	switch(ftn) {
-		case 0: sOption("Pro Tracker tuning"); break;
-		case 1: sOption("Sound Tracker tuning"); break;
-		case 2: sOption("ASM/PSC tuning"); break;
-		case 3: sOption("RealSound tuning"); break;
-		default: sOption("Unknown tuning")
+		if(X.c("'by ",0x3F)) { sOptionT(decAnsi(0x1E,0x20,CPSpeccy)); sOptionT(decAnsi(0x42,0x20,CPSpeccy),'by: ') }
+		sOptionT(tracker,'in: ');
+		switch(ttn) {
+			case 0: sOption('tuning 1625000'); break;
+			case 1: sOption('Sound Tracker tuning'); break;
+			case 2: sOption('tuning 1750000'); break;
+			case 3: sOption('tuning 1625000'); break;
+			default: sOption('custom tuning')
+		}
+		sOption((tsmode?'1st chip info: ':'')+'tmp0:'+tmp+' ord:'+(lp?lp+'-':'')+ord
+			+' ptn:'+(rptn!=ptn?rptn+'/':'')+ptn+' smp:'+(rsmp!=smp?rsmp+'/':'')+smp
+			+' orn:'+(rorn!=orn?rorn+'/':'')+orn+' notes:'+notes+' sz:'+outSz(sz))
 	}
 }
 
@@ -6864,7 +6914,7 @@ function isST() {
 	postp = X.U16(1,_LE); if(postp<0x7E || postp>X.Sz()) return false; //positions ptr
 	orntp = X.U16(3,_LE); if(orntp<0x7E || orntp>X.Sz()) return false; //ornaments ptr
 	ptntp = X.U16(5,_LE); if(ptntp<0x7E || ptntp>X.Sz()) return false; //patterns ptr
-	ord = X.U8(postp);
+	ord = X.U8(postp)+1;
 	j2 = ptntp - orntp; if(j2 == 0) return false; //j2<0: ST, >0: S_SONIC
 	fID = false;
 	if(j2 > 0) { if((j2%0x21) > 0) return false; }
