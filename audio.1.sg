@@ -6270,9 +6270,9 @@ _log("! @"+Hex(p)+" w="+Hex(w)+" > "+defW+" rs:"+rs+" clen:"+Hex(clen)+" cend:"+
 // serialization_utils.cpp:558
 //I've left the pieces of map code intact in case there's fun in finding out what MPT-only tweaks there are
 				if(hasmap || fes) {
-					p = posstart+rposMapBegin; if(p > X.Sz()) break;
+					p = posstart+rposMapBegin;
 					//var idArray = [], mapdata = [];
-					for(i=0; i < entries; i++) {
+					for(i=0; i < entries && p < X.Sz(); i++) {
 						var idsz = idbytes;
 						if(idsz == 65535) idsz = readaintle(16);
 						// md = {"idlen":idsz, "idpos":oldEnd, "id:":"", "rposst":0, "rposend":0, "sz":-1 }
@@ -6698,7 +6698,7 @@ function isProTracker2() {
 	// & https://bulba.untergrund.net/Ay_Emul29.src.7z /Players.pas & /Help/html/ay_ru_fmt_pt2.htm
 	if(X.Sz() < 132) return false; //the smallest pt2 in all actual collections is 521 bytes long
 	tmp = X.U8(0); if(!isWithin(tmp,2,15)) return false;
-	ord = X.U8(1); lp = X.U8(2); if(!ord || lp > ord) return false;
+	ord = X.U8(1); lp = X.U8(2); if(!ord || lp > ord || 0x83+ord > X.Sz()-2) return false;
 	smp0 = X.U16(3); orn0 = X.U16(0x43); if(orn0-smp0 > X.Sz()+2 || orn0 < smp0) return false;
 	ptnp = X.U16(0x63); if(!isWithin(ptnp,0x65,orn0)) return false; smp = orn = 0;
 	for(i=mps=0,p=3; i < 0x20; i++,p+=2) { t = X.U16(p);
@@ -6708,10 +6708,10 @@ function isProTracker2() {
 		//just check the first two orns. Ornament records seem to be optional, and,
 		//despite the pointers being present, some modules are just cut off early 
 	}
-	for(ptn=ro=0; ro <= 0xFF; ro++) {
-		if(0x83+ro > X.Sz()-2) return false; if((o=X.U8(0x83+ro)) == 0xFF) break; if(o+1 > ptn) ptn = o+1
-	}
-	if(ord != ro) return false; p = 0x83+ro+1; if(ptnp != p) return false;
+	for(p=0x83,ptn=i=0; i <= 0xFF; i++,p++) {
+		if(p > X.Sz()-2) return false; if((o=X.U8(p)) == 0xFF) break; if(o > ptn) ptn = o
+	} ptn++; p++;
+	if(ord != i || ptnp != p) return false;
 	for(rptn=0; p < X.Sz(); rptn++,p+=2) { if(!(t=X.U16(p))) break;
 		else if(!isWithin(t,ptnp+ptn*6,X.Sz())) return false }
 	if(rptn != ptn*3) return false;  sz = mp+2+X.U8(mp);
@@ -6732,7 +6732,7 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 	// & https://bulba.untergrund.net/Ay_Emul29.src.7z /Help/html/ay_ru_fmt_pt3.htm
 	if(X.Sz() < 0xCA) return false; p = 0; var maxsz = Math.min(65535,X.Sz());
 	function rf(msg) { if(debug>1)_l2r('pt3',p,msg); return false }
-	ttn = X.U8(0x63); //if(ttn > 4) return rf('badtuning'); Scarab's 'cod' stuff just breaks this
+	ttn = X.U8(0x63); if(ttn > 4) if(X.isHeuristicScan()) bad = bad.addIfNone('!badtuning'); else return rf('badtuning');
 	tmp = X.U8(0x64); if(!tmp) return false;
 	ord = X.U8(0x65); ptnp = 0xCA+ord; if(ptnp != X.U16(0x67) || ptnp > X.Sz()-2) return false;
 	lp = X.U8(0x66); if(lp > ord-1) return false;
@@ -6740,8 +6740,7 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 	var smps=[], orns=[], trks=[], ptns=[]; bad = '';
 	for(p=0x69; p < 0xA9; p+=2) if(X.U16(p)) smp++;  for(; p < 0xC9; p+=2) if(X.U16(p)) orn++;
 	for(ptn=i=0,p=0xC9; i <= 0xFF; i++) { if((o=X.U8(p++)) == 0xFF) break; if(o%3) return false;
-		if(ptns.indexOf(o/3) < 0) ptns.push(o/3);
-		if(o/3 > ptn) ptn = o/3; }
+		if(ptns.indexOf(o/3) < 0) ptns.push(o/3); if(o/3 > ptn) ptn = o/3 }
 	ptn++; if(!i || i != ord) return rf('realord:'+i+' != ord:'+ord);
 	t = readBytes(0,10); tracker = '';
 	if(charStat(t,1).indexOf('allasc') >= 0) { t = decEncoding(t,CPSpeccy);
@@ -11437,6 +11436,24 @@ if(X.isHeuristicScan()) { //parallel block
 		_setResult("audio","TwinTeam's Twin Trackplayer module (.DMO)","",'unp.sz:'+X.U16(0xC))
 	}
 
+	function isVoices_8() { //this is a WIP until someone manages to test the tracker without it freezing up on I/O
+		soption = ''; smp = ptn = smpsz = 0;
+		for(i=0; i < 0x20; i++) {
+			if(charStat(t=readBytes(i*0x20,0x10),1).indexOf('allxsc') < 0) return false;
+			var c = t.indexOf(0); if(!c) continue; if(c < 0) return false;
+			for(j=15; j > c && !t[j];) j--; if(j > c) return false;
+			var ssz = X.U32(i*0x20+0x14,_BE); if(ssz) { smpsz += ssz; smp++ }
+			}
+		tmp0 = X.U8(0x480); ord = X.U8(0x481); if(!tmp0 || tmp0 > 0xF || !ord || ord > 0x80) return false;
+		for(i=0; i < ord; i++) if((t=X.U8(0x482+i)+1) > ptn) ptn = t;  if(ptn > 32) return false;
+		for(; i < 128; i++) if(X.U8(0x482+i)) return false; sz = 0x502+ptn*0x800+smpsz;
+		if(X.Sz() < sz) return false;
+		soption = 'tmp0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz);
+		return true
+	}
+	if(isVoices_8()) {
+		_setResult("audio","SHINING 8's Voices_8/8CHNL Soundtracker module","",X.isVerbose()?soption:'')
+	}
 
 } //isHeuristicScan parallel block
 
