@@ -100,7 +100,6 @@ This is where you can contribute the most! (sorted by extension)
  - Startrekker AM's `.NT` info files
  - NoiseTrekker/ProTrekker `.NTK` & `.PTK` (info, size)
  - NovoTrade Packer `.NTP` (tigthen, info, size)
- - Oktalyzer `.OKTA` (info, size)
  - Onyx `.OMF` (info, size)
  - Pierre Adane Packer `.PAP`
  - Disorder Tracker 2 `.PLM` (size)
@@ -116,7 +115,6 @@ This is where you can contribute the most! (sorted by extension)
  - Powertracker `.PT`
  - pxtone `.PTTUNE` & `.PTCOP` (info)
  - Poly Tracker `.PTM` (size)
- - ProTracker IFF `.PTM` (info, size)
  - Peter Verswyvelen's Packer `.PVP` (just a flavour of the STK MOD?)
  - Renoise (old) `.RNS` (info, size)
  - Riff Raff `.RIFF` (info, size)
@@ -126,7 +124,6 @@ This is where you can contribute the most! (sorted by extension)
  - S98 `.S98` (tighten if possible, size)
  - Speedy A1 System `.SAS`
  - Slight Atari Player `.SAP` (size)
- - Surprise! AdLib Tracker `.SAT` & `.SA2` (size)
  - Sierra Adlib `.SCI` (rewrite)
  - SCUMMVM `.SCUMM`
  - Synth Dream `SDR.`
@@ -139,7 +136,6 @@ This is where you can contribute the most! (sorted by extension)
  - Westwood `.SND`
  - `.SNDH` (size)
  - Faust Music Creator `.SNG` (info, size)
- - GoatTracker `.SNG` (info, size)
  - Jonne Valtonen's SNG Player `.SNG` (info, size)
  - Richard Joseph `.SNG` (info, size)
  - SAM Coupe `.SNG`
@@ -166,7 +162,7 @@ This is where you can contribute the most! (sorted by extension)
  - Vibrants `.VIB` (I just have 1 file of this)
  - VicTracker `.VT` (info, size)
  - Voodoo Supreme Synthesizer `.VSS` (rewrite)
- - Vortex Tracker II `.VT2` (info, size)
+ - Vortex Tracker II `.VT2` (info, size won't be easy as it's a pure-text format)
  - Wally Beben `.WB` (info, size)
  - Wonderswan R `.WSR` (more info, size)
  - Exotic AdLib `.XAD` (tighten, info, size)

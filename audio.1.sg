@@ -2608,12 +2608,22 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(sz > -1) sOption(outSz(sz),"sz:")
 		}
 	}
-	else if(X.c("'OKTASONG'")) {
+	else if(X.c("'OKTASONGCMOD'00000008") && X.c("'SAMP'00000480", 0x18)
+	  && X.c("'SPEE'00000002....'SLEN'00000002....'PLEN'00000002....'PATT'00000080", 0x4A0)
+	  && X.c("'PBOD'", 0x546)) {
 		sName = "Oktalyzer module (.OKTA)"; bDetected = 1;
+		sVersion = 'v'+X.U16(0x14,_BE)+'.'+X.U16(0x16,_BE).padStart(2,'0');
 		if(X.isVerbose()) {
-			sOption("[Sample names]");
-			for(i=0x20; i <= 0x100; i+=0x20)
-				sOptionT(X.SA(i,0x14))
+			for(p=0x20,smp=0,smps=[]; p < 0x4A0; p += 0x20) {
+				if((t=decAnsi(p,0x14,CPAmiga).trim()) != '') smps.push(t); if(X.U32(p+0x14,_BE)) smp++;
+			}
+			sOption(addEllipsis(smps.join(' ')),'smp/msg:"','"');
+			tmp0 = X.U16(0x4A8,_BE); ptn = X.U16(0x4B2,_BE); ord = X.U16(0x4BC,_BE); rsmp = 0;
+			p = 0x546; while(p < X.Sz() && rsmp < smp) {
+				hkhd = X.SA(p,4); if(charStat(hkhd,1).indexOf('allasc') < 0) break;
+				hksz = X.U32(p+4,_BE); if(hkhd === 'SBOD') rsmp++; p += 8+hksz
+			}
+			sOption('tmp0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+(rsmp!=smp?rsmp+'/':'')+smp+' sz:'+outSz(p))
 		}
 	}
 	else if(X.c("'Onyx Music File'1A")) {
@@ -3168,7 +3178,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(X.isVerbose()) sOption(outSz(X.U32(0x0C)+0x10),"sz:")
 	}
 	else if(X.c("'PTMF'",0x2C) && X.c("1A",0x1C) && isWithin(X.U16(0x26),1,32)
-	  && X.U16(0x20)<256 && isWithin(X.U16(0x22),1,255) && isWithin(X.U16(0x24),1,128)) {
+	  && X.U16(0x20) < 256 && isWithin(X.U16(0x22),1,255) && isWithin(X.U16(0x24),1,128)) {
 		// ref https://web.archive.org/web/20151027135201if_/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Poly%20Tracker%20module%20format.cp437.txt.utf-8.txt
 		sName = "Poly Tracker module (.PTM)"; bDetected = 1;
 		sV = Hex(X.U16(0x1D,_LE));
@@ -3184,17 +3194,43 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption("ch:"+ch+" ord:"+ord+" ptn:"+ptn+" ins:"+ins)
 		}
 	}
-	else if(X.c("'FORM'.. .. .. ..'MODLVERS'")){
-		sName = "ProTracker IFF module (.PTM)"; bDetected = 1;
-		sVersion = X.SA(0x18,X.U32(0x10,_BE)-0x10);
-		if(X.isVerbose()) {
-			p = X.fSig(0x1E,0x200,"'INFO'");
-			if(p > 0) sOptionT(X.SA(p+8,0x20));
-			p = X.fSig(p+X.U32(p+4,_BE),0x200,"'CMNT'");
-			if(p > 0) sOptionT(X.SA(p+8,X.U32(p+4,_BE)))
+	else if(X.c("'FORM'........ 'MODLVERS'00000016") && X.c("'INFO'00000048",0x1E)
+	  && X.c("'CMNT'000001A4",0x66) && X.c("'PTDT'",0x20A)) {
+		info = cmt = dt = pt = sv = ''; smp = ord = ptn = tmp0 = 0; sz = X.U32(4,_BE)+8;
+		maxsz = Math.min(sz,X.Sz());
+		p = 0x1E; while (!bDetected && p < maxsz) {
+			hkhd = X.SA(p,4); hksz = X.U32(p+4,_BE); if(charStat(hkhd,1).indexOf('allasc') < 0) break;
+			switch (hkhd) {
+			case 'INFO': info = decAnsi(p+8,0x20,CPAmiga).trim();
+				smp = X.U16(p+0x28,_BE); ord = X.U16(p+0x2A,_BE);
+				ptn = X.U16(p+0x2C,_BE); bpm0 = X.U16(p+0x30,_BE);
+				var dd = X.U16(p+0x34,_BE); if(!isWithin(dd,1,31)) { bDetected = 0; p = sz+1; break }
+				var mm = X.U16(p+0x36,_BE); if(!isWithin(mm,0,12)) { bDetected = 0; p = sz+1; break }
+				var yy = X.U16(p+0x38,_BE); if(isWithin(yy,30,88)) { bDetected = 0; p = sz+1; break }
+				dt = (1900+yy)+'-'+mm.padStart(2,'0')+'-'+dd.padStart(2,'0')+' '
+					+X.U16(p+0x3A,_BE).padStart(2,'0')+':'+X.U16(p+0x3C,_BE).padStart(2,'0')
+					+':'+X.U16(p+0x3E,_BE).padStart(2,'0');
+				pt = secondsToTimeStr(X.U16(p+0x40,_BE)*3600+X.U16(p+0x42,_BE)*60+X.U16(p+0x44,_BE));
+				break;
+			case 'CMNT': auth = decAnsi(p+8,0x20,CPAmiga).trim(); if(auth === 'UNNAMED AUTHOR') auth = '';
+				cmt = decAnsi(p+0x28,hksz-0x20,CPAmiga).trim(); break;
+			case 'PTDT': sName = "ProTracker IFF-wrapped module (.PTM)"; bDetected = 1; break
+			}
+			p += hksz
+		}
+		if(bDetected) {
+			sv = X.SA(0x18,6).trim(); if(!sv.length) sv = 'v3.6'; sVersion = sv;
+			if(X.isVerbose()) {
+				sOption(info); sOption(auth,'by: '); sOption(cmt);
+				sOption(dt,'on '); sOption(pt,'len ');
+				sOption('bpm0:'+bpm0+' ord:'+ord+' ptn:'+ptn+' smp:'+smp);
+				sOption(outSz(sz),'sz:')
+			}
 		}
 	}
-	else if(X.c("'RAD by REALiTY!!'")) {
+
+	if(!bDetected)
+	if(X.c("'RAD by REALiTY!!'")) {
 		//partial ref https://www.3eality.com/Public/Releases/RAD/radv2_0a.zip source/validate20.cpp
 		// & https://www.3eality.com/Public/Releases/RAD/radv1_1a.zip player.asm
 		sName = "Reality Adlib Tracker module (.RAD)"; bDetected = 1;
@@ -11444,7 +11480,7 @@ if(X.isHeuristicScan()) { //parallel block
 			for(j=15; j > c && !t[j];) j--; if(j > c) return false;
 			var ssz = X.U32(i*0x20+0x14,_BE); if(ssz) { smpsz += ssz; smp++ }
 			}
-		tmp0 = X.U8(0x480); ord = X.U8(0x481); if(!tmp0 || tmp0 > 0xF || !ord || ord > 0x80) return false;
+		tmp0 = X.U8(0x480); ord = X.U8(0x481); if(!smpsz || !tmp0 || tmp0 > 0xF || !ord || ord > 0x80) return false;
 		for(i=0; i < ord; i++) if((t=X.U8(0x482+i)+1) > ptn) ptn = t;  if(ptn > 32) return false;
 		for(; i < 128; i++) if(X.U8(0x482+i)) return false; sz = 0x502+ptn*0x800+smpsz;
 		if(X.Sz() < sz) return false;
