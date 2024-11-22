@@ -2106,6 +2106,18 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		// and other times it's like a bitfield
 		sName = "TFMX or TFMX ST module (.MDAT,.MDST)"; bDetected = 1
 	}
+	else if(X.c("'MDC'1A 00080040")) {
+		//from https://github.com/ValleyBell/MidiConverters/blob/master/mdc2mid.c
+		sName = "かるちゃん/CUL.'s music creative driver module (.MDC)"; bDetected = 1;
+		info = ''; maxsz = Math.max(X.Sz(),65536);
+		sz = X.U32(8,_BE); p = X.U32(0x14,_BE); midires = X.U16(0x2C,_BE);
+		if(p && p < maxsz && (t=X.fSig(p,maxsz,'0D0A1A')) > 0) info = X.SC(p,t-p,'Shift_JIS');
+		p = trkp = X.U32(0x10,_BE); x = X.U16(p,_BE); if(x > 0x20) sVersion = '!badsongcnt';
+		for(i=ch=0,p+=2; i < Math.min(x,0x20); i++,p+=8) if(ch < X.U8(p+5)) ch = X.U8(p+5)
+		if(X.isVerbose()) {
+			sOptionT(info); if(x > 1) sOption(x,'x'); sOption('ch:'+ch+(sz?' sz:'+outSz(sz):''));
+		}
+	}
 	else if(X.c("'DMDL'..'IN'")) {
 		sName = "Digitrakker module (.MDL)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -2626,23 +2638,23 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption('tmp0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' smp:'+(rsmp!=smp?rsmp+'/':'')+smp+' sz:'+outSz(p))
 		}
 	}
-	else if(X.c("'Onyx Music File'1A")) {
+	else if(X.c("'Onyx Music File'1A0001") && X.c("80808080",0x112)) {
 		// ref ftp://http.modland.com/pub/documents/format_documentation/Onyx%20Music%20File%20(.omf).txt
 		sName = "Onyx Music File (.OMF)"; bDetected = 1;
 		if(X.isVerbose()) {
 			ch = X.U8(0x192)+1;
 			ptn = X.U8(0x193)+1;
 			ord = X.U8(0x194)/2+1;
-			t = X.SA(0x195,0x1F);
-			if(t == "") {
-				sn=[];
-				for(i=0; i < 31; i++) {
-					s = X.SA(0x1B4+i*28,21);
-					if(s != "") sn.push(s)
-				}
-				t = sn.join("\n")
+			title = X.SA(0x195,0x1F).trim();
+			sn = []; smp = smpsz = 0;
+			for(i=0; i < 31; i++) {
+				t = X.SA(0x1B4+i*0x1C,21).trim(); if(t.length) sn.push(t);
+				t = X.U16(0x1CC+i*0x1C); if(t) { smpsz += t; smp++ }
 			}
-			sOptionT(t);
+			for(i=0,p=0x51A; i < ptn; i++) p += 3+X.U8(p+2)*0x100; sz = p+smpsz+smp*3;
+			for(i=0; i < smp; i++) p += 3+X.U16(p+1); if(p != sz) sVersion = 'malformed!badsmpcnk';
+			sOptionT(title); sOptionT(addEllipsis(sn.join(' ')),'smp/msg:"','"');
+			sOption('ch:'+ch+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 		}
 	}
 	else if((X.c("'Org-02'") || X.c("'Org-03'")) && X.Sz() >= 114) {
@@ -3177,21 +3189,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "pxtone Voice instrument (.PTVOICE)"; bDetected = 1;
 		if(X.isVerbose()) sOption(outSz(X.U32(0x0C)+0x10),"sz:")
 	}
-	else if(X.c("'PTMF'",0x2C) && X.c("1A",0x1C) && isWithin(X.U16(0x26),1,32)
-	  && X.U16(0x20) < 256 && isWithin(X.U16(0x22),1,255) && isWithin(X.U16(0x24),1,128)) {
+	else if(X.c("'PTMF'",0x2C) && X.U8(0x1C) == 0x1A && X.U8(0x1E) <= 2 && isWithin(ch=X.U16(0x26),1,32)
+	  && (ord=X.U16(0x20)) < 256 && isWithin(ins=X.U16(0x22),1,255) && isWithin(ptn=X.U16(0x24),1,128)) {
 		// ref https://web.archive.org/web/20151027135201if_/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Poly%20Tracker%20module%20format.cp437.txt.utf-8.txt
 		sName = "Poly Tracker module (.PTM)"; bDetected = 1;
-		sV = Hex(X.U16(0x1D,_LE));
-		sVersion = "v"+sV.substr(0,1)+"."+sV.substr(1,2);
+		sV = Hex(X.U16(0x1D)); sVersion = "v"+sV.substr(0,1)+'.'+sV.substr(1,2);
+		bad = '';
+		for(sn=[],i=mp=rsmp=0,p=0x260; i < ins; i++,p+=0x50) {
+			if(X.U8(p) & 3) { rsmp++; t = X.U32(p+0x12); if(mp < t) { mp = t; sz = t+X.U32(p+0x16) } }
+			t = X.SC(p+0x30,0x1C,'CP437').trim(); if(t.length) sn.push(t);
+		} sz = Math.max(sz,p);
+		if(!rsmp) bad = bad.addIfNone('!badsmpavl');
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 		if(X.isVerbose()) {
-			sOptionT(X.SA(0,0x1C));
-			bad = "";
-			ch = X.U16(0x26,_LE); if(!ch || ch > 32) bad = bad.addIfNone("!badchn");
-			ord = X.U16(0x20,_LE); if(ord > 256) bad = bad.addIfNone("!badord");
-			ins = X.U16(0x22,_LE); if(!ins || ins > 255) bad = bad.addIfNone("!badins");
-			ptn = X.U16(0x24,_LE); if(!ptn || ptn > 128) bad = bad.addIfNone("!badptn");
-			if(bad) sVersion += "/malformed"+bad;
-			sOption("ch:"+ch+" ord:"+ord+" ptn:"+ptn+" ins:"+ins)
+			sOptionT(X.SC(0,0x1C,'CP437')); sOption(addEllipsis(sn.join(' ')),'ins/msg:"','"');
+			sOption('ch:'+ch+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp:'+rsmp+' sz:'+outSz(sz))
 		}
 	}
 	else if(X.c("'FORM'........ 'MODLVERS'00000016") && X.c("'INFO'00000048",0x1E)
@@ -5275,7 +5287,7 @@ function isProtrackerMOD() {
 
 	//test signatures
 	if(/(M\.K\.|M!K!|PATT|NSMS|LARD)/.test(s)) {
-		chn = 4; tracker = "generic ProTracker-compatible";
+		chn = 4; tracker = "generic Protracker-compatible";
 		if(s === "M.K.") { isMdKd = true; maybeWOW = true } }
 	else if(/(M&K!|FEST|N\.T\.)/.test(s)) {
 		chn = 4; if(s === "N.T.") tracker = "NoiseTracker";
@@ -11488,7 +11500,7 @@ if(X.isHeuristicScan()) { //parallel block
 		return true
 	}
 	if(isVoices_8()) {
-		_setResult("audio","SHINING 8's Voices_8/8CHNL Soundtracker module","",X.isVerbose()?soption:'')
+		_setResult("audio","SHINING 8's Voices_8/8CHNL Soundtracker module",'',X.isVerbose()?soption:'')
 	}
 
 } //isHeuristicScan parallel block

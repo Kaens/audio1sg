@@ -100,7 +100,6 @@ This is where you can contribute the most! (sorted by extension)
  - Startrekker AM's `.NT` info files
  - NoiseTrekker/ProTrekker `.NTK` & `.PTK` (info, size)
  - NovoTrade Packer `.NTP` (tigthen, info, size)
- - Onyx `.OMF` (info, size)
  - Pierre Adane Packer `.PAP`
  - Disorder Tracker 2 `.PLM` (size)
  - Palladix Adlib `.PLX` (info, size)
