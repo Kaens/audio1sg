@@ -8,7 +8,6 @@ The following formats are to be reversed (or otherwise understood) and most like
 
 This is where you can contribute the most! (sorted by extension)
 
- - Aero Tracker `.AERO` (info, size)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
  - Ace Tracker `.AM` (info, size)
  - A.M. Composer `.AMC` (info, size)

@@ -63,9 +63,9 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption(t); sOption(g,"for: ")
 		}
 	}
-	else if(X.c("'AERO'")) {
-		sName = "Aero Tracker module (.AERO)"; bDetected = 1;
-		sVersion = "v"+X.U8(0x0E);
+	else if(X.c("'AERO'00000001") && X.U8(0x0F) == 0xCA && X.U8(0x1F) == 0xCA && X.U8(0x2F) == 0xCA) {
+		sName = "ioNeo Aero Studio module (.AERO)"; bDetected = 1;
+		if(X.isVerbose()) sOption('sz:'+outSz(X.U32(8)+12))
 	}
 	else if(X.fSig(20,0x100,"'<aks:song xmlns:aks=\"http://www.julien-nevo.com/ArkosTrackerSong\"") > 0) {
 		sName = 'Arkos Tracker 2 module (.AKS)'; sVersion = 'unpacked'; bDetected = 1;
