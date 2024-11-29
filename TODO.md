@@ -8,8 +8,8 @@ The following formats are to be reversed (or otherwise understood) and most like
 
 This is where you can contribute the most! (sorted by extension)
 
+ - Adlib Tracker || `.A2M` (info, size)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
- - Ace Tracker `.AM` (info, size)
  - A.M. Composer `.AMC` (info, size)
  - AMusic Adlib-MOD `.AMD` (size)
  - AND Xynth `.AMX` (info, size)

@@ -64,14 +64,64 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	else if(X.c("'AERO'00000001") && X.U8(0x0F) == 0xCA && X.U8(0x1F) == 0xCA && X.U8(0x2F) == 0xCA) {
-		sName = "ioNeo Aero Studio module (.AERO)"; bDetected = 1;
+		sName = "ioNeo's Aero Studio module (.AERO)"; bDetected = 1;
 		if(X.isVerbose()) sOption('sz:'+outSz(X.U32(8)+12))
 	}
 	else if(X.fSig(20,0x100,"'<aks:song xmlns:aks=\"http://www.julien-nevo.com/ArkosTrackerSong\"") > 0) {
-		sName = 'Arkos Tracker 2 module (.AKS)'; sVersion = 'unpacked'; bDetected = 1;
+		sName = "Julien Névo's Arkos Tracker 2 module (.AKS)"; sVersion = 'unpacked'; bDetected = 1;
 	}
-	else if(X.c("'AM01'000000") && X.c("'ASD1'00", 0x38)) {
-		sName = "Ace Tracker module (.AM)"; bDetected = 1;
+	else if(X.c("'AM01'000000") && X.c("'ASD1'", 0x38) && (amp=X.fSig(0x40,0x1000000,"'AMP'.. ........'ASSH'")) > 0) {
+		sName = "New Beat's Ace Tracker module (.AM)"; bDetected = 1;
+		maxsz = Math.min(X.Sz(),0x1000000); title = by = bad = ''; ptn = ord = smp = sz = 0; ptns = [];
+		p = 0x3C;
+		while(p < amp && smp < 0x40 && (t=X.U32(p,_BE))) { p += t; smp++ }  p += 4;
+		if(!X.c("'AMP'.. ........'ASSH'",p)) { p = amp; bad = bad.addIfNone('!badsmp'); smp = Math.max(1,smp) }
+		ampv = X.U8(p+3)-0x30; if(ampv > 3) bad = bad.addIfNone('!unkver');
+		sVersion = 'v'+ampv;
+		ins = X.U32(p+4,_BE); p += 12; inss = [];
+		for(i=0; i < ins; i++,p+=(ampv == 1? 0xCD: ampv == 2? 0xD1: ampv == 3? 0xD4: 0))
+			if((t=X.SA(p+4,20).trim()) != '' && t != 'Empty') inss.push(t)
+		if(!X.c("'ASG1'",p)) bad = bad.addIfNone('!badins');
+		asg1 = X.fSig(amp,maxsz,"'ASG1'"); ord = ptn = 0;
+		if(asg1 < 0) bad = bad.addIfNone('!nosong'); else {
+			title = X.SC(asg1+4,20,'CP437'); by = X.SC(asg1+24,20,'CP437')
+			for(i=asg1+0x2C; i < asg1+0x12C; i++) if(t=X.U8(i)) { ord = i-asg1-0x2B; if(t > ptn) ptn = t }
+		}
+		p = asg1+0x12C; apn1 = X.fSig(asg1,0x400,"'APN1'"); ch = ptn_ = -1;
+		if(apn1 > 0) {
+			if(p != apn1) bad = bad.addIfNone('!badptn'); ptn_ = X.U32(apn1+4,_BE);
+			if(ptn != ptn_) bad = bad.addIfNone('!badptn'+ptn+'/'+ptn_);
+			for(i=0,p=apn1+8; i < ptn_; i++) {
+				t = X.SC(p+4,12,'CP437').trim(); if(t.length && t != 'Empty') ptns.push(t);
+				ch_ = X.U16(p,_BE); if(ch_ > ch) ch = ch_;
+				p += 16+4*ch_*X.U16(p+2,_BE);
+			} sz = p
+		} else bad = bad.addIfNone('!noptns');
+		if(ch > 16) bad = bad.addIfNone('!badchn');
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+		if(X.isVerbose()) {
+			sOptionT(title); sOptionT(by,'by: ');
+			sOptionT(addEllipsis(inss.join(' ')),'ins/msg:"','"');
+			sOptionT(addEllipsis(ptns.join(' ')),'ptns:"','"');
+			sOption((ch > 0? 'ch:'+ch+' ': '')+'ord:'+ord+' ptn:'+(ptn!=ptn_?ptn+'/':'')+ptn_+' ins:'+ins+' smp:'+smp
+				+' xpos:'+X.I32(0x34)+(sz?' sz:'+outSz(sz):''))
+		}
+	}
+	else if(X.c("'ASG1'") && X.c("'APN1'",0x12C)) {
+		sName = "New Beat's Ace Tracker module patterns (.ASG)"; bDetected = 1; bad = '';
+		title = X.SC(4,20,'CP437'); by = X.SC(24,20,'CP437'); ptn = ord = 0;
+		for(p=0x2C; p < 0x12C; p++) if(t=X.U8(p)) { ord = p-0x2B; if(t > ptn) ptn = t }
+		ch = -1; ptns = [];
+		for(i=0,p=0x134; i < 0xFF; i++) { // unlike what .am has, .asg saves all 255 patterns
+			ch_ = X.U16(p,_BE); if(ch_ > ch) ch = ch_; ptnsz = ch_*X.U16(p+2,_BE); p += 4;
+			if(ptnsz) { t = X.SC(p,12,'CP437').trim(); if(t.length && t != 'Empty') ptns.push(t); p += 12+4*ptnsz }
+		} sz = p;
+		if(ch > 16) bad = bad.addIfNone('!badchn');
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+		if(X.isVerbose()) {
+			sOptionT(title); sOptionT(by,'by: '); sOptionT(addEllipsis(ptns.join(' ')),'ptns:"','"');
+			sOption((ch > 0? 'ch:'+ch+' ': '')+'ord:'+ord+' ptn:'+ptn+' sz:'+outSz(sz))
+		}
 	}
 	else if(X.c("'ZXAYAMAD'") && X.U8(9) <= 3) {
 		//the underlying format is the same as FXM
