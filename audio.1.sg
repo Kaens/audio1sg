@@ -142,15 +142,27 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	if(!bDetected)
-	if(X.c("'AMC V'......' REPLAY!'")) {
-		sName = "A.M. Composer module (.AMC)"; bDetected = 1;
+	if(X.c("'AMC V1.2 REPLAY!'") && X.c("0000003C0002	",0x4E)) {
+		// ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/AMComposer/src/AMComposer 1.2_v4.asm
+		sName = "Marc Hawlitzeck's A.M. Composer module (.AMC)"; bDetected = 1;
 		sVersion = "v"+X.SA(5,3);
+		if(X.isVerbose()) {
+			d0 = X.U32(0x14,_BE); a3 = X.U32(0x18,_BE); d3 = c = 0; p = 0x48; special = '';
+			for(smp = 0; p < X.Sz() && p < a3; p += 16) {
+				d2 = X.I32(p,_BE) + 2*X.U16(p+4,_BE); smp++; if(d2 > d3) d3 = d2 }  p = d3;
+			if(p < X.Sz()) {
+				while(p+c < X.Sz() && isWithin(X.U8(p+c),32,126)) c++;
+				if(!X.U8(p+c) && p+c+1 == X.Sz()) c++; special = X.SA(p,c)
+			}
+			sOption(special,'info:"','"');
+			sOption('smp:'+smp+' sz:'+outSz(p+c))
+		}
 	}
 	else if(X.c("'<o'EF'QU'EE'RoR'", 0x426) || X.c("'MaDoKaN96'", 0x426)) {
 		//ref http://modland.com/pub/documents/format_documentation/AMusic%20(.amd).txt
 		sName = "AMusic Adlib-MOD module (.AMD)"; bDetected = 1;
 		if(X.SA(0x426,1) != "<") sVersion = "xms rip-off";
-		if(X.U8(0x42F) == 0x11) sVersion = sVersion.append("packed");
+		if(X.U8(0x42F) == 0x11) sVersion = sVersion.appendS('packed','/');
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0,0x18));
 			sOptionT(X.SA(0x18,0x18),"by: ");
@@ -305,7 +317,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(bad) sVersion = sVersion.appendS('malformed'+bad,'/');
 	}
 	else if(X.c("'AMX ")) {
-		sName = "AND Xynth module (.AMX)"; bDetected = 1
+		//ref http://and.intercon.ru/releases/audio/xsynth/
+		sName = "Dmitry 'AND' Andreev's XSynth module (.AMX)"; bDetected = 1
 	}
 	else if(X.c("'AON4'") || X.c("'AON8'")) {
 		sName = "ArtOfNoise/Chorus module (.AON)"; bDetected = 1;
@@ -8342,9 +8355,11 @@ function isSMUS() {
 			return false;
 		d1 = X.U32(0x1C,_BE); if(d1 >> 31) return false; t_ = d1;
 		d1 = (d1+1) & 0xFFFFFFFE; a1 = 0x20+d1;
-		if(!X.c("'SNX1'",a1)) return false; a1 += 4;
-		d1 = X.U32(a1,_BE); if(d1 >> 31) return false; a1 += 4;
-		d1 = (d1+1) & 0xFFFFFFFE; a1 += d1;
+		if(X.c("'SNX1'",a1)) {
+			a1 += 4;
+			d1 = X.U32(a1,_BE); if(d1 >> 31) return false; a1 += 4;
+			d1 = (d1+1) & 0xFFFFFFFE; a1 += d1;
+		}
 		insinfp = a1;
 		realsmp = []; ins = 0;
 		do { //MoreIns
@@ -8358,7 +8373,7 @@ function isSMUS() {
 		sz = a1; trk = 0; while(sz < X.Sz()) {
 			hkhd = X.SA(sz,4); hksz = X.U32(sz+4,_BE);
 			if(hkhd != "TRAK") break; trk++; sz += 8+hksz }
-_log("trk:"+trk+" sz:"+outSz(sz))
+//_log("trk:"+trk+" sz:"+outSz(sz))
 		title = X.SA(0x20,t_);
 		fmt = 2; ext = "smus"
 	}

@@ -10,7 +10,6 @@ This is where you can contribute the most! (sorted by extension)
 
  - Adlib Tracker || `.A2M` (info, size)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
- - A.M. Composer `.AMC` (info, size)
  - AMusic Adlib-MOD `.AMD` (size)
  - AND Xynth `.AMX` (info, size)
  - ArtOfNoise/Chorus `.AON` (info, size)
