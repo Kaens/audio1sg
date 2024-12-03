@@ -5396,9 +5396,9 @@ function isProtrackerMOD() {
 
 	//test patterns
 	function cntBadPtnData(ofs) {
-		mask = 0xE0; var c = 0;
+		var c = 0;
 		for(i = 0; i < chn*64; i++)
-			if(X.U8(ofs+i) & mask) c++;
+			if(X.U8(ofs+i) & 0xE0) c++;
 		return c
 	}
 	p = plist+0x80;
@@ -5414,11 +5414,12 @@ function isProtrackerMOD() {
 		if(ptn >= iptn) iptn = ptn+1
 	}
 	//weirdness checks
-	if(wowsmpsz && (wowsmpsz+hdr+ptn*8*256 == (X.Sz() & ~1))) {
+	var alignedfsz = X.Sz() & ~1;
+	if(wowsmpsz && wowsmpsz+hdr+ptn*8*256 == alignedfsz) {
 		if(cntBadPtnData(hdr+ptn*4*256) < 16) chn = 8; //⚠no good for ripping -- best to err toward no WOW
 	} else
 	if(ptn != optn && cntBadPtnData(hdr+optn*chn*256) < 64) ptn = optn;
-	if(iptn > ptn && hdr+ssz+iptn*chn*256 == X.Sz()) ptn = iptn;
+	if(iptn > ptn && hdr+ssz+iptn*chn*256 == alignedfsz) ptn = iptn;
 
 	if(maybeWOW && chn === 8) { tracker = "Mod's Grave"; isGenericMCh = true }
 	if(restartpos >= ord || (restartpos == 0x78 && chn === 4)) restartpos = 0; //because that's actually bpm
@@ -5458,7 +5459,7 @@ function isProtrackerMOD() {
 	var anyADPCM = 0;
 	for(; p < 0x3B6; p += 0x1E) {
 		if(!isHMNT) { //His Master's Noise have data in sample titles
-			t = decAnsi(p,22,CPAmiga).trim(); if(t != "") smps.push(t)
+			t = readBytes(p,22,true); t = decEncoding(t,CPAmiga).trim(); if(t.length) smps.push(t)
 		}
 		var ssz = X.U16(p+0x16,_BE)*2;
 		if(ssz) smp++;
@@ -5466,7 +5467,7 @@ function isProtrackerMOD() {
 		if(X.c("'ADPCM'",sz)) { anyADPCM++; ssz = (ssz+1>>1)+5+16; }
 		sz += ssz;
 	}
-	if(isMdKd && X.c("00115533 2211 040101",sz)) { tracker = 'Tetramed'; sz += 9 } //040101 may have been version numberl
+	if(isMdKd && X.c("00115533 2211 040101",sz)) { tracker = 'Tetramed'; sz += 9 } //040101 may have been version number
 	if(anyADPCM && !isInconexia) tracker += ' (ADPCM packed: '+anyADPCM+')';
 	return true
 }
@@ -5682,7 +5683,7 @@ if(!bDetected && isOctaMed()) {
 
 
 function isOctaMedMMD() {
-	//from https://web.archive.org/web/20220109073109/http://www.textfiles.com/programming/FORMATS/med-form.txt
+	//from https://web.archive.org/web/20220109073109if_/http://www.textfiles.com/programming/FORMATS/med-form.txt
 	if(!X.c("'MMD'")) return false;
 	nV = X.U8(3)-48; if(nV < 0 || nV > 3) return false;
 	switch(nV) {
@@ -8349,7 +8350,7 @@ if(!bDetected && X.isDeepScan() && isFashionTracker()) {
 
 function isSMUS() {
 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SonixMusicDriver/Sonix Music Driver_v1.asm
-	a0 = a1 = 0; title = "";
+	a0 = a1 = 0; title = ''; format = "Aegis Sonix Music Driver";
 	if(X.c("'FORM'")) {
 		if(!X.c("'SMUSSHDR'",8) || !X.U8(0x17) || !X.c("'NAME'",0x18))
 			return false;
@@ -8359,7 +8360,7 @@ function isSMUS() {
 			a1 += 4;
 			d1 = X.U32(a1,_BE); if(d1 >> 31) return false; a1 += 4;
 			d1 = (d1+1) & 0xFFFFFFFE; a1 += d1;
-		}
+		} else format = "Electronic Arts' Simple Musical Score";
 		insinfp = a1;
 		realsmp = []; ins = 0;
 		do { //MoreIns
@@ -8391,7 +8392,7 @@ function isSMUS() {
 				if(t != 0xFFFF) if((t >>16) > 0x84) return false;
 				a0 += X.I32(a1,_BE); a1 += 4; d1--
 			}
-			if(!X.U8(a0)) return false;
+			if(!X.U8(a0)) return false; sz = X.fSig(a0,0x200,"0000"); if(sz > 0) sz += 2;
 			fmt = 0; ext = "snx"
 		}
 		else { //TinyCheck
@@ -8403,20 +8404,20 @@ function isSMUS() {
 				if(d2 <= 0 || (d2&1) || d2 > X.Sz()) return false;
 				if(X.I16(d2,_BE) != -1) {
 					if(X.I32(d2,_BE) || X.I16(d2+4,_BE)) return false;
-					t = X.U8(d2+6,_BE); if(!(t&0x80) || t > 0x82) return false
+					t = X.U8(d2+6,_BE); if(!isWithin(t,0x80,0x82)) return false
 				}
 				d1--
-			}
+			} sz = X.fSig(d2,0x200,"FFFF"); if(sz > 0) sz += 2;
 			fmt = 1; ext = "tiny"
 		}
 	}
-	//TODO CalcSize
 	return true
 }
-if(!bDetected && X.isDeepScan() && isSMUS()) {
-	sName = " Sonix Music Driver module (."+ext+")"; sVersion = "f."+fmt; bDetected = 1;
+if(!bDetected && isSMUS()) {
+	sName = format+" module (."+ext+")"; sVersion = "f."+fmt; bDetected = 1;
 	if(X.isVerbose()) {
-		if(title != "") sOption(title)
+		if(title != "") sOption(title);
+		sOption('sz:'+outSz(sz))
 	}
 }
 
