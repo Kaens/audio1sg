@@ -321,27 +321,28 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Dmitry 'AND' Andreev's XSynth module (.AMX)"; bDetected = 1
 	}
 	else if(X.c("'AON4'") || X.c("'AON8'")) {
-		sName = "ArtOfNoise/Chorus module (.AON)"; bDetected = 1;
-		sVersion = X.SA(3,1)+"ch";
+		sName = "ArtOfNoise/Chorus module (.AON)"; bDetected = 1; ch = X.U8(3)-0x30;
 		if(X.isVerbose()) {
 			id = X.SA(4,0x2A);
 			p = 0x2E; //header skipped
-			t = ''; a = ''; d = ''; c = ''; ord = 0;
+			t = a = d = c = ''; ord = ptn = ins = 0;
 			while (p < X.Sz()) {
-				hkhd = X.SA(p,4);
-				hksz = X.U32(p+4,_BE);
-				p+=0x08; //chunk header = 4xfourcc + 4xsize
+				if(X.U8(p) == 0x3F) { p += (4-p) & 3; break }
+				hkhd = readBytes(p,4); if(charStat(hkhd,1).indexOf('allasc') < 0) break;
+				hkhd = decEncoding(hkhd,CP437); hksz = X.U32(p+4,_BE); p += 0x08;
 				switch (hkhd) {
-					case "NAME": t = X.SC(p,hksz,'CP1252'); break;
-					case "AUTH": a = X.SC(p,hksz,'CP1252'); break;
-					case "DATE": d = X.SC(p,hksz,'CP1252'); break;
-					case "RMRK": c = X.SC(p,hksz,'CP1252'); break; //apparently intended to be 78ch per line, maybe TODO auto-wrap (without left trimming!)
-					case "PLST": ord = hksz; break;
+					case 'NAME': t = X.SC(p,hksz,'CP1252'); break;
+					case 'AUTH': a = X.SC(p,hksz,'CP1252'); break;
+					case 'DATE': d = X.SC(p,hksz,'CP1252'); break;
+					case 'RMRK': c = X.SC(p,hksz,'CP1252'); break;
+					case "PLST": ord = hksz; for(i=0; i < ord; i++) if((o=X.U8(p+i)+1) > ptn) ptn = o; break;
+					case 'WLEN': for(i=0; i < (hksz>>2); i += 4) if(X.U32(p+i,_BE)) ins++; break;
 				}
 				p += hksz;
 			}
-			sOptionT(t); sOptionT(a,"by: "); sOptionT(d,"on: ");
-			sOption(c); sOption(id,"with: "); sOption(ord,"ord:");
+			sOptionT(t); sOptionT(a,"by: "); sOptionT(d,"on: "); sOption(id,"in: ");
+			sOption(addEllipsis(c.trim(),0xA0));
+			sOption('ch:'+ch+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' sz:'+outSz(p))
 		}
 	}
 	else if(X.c("'ADRVPACK'")) {

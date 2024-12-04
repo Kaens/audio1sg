@@ -12,7 +12,6 @@ This is where you can contribute the most! (sorted by extension)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
  - AMusic Adlib-MOD `.AMD` (size)
  - AND Xynth `.AMX` (info, size)
- - ArtOfNoise/Chorus `.AON` (info, size)
  - AProSys `.APS` (info, size)
  - Arpeggiator `.ARP` (info, size)
  - Actionamics Sound Tool `.AST` (info, size)
