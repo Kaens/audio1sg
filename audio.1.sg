@@ -4945,10 +4945,9 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		tmp0 = X.U16(hdrp+0x10); bpm0 = X.U16(hdrp+0x12);
 		var ptnhdp = p = hdrp+hdrsz;
 	   if(V >= 0x104) for(i=0; i < ptn; i++) p += X.U32(p)+X.U16(p+7);
-		const verUnknown = 0x00, verOldModPlug = 0x01, verNewModPlug = 0x02,
-		verMPfBiDi = 0x04, verOpenMPT = 0x08, verConfirmed = 0x10,
-		verFT2Generic = 0x20, verOther = 0x40, verFT2Clone = 0x80, verPlayerPRO = 0x100,
-		verDigiTrakker = 0x200, verUNMO3 = 0x400, verEmptyOrders = 0x800;
+		const verUnknown = 0, verOldModPlug = 1, verNewModPlug = 2, verMPfBiDi = 4, verOpenMPT = 8,
+		verConfirmed = 0x10, verFT2Generic = 0x20, verOther = 0x40, verFT2Clone = 0x80,
+		verPlayerPRO = 0x100, verDigiTrakker = 0x200, verUNMO3 = 0x400, verEmptyOrders = 0x800;
 		var isMadTracker = isOMPTMade = isOXM = mixlevCompatFT2 = false;
 		madewith = verUnknown;
 		if(X.c("'FastTracker v2.00   '",0x26) && hdrsz === 276) { //version detection pt.1/9001
@@ -4977,7 +4976,8 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				isMadTracker = true; if(X.c("00000000",0x35)) tracker = 'MadTracker 2';
 				else tracker = 'MadTracker 2 (registered)'
 			}
-			else if(X.c("'*Converted '",0x26)) madewith = verDigiTrakker;
+			else if(X.c("'*Converted '",0x26) && X.c("'-File*'",0x34)) {
+				madewith = verDigiTrakker | verConfirmed; tracker = 'Digitrakker' }
 		}
 		if(xFilter && (madewith & verNewModPlug))
 			madewith = verFT2Clone | verNewModPlug | verConfirmed | verEmptyOrders;
@@ -4989,7 +4989,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(p+4 > X.Sz()) { bad = bad.addIfNone('!short'); break }
 			ihdsz = X.U32(p); if(!ihdsz) ihdsz = 263; instp = X.U8(p+0x1A);
 			inst = X.SC(p+4,0x16,'CP437').trim(); if(inst.length) insns.push(inst);
-			smpn = X.U16(p+0x1B), smphdsz = X.U32(p+0x1D);
+			smpn = X.U16(p+0x1B); smphdsz = X.U32(p+0x1D);
 			if(madewith == verOldModPlug) { madewith |= verConfirmed;
 				if(ihdsz == 245) { mVlsw = "1.00.00.A5"; tracker = "ModPlug Tracker 1.0 alpha" }
 				else if(ihdsz == 263) { mVlsw = "1.00.00.B3"; tracker = "ModPlug Tracker 1.0 beta" }
@@ -5026,21 +5026,21 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 					  	madewith &= ~verNewModPlug; madewith |= verConfirmed
 					}
 				for(j=0; j < smpn; j++) {
-					slen = slens[j] = X.U32(p); //lpst @ p+4, lpsz @ p+8, vol0 @ p+0xC, relnote @ p+0x10
+					slen = ssizes[j] = X.U32(p); //lpst @ p+4, lpsz @ p+8, vol0 @ p+0xC, relnote @ p+0x10
 					var sft = X.I8(p+0xD), sf = X.U8(p+0xE), sp = X.U8(p+0x0F), sr = X.U8(p+0x11),
 					  sname = X.SC(p+0x12,22,'CP437'); smpReserved |= sr;
-					  isADPCM = sr === 0xAD && (!sf & !(sf&0x30));
-					  if(sr && sr != 0xAD) madewith &= ~(verOldModPlug | verNewModPlug | verOpenMPT);
-					  if(lastsmpreserved == -1) lastsmpreserved = sr;
-					  else if(lastsmpreserved != sr) madewith &= ~verPlayerPRO;
-					  if(sp != 128) madewith &= ~verPlayerPRO;
-					  if((sft&0xF) && sft != 127) madewith &= ~verPlayerPRO;
-					  if(sname.trim().length) smpns.push(sname.trim());
+					isADPCM = sr === 0xAD && (!sf & !(sf&0x30));
+					if(sr && sr != 0xAD) madewith &= ~(verOldModPlug | verNewModPlug | verOpenMPT);
+					if(lastsmpreserved == -1) lastsmpreserved = sr;
+					else if(lastsmpreserved != sr) madewith &= ~verPlayerPRO;
+					if(sp != 128) madewith &= ~verPlayerPRO;
+					if((sft&0xF) && sft != 127) madewith &= ~verPlayerPRO;
+					if(sname.trim().length) smpns.push(sname.trim());
 					sflags.push([sf, isADPCM]); if(isADPCM) anyADPCM = true;
 					slens += isADPCM ? 16+(slen+1 >> 1) : slen;
 					p += 40; //not smphdsz; considering there are files with smphdsz = 0...
-					if((madewith & (verFT2Generic | verFT2Clone)) && (madewith & verNewModPlug | verPlayerPRO)
-					  && !(madewith & verConfirmed) && (sr > 22 || sname.slice(sr).indexOf(' ') === -1)) {
+					if((madewith & (verFT2Generic | verFT2Clone)) && (madewith & (verNewModPlug | verPlayerPRO))
+					  && !(madewith & verConfirmed) && (sr > 22 || sname.slice(sr).indexOf(' ') < 0)) {
 						madewith &= ~verFT2Generic; madewith |= verFT2Clone | verConfirmed
 					}
 					if((sf&3) == 3 && (madewith & verNewModPlug)) madewith |= verMPfBiDi;
@@ -5048,7 +5048,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				smpsz += slens;
 				if(V >= 0x104) { if(X.c("'OggS'",p)) isOXM = true; p += slens }
 			}
-		}
+		} //for i in ins
 		if(!smpReserved && (madewith & verNewModPlug) && X.fSig(0x11,0x14,"00") > -1)
 			madewith |= verConfirmed;
 		if(V < 0x104) {
@@ -5089,8 +5089,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				madewith &= ~verPlayerPRO; madewith |= verConfirmed
 			} else if(t === "XTPM") {
 				p += 4; xt = xt.append("x");
-				madewith &= ~verPlayerPRO; madewith |= verConfirmed;
-				madewith |= verConfirmed; isOMPTMade = true;
+				madewith &= ~verPlayerPRO; madewith |= verConfirmed; isOMPTMade = true;
 				t = X.SA(p,4);
 				while(p+7 < X.Sz()) {
 					if(!X.U8(p)) { p++; break }
@@ -5119,7 +5118,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(madewith & verConfirmed)
 			if(madewith & verMPfBiDi) {
 				mVlsw = "1.11"; tracker = "ModPlug Tracker 1.0-11";
-			} else if((madewith & verNewModPlug) || !(madewith & verPlayerPRO)) {
+			} else if((madewith & verNewModPlug) && !(madewith & verPlayerPRO)) {
 				mVlsw = "1.16"; tracker = "ModPlug Tracker 1.0-16";
 			} else if((madewith & verNewModPlug) && (madewith & verPlayerPRO)) {
 				mVlsw = "1.16"; tracker = "ModPlug Tracker 1.0-16 / PlayerPRO";
@@ -11073,108 +11072,99 @@ if(!bDetected && isSAdT()) {
 }
 
 
-// function isTFMX() {
-// 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX/src/TFMX_v4.asm
-// 	if(!X.c("'TFMX'")) return false;
-// 	if(X.U8(4) !== 0x20) {
-// 		if(!X.c("'-SONG '",4)) return false;
-// 		if(!X.c("'by'",10))
-// 			if(!X.c("'(Empty) '",0x10) && X.U8(0x10) !== 0x20 && !X.c("'0='",0x10)) return false;
-// 	}
-// 	if(X.U32(0x1D0)) { _l2r('tfmx',0x1d0,'dw non-zero'); return false }
-// 	if(X.c("0E60",14)) return false;
-// 	if(X.c("0860",14) && !X.c("090C",0x1224)) return false;
-// 	if(X.c("0920",14) && !X.c("9305",0xF24)) return false;
-// 	if((a0=X.I32(0x600,_BE)) <= 0 || (a0&1)) return false;
-// 	if((a1=X.I32(0x7FC,_BE)) <= 0 || (a1&1)) return false; if(a1 > X.Sz()) a1 = X.Sz();
-// 	for(; a0 < a1; a0 += 4) if(X.U8(a0) > 0x24) return false;
+/*function isTFMX() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX/src/TFMX_v4.asm
+	if(!X.c("'TFMX'")) return false;
+	if(X.U8(4) !== 0x20) {
+		if(!X.c("'-SONG '",4)) return false;
+		if(!X.c("'by'",10))
+			if(!X.c("'(Empty) '",0x10) && X.U8(0x10) !== 0x20 && !X.c("'0='",0x10)) return false;
+	}
+	if(X.U32(0x1D0)) { _l2r('tfmx',0x1d0,'dw non-zero'); return false }
+	if(X.c("0E60",14)) return false;
+	if(X.c("0860",14) && !X.c("090C",0x1224)) return false;
+	if(X.c("0920",14) && !X.c("9305",0xF24)) return false;
+	if((a0=X.I32(0x600,_BE)) <= 0 || (a0&1)) return false;
+	if((a1=X.I32(0x7FC,_BE)) <= 0 || (a1&1)) return false; if(a1 > X.Sz()) a1 = X.Sz();
+	for(; a0 < a1; a0 += 4) if(X.U8(a0) > 0x24) return false;
 
-// 	for(i=0, x=1, d5=0x1F; 0x148+i <= X.Sz();) {
-// 		d2 = X.U16(0x142+i,_BE); d3 = X.U16(0x144+i,_BE); if(d2 == d3 && d3 == X.U16(0x146+i,_BE)) break;
-// 		d5--; i += 2; x++; if(x == 0x20) break;
-// 	}
-// 	if(x != 0x20) for(;d5; i += 2,d5--) if(X.U16(0x142+i,_BE)-X.U16(0x102+i,_BE)) x++;
-// 	sz = 0x7FC;
-// 	while(!X.c("07000000",sz) && sz < X.Sz()) sz += 4;
-// 	bad = ''; if(sz >= X.Sz()) bad = bad.addIfNone('!short'); sz += 4;
-// 	return true
-// }
-// if(!bDetected && isTFMX()) {
-// 	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (MDAT.+SMPL.)"; bDetected = 1;
-// 	// sVersion = 'v1.5';
-// 	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
-// 	if(X.isVerbose()) {
-// 		if(x > 1) sOption(x,'x')
-// 		sOption('sz:'+outSz(sz))
-// 	}
-// }
+	for(i=0, x=1, d5=0x1F; 0x148+i <= X.Sz();) {
+		d2 = X.U16(0x142+i,_BE); d3 = X.U16(0x144+i,_BE); if(d2 == d3 && d3 == X.U16(0x146+i,_BE)) break;
+		d5--; i += 2; x++; if(x == 0x20) break;
+	}
+	if(x != 0x20) for(;d5; i += 2,d5--) if(X.U16(0x142+i,_BE)-X.U16(0x102+i,_BE)) x++;
+	sz = 0x7FC;
+	while(!X.c("07000000",sz) && sz < X.Sz()) sz += 4;
+	bad = ''; if(sz >= X.Sz()) bad = bad.addIfNone('!short'); sz += 4;
+	return true
+}
+if(!bDetected && isTFMX()) {
+	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (MDAT.+SMPL.)"; bDetected = 1;
+	// sVersion = 'v1.5';
+	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x')
+		sOption('sz:'+outSz(sz))
+	}
+}
 
-// function isTFMX_7V() {
-// 	//from reversing the eagleplayer
-// 	if(!X.c("'TFMX-SONG '")) return false;
-// 	if(!(d1=X.U32(0x1D0,_BE))) d1 = 0x800; var found = false;
-// 	if(X.c("08B0",14)) if(X.c("01F4FF00",0x204)) found = true;
-// 	if(!found) for(i=0,a1=0x100; !found && i < 0x20; i++) {
-// 		t = X.U16(a1,_BE); a1 += 2; if(t == 0x1FF) continue;
-// 		t <<= 4; t += d1; a2 = t; if(t > X.Sz()) return false;
-// 		for(; !found && a2 < X.Sz(); ) {
-// 			var effe = X.c("EFFE",a2); a2 += 2;
-// 			if(effe) {
-// 				var is3 = X.c("0003",a2); a2 += 2;
-// 				if(is3)
-// 					if(X.U16(a2,_BE))
-// 						if(X.U8(a2) || !X.U8(a2+3)) { found = true; break }
-// 				a2 += 12
-// 			}
-// 		}
-// 	}
-// 	if(!found) return false
-// 	return true
-// }
-// if(!bDetected && isTFMX_7V()) {
-// 	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (MDAT.,+SMPL.)"; bDetected = 1;
-// 	sVersion = '7V'
-// }
+function isTFMX_7V() {
+	//from reversing the eagleplayer
+	if(!X.c("'TFMX-SONG '")) return false;
+	if(!(d1=X.U32(0x1D0,_BE))) d1 = 0x800; var found = false;
+	if(X.c("08B0",14)) if(X.c("01F4FF00",0x204)) found = true;
+	if(!found) for(i=0,a1=0x100; !found && i < 0x20; i++) {
+		t = X.U16(a1,_BE); a1 += 2; if(t == 0x1FF) continue;
+		t <<= 4; t += d1; a2 = t; if(t > X.Sz()) return false;
+		for(; !found && a2 < X.Sz(); ) {
+			var effe = X.c("EFFE",a2); a2 += 2;
+			if(effe) {
+				var is3 = X.c("0003",a2); a2 += 2;
+				if(is3)
+					if(X.U16(a2,_BE))
+						if(X.U8(a2) || !X.U8(a2+3)) { found = true; break }
+				a2 += 12
+			}
+		}
+	}
+	if(!found) return false
+	return true
+}
+if(!bDetected && isTFMX_7V()) {
+	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (MDAT.,+SMPL.)"; bDetected = 1;
+	sVersion = '7V'
+}
 
-// function isTFMX_Pro() {
-// 	//from reversing the eagleplayer
-// 	if(!(d1=X.U32(0x1D0,_BE))) d1 = 0x800; var found = false;
-// 	if(X.c("08B0",14)) if(X.c("01F4FF00",0x204)) found = true;	
-// }
-// if(!bDetected && isTFMX_Pro()) {
-// 	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (MDAT.,+SMPL.)"; bDetected = 1;
-// 	sVersion = 'Pro'
-// }
+function isTFMX_ST() {
+	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX_ST/TFMX%20ST_v1.asm
+	if(!X.c("'TFMX-SONG '")) return false;
+	if(d1=X.U32(0x1D0,_BE)) if(X.U16(12,_BE)) return false;
+	if(d2=X.U32(0x1D4,_BE)) d1 = X.U32(0x1D8,_BE);
+	else {
+		if((d1=X.I32(0x600,_BE)) <= 0 || (d1&1)) return false;
+		if((d2=X.I32(0x7FC,_BE)) <= 0 || (d2&1)) return false;
+	}
+	d2 = Math.min(d2,X.Sz()); smp = st = 0;
+	for(; d1 < d2; d1 += 4)
+		if(X.U8(d1) == 0x48) smp++; else if(X.U8(d1) > 0x3F) st++;
+	if(!st) return false;
+sz=-5;
+	// for(i=0, x=1, d5=0x1F; 0x148+i <= X.Sz();) {
+	// 	d2 = X.U16(0x142+i,_BE); d3 = X.U16(0x144+i,_BE); if(d2 == d3 && d3 == X.U16(0x146+i,_BE)) break;
+	// 	d5--; i += 2; x++; if(x == 0x20) break;
+	// }
+	// if(x != 0x20) for(;d5; i += 2,d5--) if(X.U16(0x142+i,_BE)-X.U16(0x102+i,_BE)) x++;
 
-// function isTFMX_ST() {
-// 	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX_ST/TFMX%20ST_v1.asm
-// 	if(!X.c("'TFMX-SONG '")) return false;
-// 	if(d1=X.U32(0x1D0,_BE)) if(X.U16(12,_BE)) return false;
-// 	if(d2=X.U32(0x1D4,_BE)) d1 = X.U32(0x1D8,_BE);
-// 	else {
-// 		if((d1=X.I32(0x600,_BE)) <= 0 || (d1&1)) return false;
-// 		if((d2=X.I32(0x7FC,_BE)) <= 0 || (d2&1)) return false;
-// 	}
-// 	d2 = Math.min(d2,X.Sz()); smp = st = 0;
-// 	for(; d1 < d2; d1 += 4)
-// 		if(X.U8(d1) == 0x48) smp++; else if(X.U8(d1) > 0x3F) st++;
-// 	if(!st) return false;
-// sz=-5;
-// 	// for(i=0, x=1, d5=0x1F; 0x148+i <= X.Sz();) {
-// 	// 	d2 = X.U16(0x142+i,_BE); d3 = X.U16(0x144+i,_BE); if(d2 == d3 && d3 == X.U16(0x146+i,_BE)) break;
-// 	// 	d5--; i += 2; x++; if(x == 0x20) break;
-// 	// }
-// 	// if(x != 0x20) for(;d5; i += 2,d5--) if(X.U16(0x142+i,_BE)-X.U16(0x102+i,_BE)) x++;
-
-// 	bad = ''; if(sz >= X.Sz()) bad = bad.addIfNone('!short'); sz += 4;
-// 	return true
-// }
-// if(!bDetected && isTFMX_ST()) {
-// 	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module ST module (MDST.+SMPL.)"; bDetected = 1;
-// 	if(X.isVerbose()) {
-// 		sOption('smp:'+smp)
-// 	}
-// }
+	bad = ''; if(sz >= X.Sz()) bad = bad.addIfNone('!short'); sz += 4;
+	return true
+}
+if(!bDetected && isTFMX_ST()) {
+	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module ST module (MDST.+SMPL.)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption('smp:'+smp)
+	}
+}
+*/
 
 function isTFMX() {
 	//from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/Tfmx/TfmxWorker.cs / TestModule, Load
@@ -11207,7 +11197,6 @@ function isTFMX() {
 	if(X.c("'TFHD'")) { //1c500
 		hdrsz = X.U32(4,_BE); tp = X.U8(8); v = X.U8(9); mdatsz = X.U32(10,_BE); smplsz = X.U32(14,_BE);
 		sz = hdrsz+mdatsz+smplsz; if(hdrsz < 18 || !mdatsz || !isWithin(sz, 0x212, X.Sz())) return false;
-
 		if((tp&0x80) || !(tp&0x7F)) p0 = p = hdrsz; else
 		switch(tp&0x7F) { case 1: tp = '1.5'; break; case 2: tp = 'pro'; break; case 3: tp = '7v'; break; default: return false }
 	} else if(X.c("'TFMX '",p0) && !X.c("'SONG'",p0+5)) tp = '1.5';
@@ -11233,26 +11222,34 @@ function isTFMX() {
 			if(isStFile()) return false;
 			else if(gottms) tp = '7v'; else tp = 'pro'
 		} else return false;
-	for(i=0,p=p0+0x10,cmt=''; i < 6; i++,p += 40) cmt = cmt.appendS(X.SC(p,40,CPAmiga).trim(),'\n');
-//_l2r('tfmx',p0+0x10,'→ cmt → '+Hex(p))
+	for(i=0,p=p0+0x10,cmt=''; i < 6; i++,p += 40) cmt = cmt.appendS(decAnsi(p,40,CPAmiga).trim(),'  '); //F0 bytes cmt
+	cmt = cmt.trim();
 	var sst = [], sed = [], tmp = [];
-	for(i=0; i < 32; i++) { sst.push(X.I16(p,_BE)); p += 2 }
-	for(i=0; i < 32; i++) { sed.push(X.I16(p,_BE)); p += 2 }
-	for(i=0; i < 32; i++) { tmp.push(X.I16(p,_BE)); p += 2 }
-	p += 16;
-	var trkp = X.I32(p,_BE), ptnp = X.I32(p+4,_BE), macp = X.I32(p+8,_BE); p += 12;
+	for(i=0; i < 0x20; i++) { sst.push(X.I16(p,_BE)); p += 2 }
+	for(i=0; i < 0x20; i++) { sed.push(X.I16(p,_BE)); p += 2 }
+	for(i=0; i < 0x20; i++) { tmp.push(X.I16(p,_BE)); p += 2 }
+	p += 0x10; // after the st/ed/tmp reads + 20 it's gonna be +60+80 = +E0 post-cmt
+	var trkp = X.I32(p,_BE), ptnp = X.I32(p+4,_BE), macp = X.I32(p+8,_BE);
 	if(!ptnp) ptnp = 0x200; else ptnp -= 0x200;
-	if(!macp) macp = 0x400; else ptnp -= 0x200;
+	if(!macp) macp = 0x400; else macp -= 0x200;
 	if(!trkp) trkp = 0x600; else trkp -= 0x200;
-	p += 36; if(p > X.Sz()) return false; maxlen = Math.min(maxlen+p,X.Sz());
-	if(hdrsz > 0 /*TFHD or -MOD*/) len = mdatsz; else len = Math.min(maxlen,X.Sz())-p;
-//_l2r('tfmx',p,'ptnp:'+Hex(ptnp)+' macp:'+Hex(macp)+' trkp:'+Hex(trkp)+' len:'+Hex(len)+'/'+Hex(maxlen))
-	var z;
-	for(mac=0,z=macp; mac < 128 && z+4 <= X.Sz(); mac++,z+=4) { y = X.I32(z,_BE)-0x200; if((y&3) || y > len) break }
-	ptn = Math.min((macp-ptnp)>>2, 128);
-	if(hdrsz < 0) {
-		sz = z
+	p += 0x30; if(p > X.Sz()) return false;  var datap = p, maxlen = Math.min(maxlen+datap,X.Sz());
+	if(hdrsz > 0) len = mdatsz; else len = Math.min(maxlen,X.Sz())-p;
+	for(mac=0,p=datap+macp; mac < 128 && p+4 <= X.Sz(); mac++,p+=4) {
+		y = X.I32(p,_BE)-0x200; if((y&3) || y > len) break }
+	ptn = Math.min((macp-ptnp)>>2, 128); var lg = X.U32(datap+ptnp,_BE)-0x200;
+	trkst = (lg - trkp) >> 4; if(trkst < 0) trkst = 0;
+// _l2r('tfmx',datap,'ptnp:'+Hex(ptnp)+' macp:'+Hex(macp)+' trkp:'+Hex(trkp)
+// +' trkst['+Hex(datap+ptnp)+'='+Hex(lg)+']:'+Hex(trkst)+' len:'+Hex(len)+'/'+Hex(maxlen))
+	if(hdrsz < 0)
+		sz = p; //TODO
+	x = -1; var max0s = 2; ord = [];
+	for(i=0; i < 32 && max0s > 0; i++) {
+		x++; if(!sst[i]) max0s--; if(sst[i] == 0x1FF || sed[i] == 0x1FF) break;
+		if(sst[i] >= trkst) break; if(sst[i] == sed[i] && !sst[i] && !sst[i+1]) break;
+		ord[x] = sed[i]-sst[i]+1
 	}
+	if(!x) x = 1;
 	return true
 }
 if(!bDetected && isTFMX()) {
@@ -11261,9 +11258,9 @@ if(!bDetected && isTFMX()) {
 	case '1.5': sVersion = 'v1.5'; break;  case 'pro': sVersion = 'Professional'; break;  case '7v': sVersion = '7 voices'
 	}
 	if(X.isVerbose()) {
-		sOptionT(title); sOption(album,'in: '); sOptionT(by,'by: '); if(flag5 >= 0) sOption(flag5,'flag5:')
-		sOption(addEllipsis(cmt,0xA0),'msg:"','"');
-		sOption('ptn:'+ptn+' macro:'+mac+' sz:'+outSz(sz))
+		sOptionT(title); if(x > 1) sOption(x,'x'); sOption(album,'in: '); sOptionT(by,'by: '); if(flag5 >= 0) sOption(flag5,'flag5:')
+		if(cmt == '(Empty)') cmt = ''; sOption(addEllipsis(cmt,0xA0),'msg:"','"');
+		sOption('ord:'+ord.join('+')+' ptn:'+ptn+' macro:'+mac+' sz:'+outSz(sz))
 	}
 }
 
