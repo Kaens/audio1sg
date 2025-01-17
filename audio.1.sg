@@ -143,7 +143,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	}
 	if(!bDetected)
 	if(X.c("'AMC V1.2 REPLAY!'") && X.c("0000003C0002	",0x4E)) {
-		// ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/AMComposer/src/AMComposer 1.2_v4.asm
+		// ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/AMComposer/src/AMComposer 1.2_v4.asm
 		sName = "Marc Hawlitzeck's A.M. Composer module (.AMC)"; bDetected = 1;
 		sVersion = "v"+X.SA(5,3);
 		if(X.isVerbose()) {
@@ -2045,7 +2045,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	  && X.I32(2,_BE) >= 0x2E) {
 		sName = "Steve Turner's module (.JPO)"; bDetected = 1;
 		if(X.isVerbose()) {
-			//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SteveTurner/src/Steve%20Turner_v4.asm
+			//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SteveTurner/src/Steve%20Turner_v4.asm
 			ofs = X.U32(2,_BE);
 			p1 = p = X.U32(0x12,_BE)-ofs+0x2E;  d1 = 10;
 			while(p <= Math.min(X.Sz(),0x100000)) {
@@ -2162,8 +2162,20 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			}
 		}
 	}
-	else if(X.c("'LME'00'(c)1990 Leggless/Silents UK     ") ) {
-		sName = "Leggless module (.LME)"; bDetected = 1
+	else if(X.Sz() > 0x38 && X.c("'LME'00") && X.fSig(4,0x20,"00") < 0 && !X.U32(0x24,_BE)) {
+		//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/LME/src/LMEv3.asm
+		sName = "Steve 'Leggless' Hasler module (.LME)"; bDetected = 1;
+		if(X.isVerbose()) {
+			info = decAnsi(4,0x20,CPAmiga).trim(); songsz = 0x2C+X.U32(0x34,_BE);
+			d3 = ins = Util.divu64(X.U32(0x38,_BE) - (i=X.U32(0x28,_BE)), 58);
+			x = (i-0x10) >> 4; i += 0x28; smp = synsmp = smpsz = 0;
+			for(d7 = 3; d3; d3--, i += 0x3A)
+				if(!(t=X.U32(i,_BE))) synsmp++
+				else if(t > d7) { d7 = t; smpsz += X.U16(i+4,_BE) << 1; smp++ }
+			steps = (X.U32(0x30,_BE) - X.U32(0x2C,_BE)) >> 2; sz = songsz+smpsz;
+			if(x > 1) sOption(x,'x');  sOption(info,'info:"','"');
+			sOption('steps:'+steps+' ins:'+ins+' sz:'+outSz(sz))
+		}
 	}
 	else if(X.c("0C'Nusa-team 89a'10610A6108610678006000",0x169)
 	  && X.c("'dynamite89'",0x234)) {
@@ -2377,8 +2389,10 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Megastation MOD module (.MSM)"; bDetected = 1;
 		sVersion = "v"+X.SA(4,5).toLowerCase()
 	}
-	else if(X.c("'MSOB'00")) {
-		sName = "Medley module (.MSO)"; bDetected = 1
+	else if(X.c("'MSOB'00000026") && X.c("FFFF0000",0x24) && (x=X.U16(0x28,_BE)) > 0) {
+		sName = "Medley module (.MSO)"; bDetected = 1;
+		if(X.isVerbose())
+			if(x > 1) sOption(x,'×')
 	}
 	else if(X.c("'MTC1'00") && X.U8(5) < 0x10 && X.Sz() >= (sz=X.U32(4,_BE)+8)) {
 		sName = "Multi-track Container module (.MTC)"; bDetected = 1;
@@ -2891,7 +2905,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "Professional Sound Artists module (.PSA)"; bDetected = 1;
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0x4,0x14));
-			//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PSA/PSA_v2.asm
+			//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/PSA/PSA_v2.asm
 			d2 = X.U32(0x28,_BE);
 			x = (d2-56) >> 3; if(x > 1) sOption(x,"×");
 			d3 = X.U32(0x2C,_BE); d0 = X.U32(0x30,_BE);
@@ -3418,7 +3432,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(X.isVerbose()) sOption(X.U16(8),'clkspd:')
 	}
 	else if(X.c("00407F40 00C081C0") && X.c("41FAFFEE",0x38)) {
-		//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/RobHubbard_ST/src/Rob%20Hubbard%20ST_v2.asm
+		//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/RobHubbard_ST/src/Rob%20Hubbard%20ST_v2.asm
 		sName = "Rob Hubbard ST module (.RHO)"; sVersion = "v1.1"; bDetected = 1;
 		if(X.isVerbose()) {
 			a2 = 180; bad = false;
@@ -4043,7 +4057,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	}
 	else if((t = ((X.U8(0)+1) << 4) + ((X.U8(1)+1) << 7) + 0x365) >= 0x365
 	  && (X.c("'df'..':'",t) || X.c("'amp'",t+1))) {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ZoundMonitor/src/ZoundMonitor_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/ZoundMonitor/src/ZoundMonitor_v1.asm
 	sName = 'ZoundMonitor module (.SNG + Samples/)'; bDetected = 1;
 	if(X.isVerbose()) {
 		sOption('ord:'+(X.U8(3)+1)+' ptn:'+(X.U8(1)+1)+' sz:'+outSz(t+101))
@@ -5274,7 +5288,7 @@ if(!bDetected && isProtoTracker()) {
 
 
 function isAnders0land() {
-	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Anders0land/SRC_Anders0land/Anders 0land_v1.asm
+	//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Anders0land/SRC_Anders0land/Anders 0land_v1.asm
 	if(!X.c("'mpl'")) return false;
 	p = X.U32(4,_BE); if(p > X.Sz() || (p&1)) return false;
 	songp = p+8;
@@ -5494,7 +5508,7 @@ if(!bDetected && isProtrackerMOD()) {
 
 
 function isKRIS() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/ChipTracker/ChipTracker_v3.asm
 	// & https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_mod.cpp
 	if(X.Sz() < 0x7C0+0x100 || !X.c("'KRIS'",0x3B8)) return false;
 	ord = X.U8(0x3BC); if(ord > 0x80) return false;
@@ -7161,7 +7175,7 @@ if(!bDetected && X.isDeepScan() && isST()) {
 
 function isSidMon1() {
 	//ref http://asle.free.fr/prowiz/prowiz.src.zip / r/sidmon1.c
-	// & https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/sidmon1/SIDMon1.0.s
+	// & https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/sidmon1/SIDMon1.0.s
 	//I'm just used to calling the base ofs "a0" at this point
 	a0 = X.fSig(0,0xFFFF,"41FA.... ....FFD4 43FA.... 228841FA ....D1E8 FFD843FA");
 	if(a0 < 0 || (a0&1) || a0 > X.Sz()) return false;
@@ -7390,7 +7404,7 @@ if(/*!bDetected && */X.isDeepScan() && isPMD() ) {
 
 
 function isRobHubbardRH() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/RobHubbard/src/RobHubbard_v7.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/RobHubbard/src/RobHubbard_v7.asm
 	//the FX files not included -- TODO
 	if(!X.c("6000.... 6000.... 6000.... 6000.... 6000....  41FA.... ........ 4E7541FA"))
 		return false; //Check2
@@ -7459,7 +7473,7 @@ if(!bDetected && X.isDeepScan() && isRobHubbardRH()) {
 
 
 function isPuma() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PumaTracker/src/PumaTracker_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/PumaTracker/src/PumaTracker_v2.asm
 	//ref http://lclevy.free.fr/amiga/exotic/puma_str.txt
 	// && https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_puma.cpp
 	ord = X.U16(12,_BE)+1; if(ord > 256) return false;
@@ -7532,7 +7546,7 @@ if(!bDetected && isPuma()) {
 
 
 function isSeanConran() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SeanConran/src/Sean Conran_v3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SeanConran/src/Sean Conran_v3.asm
 	//Check2
 	if(X.c("0FFF0FE2") || X.c("10000FE2")) {
 		if(!X.c("0FC40FA7 0F8B0F6E",4)) return false; //test1
@@ -7605,7 +7619,7 @@ if(!bDetected && X.isDeepScan() && isSeanConran()) {
 
 
 function isBenDaglish() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/BennDaglish/Benn Daglishv3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/BennDaglish/Benn Daglishv3.asm
 	if(!X.c("6000....6000.... ....6000")) return false; //Check2
 	d1 = X.I16(0x02,_BE); if(d1 <= 0 || (d1&1) || d1 > X.Sz()) return false;
 	a0 = a1 = a3 = d1+2;
@@ -7765,7 +7779,7 @@ if(!bDetected && X.isDeepScan() && isBenDaglish()) {
 
 
 function isAndrewParton() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Andrew Parton/SRC_AndrewParton/Andrew Parton_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Andrew Parton/SRC_AndrewParton/Andrew Parton_v2.asm
 	if(!X.c("'BANK'")) return false;
 	for(i=0; i < 20; i++)
 		if(X.U32(4+(i<<2),_BE) >= 0x200000) return false;
@@ -7804,7 +7818,7 @@ if(!bDetected && X.isDeepScan() && isAndrewParton()) {
 
 
 function isAshleyHogg() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Ashley Hogg/SRC_AshleyHogg/Ashley Hogg_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Ashley Hogg/SRC_AshleyHogg/Ashley Hogg_v1.asm
 	p = 0;
 	for(i=0; i < 4; i++) {
 		if(!X.c("6000",p)) return false; p += 2;
@@ -7891,7 +7905,7 @@ if(!bDetected && X.isDeepScan() && isAshleyHogg()) {
 
 
 function isCinemaware() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Cinemaware/Cinemaware.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Cinemaware/Cinemaware.asm
 	if(!X.c("'IBLK'")) return false;
 	d2 = X.U8(4);
 	if(!d2 || d2 > 0x80) return false;
@@ -7918,7 +7932,7 @@ if(!bDetected && X.isDeepScan() && isCinemaware()) {
 
 
 function isCustomMade() {
-	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/CustomMade/CustomMade_v1.asm
+	//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/CustomMade/CustomMade_v1.asm
 	if(X.Sz() < 3000) return false;
 	if(X.c("6000.... 6000") || X.c("4EF9.... ....4EF9")
 	  || X.c("4EB9.... ....4EF9")) {
@@ -8024,7 +8038,7 @@ if(!bDetected && X.isDeepScan() && isCustomMade()) {
 
 
 function isDaveLoweNew() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/DaveLoweNew/src/Dave Lowe New.s
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/DaveLoweNew/src/Dave Lowe New.s
 	// ref Dave Lowe New_v2.asm
 	a1 = 0; bad = ""; d1 = X.I16(0,_BE);
 	if(d1 === 4) { if(!X.U32(0x18,_BE))  a1 += 4 }
@@ -8099,7 +8113,7 @@ if(!bDetected && X.isDeepScan() && isDaveLoweNew()) {
 
 
 function isDesire() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Desire/src/Desire_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Desire/src/Desire_v1.asm
 	if(X.Sz() <= 2500) return false;
 	a2 = 0; a0 = 8;
 	for(d1=0; d1 < 4; d1++) { if(!X.c("00010101",a0)) return false; a0 += 16 }
@@ -8306,7 +8320,7 @@ if(!bDetected && X.isDeepScan() && isDavidWhittaker()) {
 
 
 function isFashionTracker() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/FashionTracker-v1.0/FashionTracker.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/FashionTracker-v1.0/FashionTracker.asm
 	if(!X.c("13FC0040 ........ 4E710439 0001")
 	  || !X.c("66F44E75 48E7FFFE",18)) return false;
 	a2 = 0; bad = "";
@@ -8359,7 +8373,7 @@ if(!bDetected && X.isDeepScan() && isFashionTracker()) {
 }
 
 function isSMUS() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SonixMusicDriver/Sonix Music Driver_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SonixMusicDriver/Sonix Music Driver_v1.asm
 	a0 = a1 = 0; title = ''; format = "Aegis Sonix Music Driver";
 	if(X.c("'FORM'")) {
 		if(!X.c("'SMUSSHDR'",8) || !X.U8(0x17) || !X.c("'NAME'",0x18))
@@ -8432,7 +8446,7 @@ if(!bDetected && isSMUS()) {
 }
 
 function isAMBK() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/ambk/AMOS.s
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/ambk/AMOS.s
 	if(X.c("'AmBk'")) a0 = p = 4; else if(X.c("C0")) a0 = p = 0; else return false;
 	//if(!X.c("80",p+4)) return false;
 _log(Hex(X.U32(p+4,_BE)&((1<<28)-1)));
@@ -8494,7 +8508,7 @@ if(!bDetected && X.isDeepScan() && isTuneFish4()) {
 }
 
 function isJH() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Jochen_Hippel_ST/Jochen Hippel_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Jochen_Hippel_ST/Jochen Hippel_v1.asm
 	a0 = 0; tfmx = 0;
 	if(X.c("'MCMD'")) { fmt = -1; tfmx = a0 }
 	else if(X.c("48E7FFFE")) {
@@ -8568,7 +8582,7 @@ if(!bDetected && X.isDeepScan() && isJH()) {
 }
 
 function isJH7V() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Jochen_Hippel_7V/Jochen Hippel 7V_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Jochen_Hippel_7V/Jochen Hippel 7V_v2.asm
 	p = 0;
 	if(X.c("6000")) { p = 2;
 		d1 = X.I16(p,_BE); if(d1 <= 0 || (d1&1)) return false; p = d1+2;
@@ -8970,7 +8984,7 @@ if(!bDetected && X.isHeuristicScan() && isJBM()) {
 
 function isSoundFX() {
 	//from https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_sfx.cpp
-	// & https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SoundFX/src/SoundFX_V2.asm
+	// & https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SoundFX/src/SoundFX_V2.asm
 	if(X.c("'SONG'",0x3C) && X.Sz() > 0x294) msmp = 15;
 	else if(X.c("'SO31'",0x7C) && X.Sz() > 0x4B4) msmp = 31;
 	else return false;
@@ -9005,7 +9019,7 @@ if(!bDetected && isSoundFX()) {
 
 
 function isJesperOlsen() {
-	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Jesper_Olsen/Jesper Olsen_v1.asm
+	//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Jesper_Olsen/Jesper Olsen_v1.asm
 	fmt = ''; smp = smpp = 0; sz = -1; x = 1;
 	if(X.c("6000")) {//old
 		p = 0; d1 = 3;
@@ -9266,7 +9280,7 @@ if(!bDetected && X.isHeuristicScan() && isKefrensSoundMachine()) {
 
 
 function isImagesMusicSystem() { //goes before Soundtracker .STK for speed
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/ImagesMusicSystem/src/Images Music System_v3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/ImagesMusicSystem/src/Images Music System_v3.asm
 	//is this a hack of Soundtracker? Vice versa?
 	if(X.Sz() < 0x73C) return false;
 	smpp = X.U32(0x438,_BE); if(smpp <= 0x43C) return false;
@@ -9468,7 +9482,7 @@ if(!bDetected && isSoundtrackerMOD()) {
 
 
 function isPaulRobotham() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_teamPaulRobotham/src/Paul%20Robotham_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_teamPaulRobotham/src/Paul%20Robotham_v1.asm
 	trk = X.U16(0,_BE); d2 = X.U16(2,_BE); d3 = X.U16(4,_BE); smp = X.U16(6,_BE); p = 8;
 	if(!trk || trk > 4 || !d2 || !d3 || !smp) return false;
 	mp = 0; trks = [];
@@ -9679,7 +9693,7 @@ if(!bDetected && isAVP()) {
 
 
 function isJP() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/JasonPage/src/Jason%20Page_v5.s
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/JasonPage/src/Jason%20Page_v5.s
 	fmt = 0;
 	if(X.c("0002") && !(X.U8(3)&1)) for(;;) {
 		t = X.I16(4,_BE); if(t&1) break; if(X.I16(t)&1) break;
@@ -10144,7 +10158,7 @@ if(!bDetected && isInfogramesRH2()) {
 
 
 function isSpecialFX() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SpecialFX/Special%20FX_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SpecialFX/Special%20FX_v2.asm
 	if(!X.c("6000")) return false;
 	d2 = X.U16(2,_BE); if(d2 <= 0 || d2%2) return false; a1 = 2; a0 = 4;
 	for(i = 0; i < 3; i++) { if(!X.c("6000",a0)) return false; t = X.U16(a0+2,_BE); a0 += 4; if(t <= 0 || t%2) return false }
@@ -10164,7 +10178,7 @@ if(!bDetected && isSpecialFX()) {
 }
 
 function isSpecialFXST() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SpecialFX_ST/src/Special%20FX%20ST_v3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SpecialFX_ST/src/Special%20FX%20ST_v3.asm
 	if(X.Sz() < 2300) return false;
 	if(!X.c("00000000") && !X.c("0101") && !X.c("00000101") && !X.c("6000")) return false;
 	a1 = 140; a2 = X.Sz()-4; a0 = 0;
@@ -10344,7 +10358,7 @@ if(!bDetected && isPollyTracker()) {
 
 
 function isPaulShields() {
-	//ref https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/PaulShields/src/Paul%20Shields_v3.asm
+	//ref https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/PaulShields/src/Paul%20Shields_v3.asm
 	if(!X.c("00000000 0000000 0000")) return false;
 	if((t = X.U16(0xA4)) === X.U16(0xA8) && t === X.U16(0xAC) && t === X.U16(0xB0)
 	  && (t = X.I16(0xA0,_BE)) > 0 && !(t%2) && X.c("00B400B6",t)) { fmt = 1; p = 0xA6 }
@@ -10433,7 +10447,7 @@ if(!bDetected && isGYM()) {
 
 
 function isSoundMaster() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/SoundMaster/Sound%20Master_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/SoundMaster/Sound%20Master_v1.asm
 	if(!X.c("6000.... 6000.... 6000") || (p=base=a6=X.I16(2,_BE)+2) <= 0 || p%2
 		|| (playp=X.I16(6,_BE)+6) <= 0 || playp%2) return false;
 	for(p1 = p+30; p < p1; p += 2) if(X.c("47FA",p-2)) break; if(p >= p1) return false;
@@ -10507,7 +10521,7 @@ if(!bDetected && isSoundMaster()) {
 
 
 function isTomyTracker() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TomyTracker/src/Tomy%20Tracker_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/TomyTracker/src/Tomy%20Tracker_v2.asm
 	if(X.Sz() < 0x6C0) return false;
 	if((sz=X.U32(0,_BE)) > 0x200000 || sz%2) return false;
 	if((d2=X.U32(4,_BE)) > sz || d2%2) return false;
@@ -10528,7 +10542,7 @@ if(!bDetected && isTomyTracker()) {
 
 
 function isSoundcontrol() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Soundcontrol/src/Soundcontrol_v3.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Soundcontrol/src/Soundcontrol_v3.asm
 	if(!X.c("0003",0x20))
 		if(!X.c("0002",0x20) || X.U32(0x1C,_BE)) return false;
 	if(X.U16(0x10,_BE)) return false;
@@ -10572,7 +10586,7 @@ if(!bDetected && isSoundcontrol()) {
 
 
 function isSoundfactory() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Soundfactory/src/Soundfactory_v2.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Soundfactory/src/Soundfactory_v2.asm
 	if((sz=X.U32(0,_BE)) > 0x200000 || sz > X.Sz()) return false;
 	x = 16; lastfound = false;
 	for(p=0x13; p >= 4; p--) { if((t=X.U8(p)) > 0xF) return false; if(!lastfound && t) {x = p-4; lastfound = true } }
@@ -10714,7 +10728,7 @@ if(!bDetected && isQuartetPSG()) {
 
 
 function isSonicArranger() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/Sonic_Arranger/Sonic Arranger_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/Sonic_Arranger/Sonic Arranger_v1.asm
 	p = modp = smp = synsmp = ord = ptn = 0; x = 1; sv = bad = ''; owner = [];
 	if(X.c("'SOARV1.0STBL'")) {
 		x = X.I32(0xC,_BE); spd0 = X.U8(0x11); ptnlen0 = X.U8(0x13); pst0 = X.U16(0x14,_BE);
@@ -11073,7 +11087,7 @@ if(!bDetected && isSAdT()) {
 
 
 /*function isTFMX() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX/src/TFMX_v4.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/TFMX/src/TFMX_v4.asm
 	if(!X.c("'TFMX'")) return false;
 	if(X.U8(4) !== 0x20) {
 		if(!X.c("'-SONG '",4)) return false;
@@ -11136,7 +11150,7 @@ if(!bDetected && isTFMX_7V()) {
 }
 
 function isTFMX_ST() {
-	//from https://gitlab.com/uade-music-player/uade/-/blob/master/amigasrc/players/wanted_team/TFMX_ST/TFMX%20ST_v1.asm
+	//from https://gitlab.com/uade-music-player/uade/-/raw/master/amigasrc/players/wanted_team/TFMX_ST/TFMX%20ST_v1.asm
 	if(!X.c("'TFMX-SONG '")) return false;
 	if(d1=X.U32(0x1D0,_BE)) if(X.U16(12,_BE)) return false;
 	if(d2=X.U32(0x1D4,_BE)) d1 = X.U32(0x1D8,_BE);
