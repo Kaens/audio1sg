@@ -2177,9 +2177,26 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			sOption('steps:'+steps+' ins:'+ins+' sz:'+outSz(sz))
 		}
 	}
-	else if(X.c("0C'Nusa-team 89a'10610A6108610678006000",0x169)
-	  && X.c("'dynamite89'",0x234)) {
-		sName = "Music Assembler module (.MA)"; bDetected = 1
+	else if(X.c("'sa-team 89a'10610A6108610678006000",0x16C)
+	  && X.c("'dynamite89'",0x234) && isWithin(X.U16(0x50A,_BE), 0,15)) {
+		sName = "Music Assembler module (.MA)"; bDetected = 1; if(X.isVerbose()) {
+//ref https://web.archive.org/web/20071010162252/http://www.exotica.org.uk/tunes/formats/ma/ma_v0.zip / ma_fmt.txt
+			x = ptn = 0; vp = []; ptns = []; ord = []; ch = [];
+			for(p=0x4B0,i=0; i < 40; i++,p+=2) vp[i] = 0x622+X.U16(p,_BE);
+			for(i=0; i < 40; i+=4) { ch_ = ord_ = 0;
+				for(j=i; j < i+4 && j < 40; j++) if(X.U8(vp[j]) != 0xFE) ch_++;
+				if(ch_) {
+					for(j=i,p=vp[j]; j < i+4 && p < X.Sz(); p+=2)
+						if((t=X.U8(p)) == 0xFE) break; else if(t == 0xFF) j++;
+						else { ord_++; if(ptns.indexOf(t) < 0) ptns.push(t) }
+					if(ord_) { x++; ord.push(ord_) }
+					ch.push(ch_)
+				}
+			}
+			if(x > 1) sOption(x,'×');
+			insp = 0x622+X.U32(0x5B6,_BE); ins = Util.divu64(vp[0]-insp,0x18);
+			sOption('ch:'+ch.join('/')+' ord:'+ord.join('+')+' ptn:'+ptns.length+' ins:'+ins+' sz:'+outSz(0x622+X.U32(0x5AE,_BE)))
+		}
 	}
 	else if(X.c("'MAD+'")) {
 		sName = "Mlat Adlib Tracker module (.MAD)"; bDetected = 1
@@ -2344,7 +2361,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	else if(X.c("'FORM'........'MMV8SDAT'................'SE'")) {
-		sName = "Music Maker EXT module (.MM8,.MM4)"; bDetected = 1;
+		sName = "Thomas Winischhofer's Music Maker EXT module (.MM8,.MM4)"; bDetected = 1;
 		sVersion = "v8";
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0x1A,0x14));
