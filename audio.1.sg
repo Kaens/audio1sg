@@ -4508,6 +4508,15 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sName = "The 0ok Amazing Synth Tracker instrument file"; bDetected = 1;
 		if(X.isVerbose()) sOption(outSz(8+25),"sz:")
 	}
+	else if(X.c("4EF900...... 4EF900...... 4EF900...... 4EF900...... 4EF900...... 4EF900...... 4EF900...... 4EF900")
+		&& X.U32(0x2C,_BE)-X.U32(0x2,_BE) == 0xA0
+	  || 
+		X.c("601A") && (X.c("1010",0x1C) || X.c("1012",0x1C)) && (t=X.I32(0x22,_BE)) > 0
+	  	&& t == X.I32(0x26,_BE) && t == X.I32(0x2A,_BE) && t == X.I32(0x2E,_BE)
+	  ) {
+		sName = "Tim Follin & Mike D.'s Follin Player II module (.TF)";
+		sVersion = 'f.'+(X.U8(0) == 0x4E?'0':'1'); bDetected = 1
+}
 	else if(X.c("'TFMD'")) {
 		sName = "TFM Music Maker tune (.TFD)"; bDetected = 1;
 		if(X.isVerbose()) {
@@ -11294,6 +11303,121 @@ if(!bDetected && isTFMX()) {
 		sOption('ord:'+ord.join('+')+' ptn:'+ptn+' macro:'+mac+' sz:'+outSz(sz))
 	}
 }
+
+
+function isThePlayer22to41() {
+	//ref prowiz /r/TP22a.c & TP30a.c & TP40.c & TP41a.c
+	if(!X.c("'P22A'") && !X.c("'P30A'") && !X.c("'P40A'") && !X.c("'P40B'") && !X.c("'P41A'")) return false;
+	ptn = X.U8(4); smp = X.U8(6); volofs = (X.SA(1,3) == '41A')? 0x20: 0x22;
+	if(ptn > 0x7F || !smp || smp > 0x1F) return false;
+	for(i=0; i < smp; i++) {
+		if(!isWithin(X.U16(volofs+i*16,_BE),1,0x40)) return false;
+		if(volofs == 0x20 && X.U16(volofs+2+i*16,_BE) % 74) return false; //incorrect finetune in 4.1a
+	}
+	for(i=smpsz=0; i < smp; i++) {
+		ssz = X.U16(24+i*16,_BE) << 1;
+//_l2r('p2~4',24+i*16,'ssz['+i+'] = '+ssz);
+		if(!ssz || ssz > 0xFFFE || (X.U16(30+i*16,_BE) << 1) > ssz+2) return false;
+		smpsz += ssz
+	}
+	if(smpsz <= 4) return false;
+	if(X.SA(1,1) < '4') ord = (X.U8(5)>>1)-1; else ord = X.U8(5);
+	p = 0x10+smp*0x10;
+	var trkp = X.U32(8,_BE), trktp = X.U32(0xC,_BE), smpp = X.U32(0x10,_BE), memofs = 0;
+	if(p != trktp) { memofs = trktp-p; trkp -= memofs; trktp -= memofs; smpp -= memofs }
+	if(!isWithin(trkp,p,X.Sz()) || !isWithin(trktp,p,X.Sz()) || !isWithin(smpp,p,X.Sz())) return false;
+	for(i=p=0; i < smp; i++)
+		if(volofs == 0x20 && X.U16(volofs+2+i*16,_BE) > 0x456) continue;
+		else if((sp=X.U32(20+i*16,_BE)) > p) { p = sp-memofs; ssz = X.U16(24+i*16,_BE) }
+	sz = 4+smpp+p+(ssz<<1);
+	return true
+}
+if(!bDetected && isThePlayer22to41()) {
+	sName = "Jarno 'Guru' Paananen's The Player module (."+X.SA(0,2)+'X,.'+X.SA(0,4)+')';
+	sVersion = 'v'+X.SA(1,1)+'.'+X.SA(2,2); bDetected = 1;
+	if(X.isVerbose()) {
+		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
+function isThePlayer56X() {
+	//from prowiz /r/TP50a.c & TP60a.c & TP61a.c
+	if(X.Sz() < 7) return false;
+	z = sig = X.c("'P50A'") || X.c("'P60A'") || X.c("'P61A'")? 4: 0;
+	smpp = X.U16(z,_BE)+z; ptn = X.U8(z+2); if(!ptn || ptn > 0x7F) return false;
+	smp = X.U8(z+3); if(smp & 0x20) return false;  pksmp = smp & 0x40; dtsmp = smp & 0x80; smp &= 0x3F;
+	if(!smp || 7+smp*6 > X.Sz()) return false;
+	if(pksmp) z += 4;
+	if(smpp < z+4+smp*6+ptn*8 || smpp > X.Sz()) return false;
+	smpsz = notes = 0; var unpsmpsz = vols = 0;
+	for(i=0,p=z+4; i < smp; i++,p+=6) {
+		if(isWithin(ssz=X.U16(p,_BE),0x8000,0xFFDF) || !ssz) return false;
+		if(ssz > 0xFFDF && 0xFFFF-ssz > smp) return false;
+		var spk = X.U8(p+2)&0x80, ft = X.U8(p+2)&0x7F;
+		if(ft > 0xF || X.U8(p+3) > 0x40) return false; vols |= X.U8(p+3);
+		if(isWithin(X.U16(p+4,_BE),ssz,0xFFFE)) return false; //lp
+		if(ssz < 0xFF00) { smpsz += ssz << (spk? 0: 1); unpsmpsz += ssz << 1 }
+	}
+	if(!vols || (pksmp && X.U32(z,_BE) != unpsmpsz)) return false;
+	for(i=0; i < ptn*4; i++) if(X.U16(z+4+smp*6,_BE)+4+z+smp*6+ptn*8 > smpp) return false;
+	i = mptn = 0;
+	function _5() {
+		for(; (t=X.U8(z+4+smp*6+ptn*8+i)) != 0xFF && i < 0x80; i++) {
+			if(t%2 || t > ptn*2) return false; if(t > mptn) mptn = t
+		} mptn >>=1; return true
+	}
+	function _6() {
+		for(; (t=X.U8(z+4+smp*6+ptn*8+i)) != 0xFF && i < 0x80; i++) {
+			if(t > ptn-1) return false; if(t > mptn) mptn = t
+		} return true
+	}
+	if(_6()) v = 6; else if(_5()) v = 5; else return false;
+	if(/*z+4+smp*6+ptn*8+i > smpp ||*/ !i || i == 0x80) return false; ord = i; mptn++;
+	function _is5060() {
+		for(i=ord+z+5+smp*6+ptn*8; i < smpp; i++) {
+			if((t=X.U8(i)) & 0x80) i += 3;
+			else {
+				if(t > 0x49 || (((t<<4)&0x10) | (X.U8(i+1)>>4)) > smp) return false;
+				if(t >= 2) notes++; i += 2
+			}
+		}
+		return (notes > 0)
+	}
+	function _is61() {
+		for(i=ord+z+5+smp*6+ptn*8; i < smpp; i++) {
+			if((t=X.U8(i)) == 0x7F) continue;
+			else if(t == 0xFF)
+				switch(X.U8(i+1) & 0xC0) {
+				case 0: i++; continue;  case 0x40: i += 2; continue;
+				case 0xC0: if(i < X.U16(i+2,_BE)-1) return false; i += 3; continue
+				}
+			switch(t & 0xF0) {
+			case 0xF0: if((X.U8(i+1)&0x1F) > smp) return false;  i += 2; continue;
+			case 0x70: if((X.U8(i+1)&0x1F) > smp) return false;  i += 1; continue;
+			case 0xE0: i += 2; continue;  case 0x60: i += 1; continue
+			}
+			if((t & 0x80) == 0x80) { if((((t<<4)&0x10) | (X.U8(i+1)>>4)) > smp) return false;  i += 3; continue }
+			if((((t<<4)&0x10) | (X.U8(i+1)>>4)) > smp) return false;
+			i += 2
+		}
+		return true
+	}
+	if(v == 6) if(_is5060()) sv = '6.0'; else if(_is61()) sv = '6.1'; else return false;
+	else if(_is5060()) sv = '5.0';
+	return true
+}
+if(!bDetected && isThePlayer56X()) {
+	sName = "Jarno 'Guru' Paananen's The Player module (.P"+sv[0]+'X,.P'+sv[0]+sv[2]+'A)';
+	sVersion = 'v'+sv+'A'; bDetected = 1;
+	if(dtsmp) sVersion = sVersion.appendS('deltasmp','/');
+	if(pksmp) sVersion = sVersion.appendS('packedsmp','/');
+	if(X.isVerbose()) {
+		sOption('ord:'+ord+' ptn:'+(mptn!=ptn?mptn+'/':'')+ptn+' smp:'+smp
+			+(notes>0?' notes:'+notes:'')+' sz:'+outSz(smpp+smpsz))
+	}
+}
+
 
 // new stable detections :go here: ↑
 
