@@ -11419,6 +11419,36 @@ if(!bDetected && isThePlayer56X()) {
 }
 
 
+function isThomasHermann() {
+	//ref the eagleplayer RE
+	if(X.Sz() < 0x1A90) return false;
+	var ofs = X.I32(0x2E,_BE); if(!isWithin(ofs,2,0x4000000) || ofs % 2) return false;
+	if(X.I32(0,_BE)-ofs != 0x40) return false; p = 4;
+	for(i=0,d4=0x40; i < 4; i++,p+=4) { d4 += 0x400; if(X.I32(p,_BE)-ofs != d4) return false }
+	for(i=0; i < 3; i++,p+=4) { d4 += 0x100; if(X.I32(p,_BE)-ofs != d4) return false }
+	smp = X.U8(0x23); sz = smp-1; smpsz = -1;
+	for(p = 0x44; p < 0x1040; p += 4) if((t=X.U32(p-4,_BE)-ofs) > sz) sz = t;
+	sz += 0x40; if((sz-0x1A90)%3) return false;
+	if(sz == 0x2E10) x = 5;  else if(sz == 0x2780) x = 3;  else x = 1;
+	ptn = Util.divu64(Util.divu64(sz-0x1A90,3), X.U8(0x29)+1);
+	bad = ''; if(ptn > 0x400) bad = bad.addIfNone('!badptn');
+	if(smp > 0x1F) bad = bad.addIfNone('!badsmp');
+	else for(i=0,p=0x14F0; i < smp; i++,p+=0x30) smpsz += X.U16(p,_BE);
+	d1 = 0x100+X.U8(0x21)-X.U8(0x22)+1; d1 *= 2+X.U8(0x2C); d2 = d1;
+	d1 *= X.U16(0x2A,_BE); d3 = Util.divu64(sz == 0x37EE ? 0xAEC80: 0xAD300,  X.U8(0x29)+1);
+	d1 = Util.divu64(d1, d3); dur = secondsToTimeStr(d1)
+	return true
+}
+if(!bDetected && isThomasHermann()) {
+	sName = "Thomas Hermann's module (.THM+.SMP)"; bDetected = 1;
+	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+	if(X.isVerbose()) {
+		if(x > 1) sOption(x,'x');
+		sOption('len.'+dur+' ptn:'+ptn+' smp:'+smp+' smpsz:'+smpsz+' sz:'+outSz(sz))
+	}
+}
+
+
 // new stable detections :go here: ↑
 
 

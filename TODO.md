@@ -146,7 +146,6 @@ This is where you can contribute the most! (sorted by extension)
  - SynTracker `.SYNMOD` (info, size)
  - TCB Tracker `.TCB` (info, size)
  - Tim Follin's `TF.` (info, size)
- - Thomas Hermann's `THM.`
  - The Musical Enlightenment `.TME` (info, size)
  - RamTracker `.TRK` (more info, size)
  - Sound Images `.TW`
