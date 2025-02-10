@@ -1045,7 +1045,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			}
 			for(i=0x1C; i < 0x3C; i += 4) ord += X.U32(i,_BE);
 			sz = smp*0x20+ins*0x10+smpsz+0x1CC+ptn*0x100+wf*0x80+ord*8;
-			if(x > 1) sOption(x,'x');
+			if(x > 1) sOption(x,'×');
 			sOption('ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp/syn:'+smp+'+'+wf+' sz:'+outSz(sz))
 		}
 	}
@@ -1552,7 +1552,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		if(bDetected) {
 			sName = "Fred & Julien Clermonte's Fred Editor module (.FRED,.MOD)"; sVersion = 'project';
 			if(X.isVerbose()) {
-				if(x > 1) sOption(x,'x');
+				if(x > 1) sOption(x,'×');
 				sOption('tempos:'+spds.sort().join('-')+' ins:'+(ins-un)+(un?'('+ins+')':'')
 					+(smp?' smp:'+smp:'')+(syn?' syn:'+syn:'')+' sz:'+outSz(sz))
 			}
@@ -2063,17 +2063,6 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			if(x > 1) sOption(x,"×"); sOption("smp:"+smp+" smpsz:"+Hex(smpsz)+" sz:"+outSz(sz))
 		}
 	}
-	else if(X.c("0040....0040....0040....0040....0040....0040",0x19D1) ) {
-		//unreliable for potential new modules (but there's not gonna be even one)
-		sName = "JayTrax module (.JXS)"; bDetected = 1;
-		if(X.isVerbose())
-			sOptionT(X.SA(0xA6,0x40));
-	}
-	else if(X.Sz() > 4500 && X.c("000003F300000000000000030000000000000002000002")
-	  && X.c("00000001000003E9000002", 0x1C) && X.c("B07C0000 6700???? B07C0001670009?? B07C0002670009", 0x30)
-	  && X.c("4E754A79 0000028E 66D84A79 000002",0xAA) && X.c("4E7548E7 FFFFB1FC 00000000 67",0xD0)) {
-		sName = "Kris Hatlelid's module player (SONGPLAY+.KH)"; bDetected = 1
-	}
 	else if((X.c("'KSCC'") && !X.U8(0xE) && !(X.U8(0xF) & 0xE0)) || //&meant to be 0xF0 but majutsushi*.kss have 0x10 there
 	  (X.c("'KSSX'") && !X.U32(0x14))) {
 		// ref https://sourceforge.net/p/nezplug/code/HEAD/tree/nezplug/trunk/src/nes/m_kss.c & trunk/in_nez.txt
@@ -2173,7 +2162,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				if(!(t=X.U32(i,_BE))) synsmp++
 				else if(t > d7) { d7 = t; smpsz += X.U16(i+4,_BE) << 1; smp++ }
 			steps = (X.U32(0x30,_BE) - X.U32(0x2C,_BE)) >> 2; sz = songsz+smpsz;
-			if(x > 1) sOption(x,'x');  sOption(info,'info:"','"');
+			if(x > 1) sOption(x,'×');  sOption(info,'info:"','"');
 			sOption('steps:'+steps+' ins:'+ins+' sz:'+outSz(sz))
 		}
 	}
@@ -2218,7 +2207,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		p = trkp = X.U32(0x10,_BE); x = X.U16(p,_BE); if(x > 0x20) sVersion = '!badsongcnt';
 		for(i=ch=0,p+=2; i < Math.min(x,0x20); i++,p+=8) if(ch < X.U8(p+5)) ch = X.U8(p+5)
 		if(X.isVerbose()) {
-			sOptionT(info); if(x > 1) sOption(x,'x'); sOption('ch:'+ch+(sz?' sz:'+outSz(sz):''));
+			sOptionT(info); if(x > 1) sOption(x,'×'); sOption('ch:'+ch+(sz?' sz:'+outSz(sz):''));
 		}
 	}
 	else if(X.c("'DMDL'..'IN'")) {
@@ -2595,6 +2584,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 	}
 	else if((X.c("'TWNNSNG'..00") && ["6","G","I"].indexOf(X.SA(7,1) >= 0))
 	  || X.c("'PROTREK'")) {
+		//ref https://github.com/hitchhikr/protrekkr/blob/c321b1995d127fc232d8ea50e359d7e2603882b8/src/ptk.cpp#L2434
 		sName = "ProTrekkr module (.PTK)"; bDetected = 1;
 		sVersion = "v"+X.SA(0x7,1);
 		if(X.isVerbose()) // this stuff has compression in most versions, TODO?
@@ -2804,7 +2794,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 				for(p += X.U16(p-2,_BE); p < X.Sz(); p += 2) if(X.c("FFFFFFFF5FFF",p)) break; // @6e8~f2
 				p += 6;
 			}
-			if(x > 1) sOption(x,'x');
+			if(x > 1) sOption(x,'×');
 			sOption('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(p))
 		}
 	}
@@ -4622,7 +4612,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 					}
 				} else break _f742;
 			}
-			if(!x) x = 1; if(x > 1) sOption(x,'x');
+			if(!x) x = 1; if(x > 1) sOption(x,'×');
 			sOption('ch:'+ch+' ord:'+ord+' ptn:'+(mptn==ptn?'':mptn+'/')+ptn+' sz:'+outSz(sz))
 		}
 	}
@@ -9159,7 +9149,7 @@ function isJesperOlsen() {
 if(!bDetected && isJesperOlsen()) {
 	sName = "Jesper Olsen's module (.JO)"; sVersion = fmt; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x'); sOption('smp:'+smp+' sz:'+outSz(sz))
+		if(x > 1) sOption(x,'×'); sOption('smp:'+smp+' sz:'+outSz(sz))
 	}
 }
 
@@ -9233,7 +9223,7 @@ function isJasonBrooke() {
 if(!bDetected && isJasonBrooke()) {
 	sName = "Jason C. Brooke's module (.JB,.JCB)"; sVersion = fmt; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption((fmt=='new'?'wf.smp:'+smp:'steps:'+steps)+' syn.smp:'+synsmp+' sz:'+outSz(sz))
 	}
 }
@@ -10539,7 +10529,7 @@ function isSoundMaster() {
 if(!bDetected && isSoundMaster()) {
 	sName = "Sound Master module (.SM,.SMPRO,.SM3)"; sVersion = fmt; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		if(patchable) sOption('ord:'+ord+' sz:'+outSz(sz));
 		//else sOption('unpatchable or precooked');
 	}
@@ -10605,7 +10595,7 @@ function isSoundcontrol() {
 if(!bDetected && isSoundcontrol()) {
 	sName = "Holger Gehrmann's Soundcontrol module (.SCT)"; sVersion = sv; bDetected = 1;
 	if(X.isVerbose()) {
-		sOptionT(title); if(x > 1) sOption(x,'x');
+		sOptionT(title); if(x > 1) sOption(x,'×');
 		sOption('ch:'+voc+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 	}
 }
@@ -10637,7 +10627,7 @@ function isSoundfactory() {
 if(!bDetected && isSoundfactory()) {
 	sName = "Soundfactory module (.PSF)"; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption((X.isDeepScan()?'smp:'+smp+' smpsz:'+Hex(smpsz)+' ':'')+'sz:'+outSz(sz))
 	}
 }
@@ -10713,7 +10703,7 @@ function isSteveBarrett() {
 if(!bDetected && isSteveBarrett()) {
 	sName = "Steve Barrett's module (.SB)"; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption('smp:'+smp+' sz:'+outSz(sz))
 	}
 }
@@ -10747,7 +10737,7 @@ if(!bDetected && isQuartetPSG()) {
 	sName = "Illusions/Microdeal Quartet module (SQT.)";
 	sVersion = "PSG synth"; bDetected = 1;
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption(outSz(sz),'sz:')
 	}
 }
@@ -10820,7 +10810,7 @@ if(!bDetected && isSonicArranger()) {
 	sName = "BrainTrace Design's Sonic Arranger module (.SA"+(sv == 'pure'?',.LION':'')+")"; bDetected = 1;
 	sVersion = sv; if(bad != '') sVersion = sVersion.appendS('malformed:'+bad,'/');
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		if(owner != '') sOption(addEllipsis(owner,0xA0,0x80),'info:"','"');
 		sOption('bpm0:'+bpm0+(ord?' ord:'+ord:'')+(lp0?' lp0:'+lp0:'')+(ptn?' ptn:'+ptn:'')+(ins?' ins:'+ins:'')
 			+(smp?' wf.smp:'+smp:'')+(synsmp?' syn.smp:'+synsmp:'')+' sz:'+outSz(sz))
@@ -10866,7 +10856,7 @@ function isJT() {
 if(!bDetected && isJT()) {
 	sName = "Jeroen Tel's module (.JT)"; bDetected = 1;
 	if(X.isVerbose()) {
-		if(specialmsg != '') sOption(specialmsg); if(x > 1) sOption(x,'x');
+		if(specialmsg != '') sOption(specialmsg); if(x > 1) sOption(x,'×');
 		sOption('smp:'+smp+' songsz:'+Hex(songsz)+' sz:'+outSz(sz))
 	}
 }
@@ -11015,7 +11005,7 @@ if(!bDetected && isFredF()) {
 	sName = "Fred & Julien Clermonte's Fred Editor module (.FRED,.FRD)"; sVersion = 'final'; bDetected = 1;
 	if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption('tempo:'+spds.sort().join('-')+' ord:'+ord+' ptn:'+ptn+(smp?' smp:'+smp:'')+(syn?' syn:'+syn:'')+' sz:'+outSz(sz))
 	}
 }
@@ -11143,7 +11133,7 @@ if(!bDetected && isTFMX()) {
 	// sVersion = 'v1.5';
 	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x')
+		if(x > 1) sOption(x,'×')
 		sOption('sz:'+outSz(sz))
 	}
 }
@@ -11298,7 +11288,7 @@ if(!bDetected && isTFMX()) {
 	case '1.5': sVersion = 'v1.5'; break;  case 'pro': sVersion = 'Professional'; break;  case '7v': sVersion = '7 voices'
 	}
 	if(X.isVerbose()) {
-		sOptionT(title); if(x > 1) sOption(x,'x'); sOption(album,'in: '); sOptionT(by,'by: '); if(flag5 >= 0) sOption(flag5,'flag5:')
+		sOptionT(title); if(x > 1) sOption(x,'×'); sOption(album,'in: '); sOptionT(by,'by: '); if(flag5 >= 0) sOption(flag5,'flag5:')
 		if(cmt == '(Empty)') cmt = ''; sOption(addEllipsis(cmt,0xA0),'msg:"','"');
 		sOption('ord:'+ord.join('+')+' ptn:'+ptn+' macro:'+mac+' sz:'+outSz(sz))
 	}
@@ -11443,11 +11433,60 @@ if(!bDetected && isThomasHermann()) {
 	sName = "Thomas Hermann's module (.THM+.SMP)"; bDetected = 1;
 	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
-		if(x > 1) sOption(x,'x');
+		if(x > 1) sOption(x,'×');
 		sOption('len.'+dur+' ptn:'+ptn+' smp:'+smp+' smpsz:'+smpsz+' sz:'+outSz(sz))
 	}
 }
 
+
+function isJaytrax() {
+	//ref https://github.com/pachuco/jaytrax/raw/refs/heads/master/lib_oldjaytrax/jxs.c etc.
+//ch/ss = 16, ord/ss = 256, rows/ptn = 64, eff/inst = 4, wf/inst = 16, smp/wf = 256, arps/song = steps/arp = 16,
+//se_ch = _FTsteps = 16, _FX = 18
+	if(X.Sz() < 26243 || !isWithin(X.U32(0),0xD80,0xD81)) return false;
+	if(!(ptn=X.U32(4)) || !(x=X.U32(8)) || !(ins=X.U32(0xC))) return false;
+	if(!isAllZeroes(0x10,0x24)) return false; //reserved
+	mbpm = 400; Mbpm = ch = smp = 0; titles = [];
+	for(s=0,p=0x34; s < x && p < X.Sz(); s++,p+=0x40B4) {
+		// 0x40 bytes padding, 0x10 channel muting
+		for(i=p+0x40; i < p+0x50; i++) if(X.U8(i) > 1) return false;
+		if(!isWithin(bpm=X.U32(p+0x50),10,300)) return false;
+		if(mbpm > bpm) mbpm = bpm; if(Mbpm < bpm) Mbpm = bpm;
+		if(!isWithin(X.U8(p+0x54),0,3)) return false; //groove type
+		if((startpos=X.U32(p+0x58)) > (endpos=X.U32(p+0x60))) return false;
+		if((looppos=X.U32(p+0x68)) > endpos) return false;
+//_l2r('jxs',X.U32(p+0x6C),' - loopstep, '+Hex(X.U16(p+0x70))+' - songloop')
+		if(!isWithin(t=X.U16(p+0x92),1,16)) return false; if(ch < t) ch = t;
+		if(!isWithin(delay=X.U16(p+0x94),2000,60000)) return false; // delay amts follow, until...
+		if(!isWithin(amp=X.U16(p+0xA6),20,999)) return false;
+		if(X.isDeepScan()) for(o=p+0xB4; o < p+0x40B4; o += 4) // not so necessary but we can do it so...
+			if(X.U16(o) >= ptn || !X.U16(o+2) || (X.U16(o+2) & ~0x78)) return false; //ptnlen constraints
+		t = X.SC(p+0x72,0x20,"CP1250"); if(t !== 'Empty' && t.trim() !== '') titles.push(t.trim())
+	}
+	p += ptn*64*5; //patterns
+	for(i=0; i < ptn && p < X.Sz(); i++) p += 4+X.U32(p); //pattern names
+	for(i=0; i < ins && p < X.Sz(); i++,p+=0x2208) { //inst recs
+		if([1234,1235].indexOf(X.U16(p)) < 0) return false; //mugi ver
+		// sOption(X.SA(p+2,32)) //inst.name; nobody leaves any messages in them though
+		if(X.U16(p+0x22) > 16 || !isWithin(X.U16(p+0x24),1,0x100)) return false; //wf, wlen. Should be 1~16 and 10~256, but faulty files still play!
+		if(X.U16(p+0x26) > 0xFF || X.U16(p+0x28) > 16 || X.U16(p+0x2A) > 32) return false; //mastervol, am wave/spd
+		if(X.U16(p+0x2E) > 15 || X.U16(p+0x30) > 16 || X.U16(p+0x32) > 64) return false; //ft, fm wave/spd; spd should be <= 32 but kingtut.jxs has 57!
+		if(X.U32(p+0x200)) smp++; if(t=X.U32(p+0x204)) p += t; //smp len
+	}
+	if(p > X.Sz()) return false;
+	p += 0x100; //arp table
+	return true
+}
+if(!bDetected && isJaytrax()) {
+	sName = "Reinier 'Rhino' van Vliet's Jaytrax/Syntrax module (.JXS)"; sVersion = 'v.'+X.U32(0); bDetected = 1;
+	if(X.isVerbose()) {
+		if(titles.length > 1) sOption(addEllipsis(titles.join('/'),0xC0),'×'+x+' subsongs:');
+		else { if(titles.length) sOption(titles[0]);  if(x > 1) sOption(x,'×') }
+		sOption('ch:'+ch+' bpm:'+mbpm+(mbpm!=Mbpm? '-'+Mbpm: '')
+			+' ord:'+(startpos? startpos+'~': '')+(looppos>startpos? looppos+'-': '')+endpos
+			+' ptn:'+ptn+' ins:'+ins+' smp:'+smp+' sz:'+outSz(p));
+	}
+}
 
 // new stable detections :go here: ↑
 
