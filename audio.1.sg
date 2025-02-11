@@ -1529,7 +1529,7 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 			do { t = X.U32(p,_BE); if(t) x++; p += 8 } while(t);
 			if(x > 1) sOption(x,"×");
 			sOptionT(X.SA(X.I32(0x30,_BE)+0x20,0x100),"by:");
-			sOptionT(outSz(X.I32(0x38,_BE)+0x20),"sz:");
+			sOptionT(outSz(X.I32(0x38,_BE)+0x20),"sz:")
 		}
 	}
 	else if(X.c("'Fred Editor '0000") && X.U16(0xE,_BE) <= 10) {
@@ -2021,10 +2021,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		sVersion = "v2.0";
 	}
 	else if(X.c("'IXS!'")) {
-		sName = "iXalance module (.IXS)"; bDetected = 1; sVersion = "compressed";
+		sName = "Sahara Surfers' iXalance module (.IXS)"; bDetected = 1; sVersion = 'compressed';
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0x18,0x20)); sOption(outSz(0x38+X.U32(0x10)),'sz:')
 		}
+		//Unpacked module detection is in the sanity checks
 	}
 	else if(X.c("'MUSE'DEADBEAF") || X.c("'MUSE'DEADBABE")) {
 		sName = "Jazz Jackrabbit 2 container (.J2B)/Galaxy Sound System module";
@@ -11446,7 +11447,7 @@ function isJaytrax() {
 	if(X.Sz() < 26243 || !isWithin(X.U32(0),0xD80,0xD81)) return false;
 	if(!(ptn=X.U32(4)) || !(x=X.U32(8)) || !(ins=X.U32(0xC))) return false;
 	if(!isAllZeroes(0x10,0x24)) return false; //reserved
-	mbpm = 400; Mbpm = ch = smp = 0; titles = [];
+	mbpm = 400; Mbpm = ch = smp = 0; ord = []; titles = [];
 	for(s=0,p=0x34; s < x && p < X.Sz(); s++,p+=0x40B4) {
 		// 0x40 bytes padding, 0x10 channel muting
 		for(i=p+0x40; i < p+0x50; i++) if(X.U8(i) > 1) return false;
@@ -11461,7 +11462,8 @@ function isJaytrax() {
 		if(!isWithin(amp=X.U16(p+0xA6),20,999)) return false;
 		if(X.isDeepScan()) for(o=p+0xB4; o < p+0x40B4; o += 4) // not so necessary but we can do it so...
 			if(X.U16(o) >= ptn || !X.U16(o+2) || (X.U16(o+2) & ~0x78)) return false; //ptnlen constraints
-		t = X.SC(p+0x72,0x20,"CP1250"); if(t !== 'Empty' && t.trim() !== '') titles.push(t.trim())
+		t = X.SC(p+0x72,0x20,"CP1250"); if(t !== 'Empty' && t.trim() !== '') titles.push(t.trim());
+		ord.push(endpos)
 	}
 	p += ptn*64*5; //patterns
 	for(i=0; i < ptn && p < X.Sz(); i++) p += 4+X.U32(p); //pattern names
@@ -11481,12 +11483,87 @@ if(!bDetected && isJaytrax()) {
 	sName = "Reinier 'Rhino' van Vliet's Jaytrax/Syntrax module (.JXS)"; sVersion = 'v.'+X.U32(0); bDetected = 1;
 	if(X.isVerbose()) {
 		if(titles.length > 1) sOption(addEllipsis(titles.join('/'),0xC0),'×'+x+' subsongs:');
-		else { if(titles.length) sOption(titles[0]);  if(x > 1) sOption(x,'×') }
+		else { if(titles.length) sOption(titles[0]); if(x > 1) sOption(x,'×') }
+		if(x > 1) ord = ord.join('+');
+		else ord = (startpos? startpos+'~': '')+(looppos > startpos? '('+looppos+'-)': '')+endpos;
 		sOption('ch:'+ch+' bpm:'+mbpm+(mbpm!=Mbpm? '-'+Mbpm: '')
-			+' ord:'+(startpos? startpos+'~': '')+(looppos>startpos? looppos+'-': '')+endpos
-			+' ptn:'+ptn+' ins:'+ins+' smp:'+smp+' sz:'+outSz(p));
+			+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp:'+smp+' sz:'+outSz(p));
 	}
 }
+
+
+function isiXalanceUnp() {
+//ref https://github.com/arnaud-neny/rePlayer/blob/646aeb86f4c0c2e57b38292e88f525680c207004/source/Replays/IXalance/webixs/Module.cpp#L481
+	if(X.U8(0) != 0x21 || X.U8(9) != 0x80) return false;
+	if(!(ord=X.U16(1)) || !(ins=X.U16(3)) || !(smp=X.U16(5)) || smp > ins || !(ptn=X.U16(7))) return false;
+	if(!isWithin(mvol=X.U8(0xA),1,0x20) || !isWithin(spd=X.U8(0xB),1,0x20) || !isWithin(tmp=X.U8(0xC),0x20,0xA0)) return false;
+	if(charStat(readBytes(0xD,0x1A),1).indexOf('allxsc') < 0) return false;
+	for(p=0x27; p < 0x67; p++) if(X.U8(p) > 0x40) return false;
+	for(p=0xA7; p < 0xA7+ord; p++) if(X.U8(p) != 0xFF && X.U8(p) >= ptn) return false;
+	if(X.U8(p-1) != 0xFF) return false;
+	var id; rins = 0; rsmp = 0; bad = '';
+_l2r('ixu',p,'insts')
+	for(i=0; i < ins && p < X.Sz(); i++)
+		if(['I','i'].indexOf(id=X.SA(p++,1)) < 0) return false // the small 'i' is the kb reset?
+		else if(id === 'I') {
+			if(X.U8(p+2) > 0x80) return false; // normally all volumes are up to 40h, but SOME files...
+			p += X.I8(p+5) >= 0? 244: 6; //vol, kb setup
+			for(j=3; j; j--) if(X.U8(p++)) {
+				if(X.U8(p+1) > X.U8(p+2) || X.U8(p+3) > X.U8(p+4)) return false; //lp/sustainlp beginning/end tests
+				p += 5 + X.U8(p)*3; //env node points
+			} rins++
+		}
+_l2r('ixu',p,'smps')
+	for(i=smpsz=0; i < smp && p < X.Sz(); i++) {
+		id = X.SA(p++,1);
+		if(['S','s'].indexOf(id) < 0) return false; // the small 's' is the flags reset
+		if(id == 'S') {
+			if(X.U8(p) > 0x40 || X.U8(p+2) > 0x40) return false; //gvl, volume
+			var fl = X.U8(p+1), ssz = X.I32(p+3), lpb = X.U32(p+7), lpe = X.U32(p+0xB),
+				slpb = X.U32(p+0xE), slpe = X.U32(p+0x13), fn = readBytes(p+0x20,13);
+			if(charStat(fn,1).indexOf('allxsc') < 0) return false; fn = decEncoding(fn,CP437);
+//_l2r('ixu',p,'smp'+i+': ['+ssz+'] ('+lpb+'~'+lpe+') s('+slpb+'~'+slpe+')'+fn)
+			switch(fn) { // broken samples (I guess IT214 compression played a part)
+			case '909OH.WAV': ssz = 3424; break;
+			case '909SD.WAV': ssz = 3413; break;
+			case 'CRASH.WAV': ssz = 16098
+			}
+			if(lpb > ssz || lpe > ssz || slpb > ssz || slpe > ssz || lpb > lpe || slpb > slpe) return false;
+			smpsz += ssz; p += 0x2D; rsmp++
+		}
+	}
+_l2r('ixu',p,'ptns')
+	for(i=0; i < ptn && p < X.Sz(); i++) {
+		id = X.SA(p++,1);
+		if(['P','p'].indexOf(id) < 0) return false; // the small 'p' is the flags reset
+		if(id == 'P') {
+			var psz = X.U16(p), rows = X.U16(p+2);
+			if(!psz || !rows) return false;
+			p += 4+psz
+		}
+	}
+	j = X.U32(p); p += 4;
+	// In principle, this marks the end of replayable part, but there's more info about SFXI to potentially account for.
+	// In practice, maybe it can be copied from .IT files
+//_l2r('ixu',p,'input for wfsmp x'+j)
+	for(i=0; i < j && p < X.Sz(); i++,p+=0x10C) {
+		if(charStat(readBytes(p,8),1).indexOf('allxsc') < 0) break
+//_l2r('ixu',p,i+': '+X.SA(p+4,8))
+	}
+	j = X.U8(p++);
+//_l2r('ixu',p,'input for synsmp x'+j)
+	return true
+}
+if(!bDetected && isiXalanceUnp()) {
+	sName = "Sahara Surfers' iXalance module (.IXS)"; sVersion = 'unpacked'; bDetected = 1;
+	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+	if(X.isVerbose()) {
+		sOptionT(X.SA(0xD,0x1A,'CP1250'));
+		sOption('ord:'+ord+' ptn:'+ptn+' ins:'+(rins!=ins?rins+'/':'')+ins
+			+' smp:'+(rsmp!=smp?rsmp+'/':'')+smp+' smpsz:'+smpsz+'s sz:'+outSz(p))
+	}
+}
+
 
 // new stable detections :go here: ↑
 
