@@ -913,11 +913,11 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		}
 	}
 	else if(X.c("'ALL '00")) {
-		sName = "Delta Music module (.DM)"; bDetected = 1
+		sName = "Delta Music module (.DM)"; sVersion = 'v1.3'; bDetected = 1
 	}
 	else if(X.c("4A00670003B40C000001670001EC0C000002670A0C000003671270004E7541FA0B680201003F11",4)
 	  && X.c("0000'.FNL'",0xBC4)) { //the module data begins at 878h
-		sName = "Delta Music 2 module (.DM2)"; bDetected = 1
+		sName = "Delta Music 2 module (.DM2)"; sVersion = 'v2.0'; bDetected = 1
 	}
 	else if(X.c("'DMF'0E")) {
 		sName = "Digital Sound and Music Interface Advanced Music Format hack (.DMF)";
