@@ -716,12 +716,14 @@ function detect(bShowType,bShowVersion,bShowOptions) {
 		ap = X.U16(0x10,_LE); if(ap && !isWithin(ap,p,pins-1)) { ap = 0; ic++; bad = bad.addIfNone('!badptr') }
 		cp = X.U16(0x12,_LE); if(cp && !isWithin(cp,p,pins-1)) { cp = 0; ic++; bad = bad.addIfNone('!badptr') }
 		ch = 0; for(i=0x14; i < 0x24; i++) { if((t=X.U8(i)) == 1) ch++; else if(t > 1) ic++} if(!ch) ic++;
+		sz = X.fSig(pmus,Math.min(0x10000,X.Sz()),"FF2F00");
+		if(sz < 0) { sz = X.fSig(pmus,Math.min(0x10000,X.Sz()),"FF2FFE"); bad = bad.addIfNone('!badeof')}
+		if(sz > 0) sz += 3;
 		if(ic > 5) bDetected = 0; else if(bad != '') sVersion += "/malformed"+bad;
 		if(bDetected && X.isVerbose()) {
 			if(tp) sOptionT(X.SC(tp,0x100,'CP437'));
 			if(ap) sOptionT(X.SC(ap,0x100,'CP437'),"by: ");
 			if(cp) sOptionT(X.SC(cp,0x100,'CP437'));
-			sz = X.fSig(pmus,Math.min(0x10000,X.Sz()),"00FF2F00"); if(sz > 0) sz += 4;
 			if(nV >= 0x101 && X.U8(sz) == 0xFF) sz++; //a lot of v1.1 CMFs end in FF, enough to be significant?
 			sOption('ch:'+ch+' ins:'+ins+' sz:'+outSz(sz))
 		}
