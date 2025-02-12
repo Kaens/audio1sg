@@ -7259,13 +7259,13 @@ function isSidMon2() {
 	ofs = 0x3A+X.U32(6,_BE); songlenlen = X.U32(0xA,_BE); ofs += songlenlen; //yes
 	if(ofs != 0x5A) return false;    
 	p = 0x0E;
-	for(i = 0; i < 11; i++) {
-		t = X.U32(p,_BE); if(t > 0x0FFFFF || !t) { _log("fault @"+Hex(p)); return false }
+	for(i = 0; i < 10; i++) {
+		t = X.U32(p,_BE); if(t > 0x0FFFFF || !t) return false;
 		switch(i) {
 		case 0: var ordt = [ofs,t]; break;
 		case 1: if(t != ordt[1]) return false; var notexpost = [ofs,t]; break;
 		case 2: if(t != notexpost[1]) return false; break;
-		case 3: if(t%32) return false; break;
+		case 3: if(t % 32) return false; break;
 		case 7: if(t != smp) return false; var smpt = [ofs,t]; break;
 		case 8: trk = t >> 1; break;
 		case 9: var trkt = [ofs,t]; break;
