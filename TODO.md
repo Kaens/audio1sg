@@ -18,7 +18,6 @@ This is where you can contribute the most! (sorted by extension)
  - Audio Sculpture `.AS` (info, size)
  - Ben Daglish's SID `.BDS` (info, size)
  - BoyScout `.BSS` (info, size)
- - Creative Music File `.CMF` (info, size)
  - Core Design `.CORE` (info, size)
  - Compoz `.CPZ`
  - Cybertracker C64 and not `.CT` (info for non-C64, size)

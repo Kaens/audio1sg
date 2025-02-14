@@ -10,7 +10,7 @@ init("audio", "");
 includeScript("read");
 debug = 0; //verbosity up to 3, where every note/command is shown. Overrides the debug() function; use _l2r
 
-function detect(bShowType,bShowVersion,bShowOptions) {
+function detect() {
 
 	if(X.c("'[1tracker module]'0D0A")) {
 		sName = "Shiru's 1tracker module (.1TM)"; bDetected = 1;
@@ -6601,24 +6601,22 @@ function isASC1() { //basically ASC0 + loop pos
 	ptn++; if(X.U16(ptntp,_LE) != ptn*6) return false;
 	j = X.U16(orntp+0x40-2,_LE)+orntp;
 	while((j < X.Sz()) && (j < 65535) && !(X.U8(j)&0x40))  j += 2;
-	bad = "";
-	if(j>65534 || j>=X.Sz())
-	  if(X.isHeuristicScan()) bad = "/malformed";
+	bad = '';
+	if(j > 65534 || j >= X.Sz())
+	  if(X.isHeuristicScan()) bad = '/malformed!short';
 	  else return false;
 	sz = j+2; delay = X.U8(0); loop = X.U8(1);
 	return true
 }
-if(!bDetected && X.isDeepScan() && isASC1()) {
-	bDetected = 1; sVersion = "v1.x-2.x"+bad;
-	sName = "ASC Sound Master module (.ASC)";
+if(!bDetected && isASC1()) {
+	sName = "ASC Sound Master module (.ASC)"; sVersion = 'v1.x-2.x'+bad; bDetected = 1;
 	if(X.isVerbose()) {
 		pt = X.fSig(8,0x80,"'ASM COMPILATION OF '")+0x13;
 		if(pt > 8) {
 			pa = X.fSig(pt+0x13,0x20,"' BY '");
-			t = X.SA(pt,pa-pt); a = X.SA(pa+4,0x12);
-			sOptionT(t); sOptionT(a,"by: ")
+			sOptionT(X.SA(pt,pa-pt)); sOptionT(X.SA(pa+4,0x12),'by: ')
 		}
-		sOption("ord:"+ord+" ptn:"+ptn+" delay:"+delay+" loop:"+loop+" sz:"+outSz(sz))
+		sOption('ord:'+ord+' ptn:'+ptn+' delay:'+delay+' loop:'+loop+' sz:'+outSz(sz))
 	}
 }
 
@@ -6635,24 +6633,23 @@ function isASC0() {
 	ptn++; if(X.U16(ptntp,_LE) != ptn*6) return false;
 	j = X.U16(orntp+0x40-2,_LE)+orntp;
 	while((j < X.Sz()) && (j < 65535) && !(X.U8(j)&0x40))  j += 2;
-	bad = "";
+	bad = '';
 	if(j > 65534 || j >= X.Sz())
-		if(X.isHeuristicScan()) bad = "/malformed";
+		if(X.isHeuristicScan()) bad = '/malformed!short';
 		else return false;
 	sz = j+2; delay = X.U8(0);
 	return true
 }
-if(!bDetected && X.isDeepScan() && isASC0()) {
-	bDetected = 1; sVersion = "v0.x"+bad;
+if(!bDetected && isASC0()) {
+	bDetected = 1; sVersion = 'v0.x'+bad;
 	sName = "ASC Sound Master module (.AS0)";
 	if(X.isVerbose()) {
 		pt = X.fSig(7,0x80,"'ASM COMPILATION OF '")+0x13;
 		if(pt > 7) {
 			pa = X.fSig(pt+0x13,0x20,"' BY '");
-			t = X.SA(pt,pa-pt); a = X.SA(pa+4,0x12);
-			sOptionT(t); sOptionT(a,"by: ")
+			sOptionT(X.SA(pt,pa-pt)); sOptionT(X.SA(pa+4,0x12),'by: ')
 		}
-		sOption("ord:"+ord+" ptn:"+ptn+" delay:"+delay+" sz:"+outSz(sz))
+		sOption('ord:'+ord+' ptn:'+ptn+' delay:'+delay+' sz:'+outSz(sz))
 	}
 }
 
@@ -12077,6 +12074,6 @@ if(X.isHeuristicScan()) { //parallel block
 
 } //isHeuristicScan parallel block
 
-	return result(bShowType,bShowVersion,bShowOptions);
+	return result();
 }
 /* beautify ignore:end */
