@@ -6614,7 +6614,7 @@ if(!bDetected && isASC1()) {
 		pt = X.fSig(8,0x80,"'ASM COMPILATION OF '")+0x13;
 		if(pt > 8) {
 			pa = X.fSig(pt+0x13,0x20,"' BY '");
-			sOptionT(X.SA(pt,pa-pt)); sOptionT(X.SA(pa+4,0x12),'by: ')
+			sOptionT(X.SA(pt,pa-pt)); sOptionT(X.SA(pa+4,0x14),'by: ')
 		}
 		sOption('ord:'+ord+' ptn:'+ptn+' delay:'+delay+' loop:'+loop+' sz:'+outSz(sz))
 	}
@@ -6956,11 +6956,12 @@ if(!bDetected && isProTracker3()) {
 		if(X.c("'by ",0x3F)) { sOptionT(decAnsi(0x1E,0x20,CPSpeccy)); sOptionT(decAnsi(0x42,0x20,CPSpeccy),'by: ') }
 		sOptionT(tracker,'in: ');
 		switch(ttn) {
-			case 0: sOption('tuning 1625000'); break;
-			case 1: sOption('Sound Tracker tuning'); break;
-			case 2: sOption('tuning 1750000'); break;
-			case 3: sOption('tuning 1625000'); break;
-			default: sOption('custom tuning')
+			case 0: sOption('tuning 0: 1625000Hz PT3.3'); break;
+			case 1: sOption('tuning 1: Sound Tracker'); break;
+			case 2: sOption('tuning 2: ASM/PSC 1.75MHz'); break;
+			case 3: sOption('tuning 3: RS 1625000Hz'); break;
+			case 4: sOption("tuning 4: Ivan Roshchin's Natural Cmaj/Am"); break;
+			default: sOption('tuning '+ttn+'/custom')
 		}
 		sOption((tsmode?'1st chip info: ':'')+'tmp0:'+tmp+' ord:'+(lp?lp+'-':'')+ord
 			+' ptn:'+(rptn!=ptn?rptn+'/':'')+ptn+' smp:'+(rsmp!=smp?rsmp+'/':'')+smp
