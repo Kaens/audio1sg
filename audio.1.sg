@@ -2204,6 +2204,7 @@ function detect() {
 		case 2: sVersion += " t.2:tracks+tempo"
 		}
 		bDetected = 1;
+		charset = 'SJIS'; //'CP1252'
 		trk = X.U16(0x0A,_BE); if(trk > 1) sOption(trk,"trk:");
 		if(nV == 0 && trk != 1) bad += "!badvertrk";
 		sz = p = 0x0E; txt = by = title = lyr = "";
@@ -2222,14 +2223,14 @@ function detect() {
 					switch(a) {
 						case 0: if(X.U8(p++) != 2) readmore = 0; else p += 4; break;
 						case 3: t = readVarUInt(p); p += t[0];
-							title = title.append(X.SC(p,t[1],'CP1252')); p += t[1];
+							title = title.append(X.SC(p,t[1],charset)); p += t[1];
 							break;
 						case 2: t = readVarUInt(p); p += t[0];
-							by = by.append(X.SC(p,t[1],'CP1252')); p += t[1]; break;
+							by = by.append(X.SC(p,t[1],charset)); p += t[1]; break;
 						case 1: t = readVarUInt(p); p += t[0];
-							txt = txt.append(X.SC(p,t[1],'CP1252')); p += t[1]; break;
+							txt = txt.append(X.SC(p,t[1],charset)); p += t[1]; break;
 						case 5: t = readVarUInt(p); p += t[0];
-							lyr = lyr.append(X.SC(p,t[1],'CP1252',"-")); p += t[1];
+							lyr = lyr.append(X.SC(p,t[1],charset,"-")); p += t[1];
 							break;
 						case 4: case 6: case 7: t = readVarUInt(p); p += t[0]+t[1]; break; //ins., lyrics, markers, cues
 						case 0x20: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 1) {
@@ -7127,18 +7128,14 @@ if(!bDetected && X.isDeepScan() && isST()) {
 	else
 		msg = i_d;
 	if(sz != X.Sz()) { //the message must've hit the size field, HAPPENS
-		if(X.isVerbose()) sOption("ord:"+ord+" ptn:"+ptn+" sz:"+outSz(len));
+		sz = len;
+		if(X.isVerbose()) sOption("ord:"+ord+" ptn:"+ptn);
 		if(32 <= (sz&0xFF) <= 0x7F) {
 			msg += String.fromCharCode(sz&0xFF);
 			if(32 <= (sz>>8) <= 0x7F) msg += String.fromCharCode(sz>>8)
 		}
-	} else
-		//if(sz == len)
-			if(X.isVerbose()) sOption("ord:"+ord+" ptn:"+ptn+" sz:"+sz); /*else;
-		else if(X.isVerbose())
-		  sOption("ord:"+ord+" ptn:"+ptn+" sz:"+sz+" calc.sz:"+len); //keeping len in: debug
-		  */
-	if(X.isVerbose()) sOptionT(msg,"msg: ");
+	}
+	if(X.isVerbose()) { sOptionT(msg,"msg: "); sOption('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(sz)) }
 }
 
 
@@ -11618,6 +11615,53 @@ if(!bDetected && isQuartetST()) {
 }
 
 
+function isSQDigitalTracker() {
+	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/sqdigitaltracker.cpp
+	if(X.Sz() < 0x4400) return false;
+	if(X.U8(0x100) != 0x7C &&  X.U8(0x11F) != 0x7C) return false; //title surrounded by | |
+	if(charStat(X.readBytes(0x100,0x20),1).indexOf('allasc') < 0) return false;
+	if(X.U8(0x204) != 0xFF) return false;
+	tempo = X.U8(0x210); if(!isWithin(tempo,2,10)) return false;
+	ord = X.U8(0x212)+1; if(!isWithin(ord,1,0x65)) return false;
+	loop = X.U8(0x211); if(loop >= ord) return false;
+	if(charStat(X.readBytes(0x300,0x80),1).indexOf('allasc') < 0) return false;
+	sz = 0x4000; //var regions = [];
+	for(i=0; i < 8; i++) { // check layouts, calc size
+		if(X.U8(0xC0+i*4)) return false; //address, lower byte
+		if(!isWithin(X.U8(0xC0+i*4+1),0x80,0xC0)) return false; //address, higher byte
+		if(!isWithin((bnk=X.U8(0xC0+i*4+2)),0x58, 0x5F)) return false; //bank
+		if(!isWithin((sec=X.U8(0xC0+i*4+3)),1,0x80)) return false; //sectors
+		var lst = X.U16(0xC0+i*4), lsz = sec << 8; bnk &= 7;
+		//if(lst >= 0xC000 && lst+lsz <= 0x10000) regions[bnk] = [sz, lsz];
+		sz += lsz
+	}
+	if(sz > X.Sz()) return false;
+	sz += 0x400; // data at the end; tracker settings? nobody'll miss it, but...
+//_l2r('sqd',0x4400,'regions:'+outArray(regions,16))
+	title = X.SC(0x101,0x1E,"CP1251").trim();
+	for(i=smp=0; i < 0x10; i++) { //sample info parser
+		if(X.U8(0x120+i*8+4) > 1) return false;
+// 			var rst = X.U16(0x120+i*8), rlp = X.U16(0x120+i*8+2);
+// 			if(rst < 0x8000 || rst < rlp) continue;
+// 			bnk = X.U8(0x120+i*8+5) & 7; var smpbase = rst < 0xC000? 0x8000: 0xC000;
+// //_l2r('sqd',0x120+i*4,'used bank #'+bnk+' at '+Hex(rst)+'..'+Hex(rlp))
+// 			if(typeof regions[bnk] != "undefined") {
+// 				smp++;
+// 				var ssz = Math.min(0x10000-rst,regions[bnk][1]), sp = regions[bnk][0] + rst - smpbase;
+// 			}
+	}
+	for(i=ptn=0; i < 100; i++) if((t = X.U8(0x1A0+i)) > 0x1F) return false;  else if(ptn < t) ptn = t;
+	ptn++;
+	return true
+}
+if(isSQDigitalTracker()) {
+	sName = "SQ Digital Tracker module (.SQD,.M)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(title); sOption('tempo:'+tempo+' ord:'+ord+(loop?' loop:'+loop:'')+' ptn:'+ptn+' sz:'+outSz(sz));
+	}
+}
+
+
 function isADL() {
 	//ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
 	if(X.Sz() < 720 || X.Sz() > 0xFFFF) return false; //v1 min. size
@@ -11845,45 +11889,6 @@ if(X.isHeuristicScan()) { //parallel block
 		_setResult("audio","Ken's Digital Music module (.KDM)",sversion,soption);
 	}
 
-	function isSQDigitalTracker() {
-		//from https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/sqdigitaltracker.cpp
-		for(i=0; i < 8; i++) {
-			if(X.U8(0xC0+i*4)) return false;
-			q = X.U8(0xC0+i*4+1); if(q < 0x80 || q > 0xC0) return false;
-			q = X.U8(0xC0+i*4+2); if(q < 0x58 || q > 0x5F) return false;
-			q = X.U8(0xC0+i*4+3); if(!q || q > 0x80) return false;
-		}
-		for(i=0; i < 0x20; i++) {
-			t_ = X.U8(0x100+i);
-			if(t_[i] < 0x20 || t_[i] > 0x7F) return false
-		}
-		t = X.SA(0x100,0x20);
-		ptn = -1;
-		for(i=0; i < 100; i++) {
-			q = X.U8(0x1A0+i); if(q > 0x1F) return false;
-			if(ptn < q) ptn = q;
-		} ptn++;
-		if(X.U8(0x204) != 0xFF) return false;
-//_log(1);
-		tempo = X.U8(0x210);
-//_log("tempo:"+tempo);
-		if(tempo < 2 || tempo > 10) return false;
-		len = X.U8(0x212);
-//_log("len:"+len);
-		if(!len || len > 0x64) return false; len++;
-		loop = X.U8(0x211);
-//_log("loop:"+loop);
-		if(loop >= len) return false;
-		return true
-	}
-	if(X.isDeepScan() && isSQDigitalTracker()) {
-		soption = "";
-		if(X.isVerbose()) {
-			soption = soption.append(t.trim());
-			soption = soption.append("tempo:"+tempo+" ord:"+len+" ptn:"+ptn+" loop:"+loop);
-		}
-		_setResult("audio","SQ Digital Tracker module (.SQD,.M)","",soption)
-	}
 
 	function isDigitalStudio() {
 		//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/digital/digitalstudio.cpp
