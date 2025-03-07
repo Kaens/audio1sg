@@ -11110,7 +11110,7 @@ function isiXalanceUnp() {
 	for(p=0xA7; p < 0xA7+ord; p++) if(X.U8(p) != 0xFF && X.U8(p) >= ptn) return false;
 	if(X.U8(p-1) != 0xFF) return false;
 	var id; rins = 0; rsmp = 0; bad = '';
-_l2r('ixu',p,'insts')
+//_l2r('ixu',p,'insts')
 	for(i=0; i < ins && p < X.Sz(); i++)
 		if(['I','i'].indexOf(id=X.SA(p++,1)) < 0) return false // the small 'i' is the kb reset?
 		else if(id === 'I') {
@@ -11121,7 +11121,7 @@ _l2r('ixu',p,'insts')
 				p += 5 + X.U8(p)*3; //env node points
 			} rins++
 		}
-_l2r('ixu',p,'smps')
+//_l2r('ixu',p,'smps')
 	for(i=smpsz=0; i < smp && p < X.Sz(); i++) {
 		id = X.SA(p++,1);
 		if(['S','s'].indexOf(id) < 0) return false; // the small 's' is the flags reset
@@ -11131,7 +11131,7 @@ _l2r('ixu',p,'smps')
 				slpb = X.U32(p+0xE), slpe = X.U32(p+0x13), fn = X.readBytes(p+0x20,13);
 			if(charStat(fn,1).indexOf('allxsc') < 0) return false; fn = decEncoding(fn,CP437);
 //_l2r('ixu',p,'smp'+i+': ['+ssz+'] ('+lpb+'~'+lpe+') s('+slpb+'~'+slpe+')'+fn)
-			switch(fn) { // broken samples (I guess IT214 compression played a part)
+			switch(fn) { // broken(?) samples (I guess IT214 compression played a part)
 			case '909OH.WAV': ssz = 3424; break;
 			case '909SD.WAV': ssz = 3413; break;
 			case 'CRASH.WAV': ssz = 16098
@@ -11140,7 +11140,7 @@ _l2r('ixu',p,'smps')
 			smpsz += ssz; p += 0x2D; rsmp++
 		}
 	}
-_l2r('ixu',p,'ptns')
+//_l2r('ixu',p,'ptns')
 	for(i=0; i < ptn && p < X.Sz(); i++) {
 		id = X.SA(p++,1);
 		if(['P','p'].indexOf(id) < 0) return false; // the small 'p' is the flags reset
@@ -11183,38 +11183,6 @@ if(!bDetected && isiXalanceUnp()) {
 //
 // Some are in dire need of amending, and they're set to go after the other detections,
 // so you won't miss the good matches because of these and will hopefully spend less time waiting for detects
-
-
-function isHSC() {
-	//ref https://sourceforge.net/p/xmp/libxmp/ci/master/tree/src/loaders/hsc_load.c
-	if(X.Sz() < 1587+1152 || X.Sz() > 59187+1) return false;
-	p = 128*12; ptn = 0; ord = -1;
-	for(i=0; i < 0x33; i++) {
-		bt = X.U8(p+i);
-		if(bt == 0xFF) break;
-		if(ptn < bt) ptn = bt; ord++ }
-	if(!i || !ptn || i > 0x32 || ptn > 0x30) return false; //test number of patterns
-//_log("1: i="+i+" ptn="+ptn);
-	p += 0x33;
-	for(i=0; i < ptn; i++) {
-		for(j=0; j < 0x40; j++) {
-			for(k=0; k < 9; k++) {
-				n = X.U8(p+j*18+k*2);
-				m = X.U8(p+j*18+k*2+1);
-				if(m > 6 && m < 0x10 && n != 0x80) return false; //test effects 07..0F
-				msn = (m&0xF0)>>4;
-				if(6 < msn && msn < 10) return false; //test effects 7x..9x
-//_log("  3: i="+i+" j="+j+" k="+k+" n["+Hex(p+j*9+k*2)+"]="+Hex(n)+" m="+Hex(m)+" msn="+msn);
-			}
-		}
-		p += 64*9*2
-	}
-	return true
-}
-if(!bDetected && X.isHeuristicScan() && isHSC()) {
-	sName = "HSC Adlib Composer/HSC-Tracker module (.HSC)"; bDetected = 1;
-	if(X.isVerbose()) sOption = "ord:"+ord+" ptn:"+ptn;
-}
 
 
 function isImagesMusicSystem() { //goes before Soundtracker .STK for speed
@@ -12079,6 +12047,39 @@ if(X.isHeuristicScan()) { //parallel block
 	if(isVoices_8()) {
 		_setResult("audio","SHINING 8's Voices_8/8CHNL Soundtracker module",'',X.isVerbose()?soption:'')
 	}
+
+	function isHSC() {
+		//ref https://github.com/libxmp/libxmp/blob/master/src/bitrot/loaders/hsc_load.c
+		// & https://github.com/libxmp/libxmp/blob/master/docs/formats/hsc.txt
+		if(X.Sz() < 1587+1152 || X.Sz() > 59187+1) return false;
+		ptn = ord = 0;
+		for(p=0x600; p < 0x633; p++)
+			if((t = X.U8(p)) == 0xFF) break;
+			else if((t & 0x80) && t <= 0xB0) {
+				t &= 0x3F; t += 0x600;
+				if(t > 0x632 || X.U8(t) == 0xFF || t == p) return false;  else {} // else {p = 0x600+t-1; continue} //not tracing the loops!
+			}
+			else { if(ptn < t) ptn = t;  ord++ }
+		ptn++; if(p == 0x633 || ptn > 50) return false; //test number of patterns
+		p = 0x633;  sz = p + ptn*0x480;
+		for(i=0; i < ptn*0x240; i++) {
+			n = X.U8(p++); m = X.U8(p++);
+			if(isWithin(m,7,0xF) && n != 0x80) return false; //test effects 07..0F
+			if(isWithin(m,0x70,0x9F)) return false; //test effects 7x..9x
+		}
+//		if(sz > X.Sz()) return false;
+		//if(sz%2) sz++; // all HSC files are word-aligned like it were Amiga, but it aint. Not sure whether to include
+		return true
+	}
+	if(isHSC()) {
+			var soption = ''; if(X.isVerbose()) {
+			if(x > 1) soption = '×'+x;
+			soption = soption.appendS('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(sz),', ')
+		}
+		_setResult("audio","Hannes Seifert's HSC Adlib Composer/ECR HSC-Tracker module (.HSC)",'',soption)
+	}
+
+
 
 } //isHeuristicScan parallel block
 
