@@ -4256,11 +4256,6 @@ function detect() {
 			if(t != "Some SoundTracker Song") sOption(t);
 		}
 	}
-	else if(X.c("'KSA SOFTWARE COMPILATION OF '",0x0A) && (X.Sz()<0x2800)) {
-		sName = "Sound Tracker Pro module (.STP)"; sVersion = "compiled"; bDetected = 1;
-		if(X.isVerbose())
-			sOptionT(X.SA(0x26,0x19)); sOption("tempo: "+X.U8(0))
-	}
 	else if(X.c("'STP3'")) {
 		sName = "Soundtracker Pro II module (.STP)"; bDetected = 1;
 	}
@@ -6975,48 +6970,56 @@ if(!bDetected && isProTracker3()) {
 }
 
 
-function isSoundTrackerProUnp() {
+function isSoundTrackerProF() {
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/soundtracker.cpp
 	// & https://bulba.untergrund.net/STPDocs.7z -> Xplay79f.txt
-	if(X.Sz()<3009+576) //header + patterns
-		return false;
-	const stpsmpnum=15; p=0;
-	for(smp=0;smp<15;smp++) {
-		for(i=0;i<32;i++) { j = X.U8(p); if(j>0x0F) return false; p++ } //levels
-		for(i=0;i<32;i++) { j = X.U8(p); if(j&0x20) return false; p++ } //noises
-		for(i=0;i<32;i++) { p++; j = X.U8(p); if(j>0x1F) return false; p++ } //additions
-		for(i=0;i<2;i++) { j = X.U8(p); if(j>0x1F) return false; p++ } //loops
+	if(X.Sz() < 3009+576) return false; //header + patterns
+	for(p=smp=0; smp < 15; smp++) {
+		for(i=0; i < 32; i++) if(X.U8(p++) > 0x0F) return false; //levels
+		for(i=0; i < 32; i++) if(X.U8(p++) & 0x20) return false; //noises
+		for(i=0; i < 32; i++) { p++; if(X.U8(p++) > 0x1F) return false } //additions
+		for(i=0; i < 2; i++) if(X.U8(p++) > 0x1F) return false; //loops
 	}
-	for(i=0;i<256;i++) { j = X.U8(p); if((j<1) || (j>0x20)) return false; p+=2 } //positions
+	for(i=0; i < 0x100; i++) { if(!isWithin(X.U8(p),1,0x20)) return false; p += 2 } //positions
 	// at this point, p should be 15*0x82
-	if(X.U8(p)&0x80) return false;
-	p++;  p+=32*17; //ornaments
-	dly=X.U8(p); if((dly<1) || (dly>0x0F)) return false; p++;
-	pts=X.U8(p); if((pts<1) || (pts>0x40)) return false;
+	if(X.U8(p++) & 0x80) return false;
+	p += 32*17; //ornaments
+	dly=X.U8(p++); if(!isWithin(dly,1,0xF)) return false;
+	pts=X.U8(p); if(!isWithin(pts,1,0x40)) return false;
 	return true;
 }
-if(!bDetected && X.isDeepScan() && isSoundTrackerProUnp()) {
-	sName = "Sound Tracker Pro module (.STF)"; sVersion  = "uncompiled/unpacked"; bDetected = 1;
+if(!bDetected && isSoundTrackerProF()) {
+	sName = "Stanislav 'KSA' Kuzin's Sound Tracker Pro module (.STF,.F)";
+	sVersion  = "uncompiled/packed"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption('dly:'+dly+' pts:'+pts)
+	}
 }
 
 
 function isSoundTrackerPro() {
-	// taken from https://bulba.untergrund.net/STPDocs.7z -> stp.txt
-	tmp = X.U8(0); if((tmp == 0) || (tmp > 50)) return false;
-	tabl1 = X.U16(1,_LE); if(X.Sz()-2 < tabl1) return false;
-	tabl2 = X.U16(3,_LE); if(X.Sz()-2 < tabl2) return false; //pattern descriptors
-	tabl3 = X.U16(5,_LE); if(X.Sz()-2 < tabl3) return false; //ornament offsets
-	tabl4 = X.U16(7,_LE); if(X.Sz()-2 < tabl4) return false; //sample offsets
-	len = X.U8(tabl1); if(tabl2 != tabl1+2+len*2) return false;
-	for(i=0;i<len;i++)  if(X.Sz() < X.U16(tabl2+i*2,_LE)) return false;
-	if(X.Sz() < tabl4+30) return false;
-	for(i=0;i<15;i++)  if(X.Sz() < X.U16(tabl4+i*2,_LE)) return false;
-
+	//from https://bulba.untergrund.net/STPDocs.7z -> stp.txt
+	tmp = X.U8(0); if(!isWithin(tmp,1,50)) return false;
+	const max = X.Sz()-2;
+	var ordtp = X.U16(1,_LE);  ord = X.U8(ordtp); lp = X.U8(ordtp+1); //ord, loop, orderlist and ptn transpose
+	if(!isWithin(ordtp,10,max) || lp > ord) return false;
+	var ptntp = X.U16(3,_LE); if(!isWithin(ptntp,ordtp+2+ord*2,max)) return false; //pattern offsets
+	var orntp = X.U16(5,_LE); if(!isWithin(orntp,10,max)) return false; //ornament offsets
+	var smptp = X.U16(7,_LE); if(!isWithin(smptp,10,max)) return false; //sample offsets
+	sz = smptp+30; if(sz > X.Sz()) return false;  var ptnp = [], smpp = [];
+	for(i=0; i < ord; i++)
+		if(X.U8(ordtp+2+i*2)%6 || !isWithin(t=X.U16(ptntp+i*2,_LE),10,max)) return false; else if(ptnp.indexOf(t) < 0) ptnp.push(t)
+	for(i=0; i < 15; i++)
+		if(!isWithin(t=X.U16(smptp+i*2),10,max)) return false; else if(smpp.indexOf(t) < 0) smpp.push(t);
+	ptn = ptnp.length; smp = smpp.length;
 	return true;
 }
-if(!bDetected && X.isDeepScan() && isSoundTrackerPro()) {
-	sName = "Sound Tracker Pro module (.STP)"; sVersion  = "uncompiled"; bDetected = 1;
-	sOption("tmp:"+tmp+" ord:"+len)
+if(!bDetected && isSoundTrackerPro()) {
+	sName = "Stanislav 'KSA' Kuzin's Sound Tracker Pro module (.STP)"; sVersion  = "compiled"; bDetected = 1;
+	if(X.isVerbose()) {
+		if(X.c("'KSA SOFTWARE COMPILATION OF '",10)) sOptionT(X.SC(0x26,0x19,'CP1251'));
+		sOption('tmp:'+tmp+' ord:'+(lp?lp+'-':'')+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+	}
 }
 
 
@@ -11720,55 +11723,43 @@ function isFLS() {
 	//  AND a tiiiiiny ~bruteforce~ of membase, which is why it comes in last
 	//ref https://bulba.untergrund.net/Ay_Emul29.src.7z/Players.pas -> FoundFLS
 	if(X.Sz() < 6) return false;
+	postp = X.U16(0); orntp = X.U16(2); //positions & ornaments table ptrs
+	smptp = X.U16(4); ptnp = 6; //samples table ptr & patterns
+	smp = postp - smptp; if(smp < 0 || (smp&3)) return false;
 	//because it can get SO SLOW and the biggest module known is 6652 bytes long:
-	if(X.Sz() > 8192) return false;
-	postp = X.U16(0x00); orntp = X.U16(0x02); //positions & ornaments table ptrs
-	smptp = X.U16(0x04); ptnp = 6; //samples table ptr & patterns
-	j = postp - smptp; if(j < 0 || (j&3)) return false;
-	j = orntp-16; if(j < 0) return false;
-	while(1) {
-		j2 = smptp+2-j;
-		if(j2 > X.Sz()+6) return false; // tentatively
-		if(8 <= j2 && j2 < X.Sz()) {
-			j3 = X.U16(j2);
-			j1 = j3-j;
-			if(8 <= j1 && j1 < X.Sz()) {
-				j3 = X.U16(j2-4);
-				j2 = j3 - j;
-				if(6 <= j2 && j2 < X.Sz())
-					if(j1-j2 == 0x20) {
-						j2 = X.U16(ptnp+2)-j;
-						if(21 < j2 && j2 < X.Sz()) {
-							j1 = X.U16(ptnp)-j;
-							if(20 < j1 && j1 < X.Sz())
-								if(!X.U8(j1-1))
-									while(j1 <= X.Sz() && X.U8(j1) < 0xFF) {
-										while(1) {
-											bt = X.U8(j1);
-											if(bt <= 0x5F || bt == 0x80 || bt == 0x81) { j1++; break }
-											else if(0x82 <= bt <= 0x8E) j1++;
-											if(j1 > X.Sz()) break;
-										}
+	if(smp > 8192) return false;
+	smp >>= 1; b = orntp-16; if(b < 0) return false;  const max = X.Sz()-1;
+	for(;;) {
+		var s0 = smptp+2-b; // try the sample as being this
+		if(s0 > X.Sz()+6) return false; // tentatively
+		if(isWithin(s0, 8, max) && isWithin(p1 = X.U16(s0)-b, 8, max) && isWithin(t = X.U16(s0-4)-b, 6, max))
+				if(p1-t == 0x20) {
+					pt = X.U16(ptnp+2)-b;
+					if(isWithin(pt,22,max)) {
+						if(isWithin(p1 = X.U16(ptnp)-b, 21, max))
+							if(!X.U8(p1-1))
+								while(p1 <= max && X.U8(p1) < 0xFF) { //channel data tests
+									for(; p1 < X.Sz();) {
+										bt = X.U8(p1++); if(bt <= 0x5F || bt == 0x80 || bt == 0x81) break;
+										else if(isWithin(bt,0x82,0x8E)); // select ornament
+										if(p1 > X.Sz()) break;
 									}
-							if(j1+1 == j2) break;
-						}
+								}
+						if(p1+1 == pt) break;
 					}
-			}
-		}
-		j--; if(j < 0) break;
+				}
+		b--; if(b < 0) return false
 	}
-	if(j < 0) return false;
-	if((postp-j > X.Sz()) || (postp-j < 16)) return false;
-	sz = X.U16(postp-j-2)+0x60-j;
-	if(sz <= postp-j) return false;
-	if(sz > X.Sz()+1) return false;
-	if((smptp-j)&1) return false;
-	membase = j;
-	return true;
+	postp -= b; smptp -= b; ptntp -= b; orntp -= b; if(!isWithin(postp,16,max) || (smptp&1)) return false;
+	sz = X.U16(postp-2/*last smp ptr*/)-b+0x60/*smp: 20h ticks, 3 bt*/; if(!isWithin(sz, postp+1, X.Sz()+1)) return false;
+	orn = smptp-orntp; if(orn & 1) return false;  orn >>= 1;
+	ptn_ = orntp-ptnp; if(ptn_ % 6) return false;  ptn_ /= 6;
+	for(ord=ptn=0,i=postp+1; X.U8(i); i++) { ord++; if(X.U8(i) > ptn) ptn = X.U8(i) }//  if(ptn != ptn_) return false;
+	return true
 }
 if(!bDetected && X.isDeepScan() && isFLS()) {
-	sName = "Flash Tracker module (.FLS)"; sVersion = "@"+Hex(j); bDetected = 1;
-	if(X.isVerbose()) sOption = "sz:"+outSz(sz)
+	sName = "Flash Tracker module (.FLS)"; sVersion = "@"+Hex(b); bDetected = 1;
+	if(X.isVerbose()) sOption('ord:'+ord+' ptn:'+ptn+(ptn_!=ptn?'/'+ptn_:'')+' smp:'+smp+' orn:'+orn+' sz:'+outSz(sz))
 }
 
 
