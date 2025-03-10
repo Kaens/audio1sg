@@ -11728,38 +11728,40 @@ function isFLS() {
 	smp = postp - smptp; if(smp < 0 || (smp&3)) return false;
 	//because it can get SO SLOW and the biggest module known is 6652 bytes long:
 	if(smp > 8192) return false;
-	smp >>= 1; b = orntp-16; if(b < 0) return false;  const max = X.Sz()-1;
+	smp >>= 1; b = orntp-16; if(b < 0) return false;
+	const max = X.Sz()-1;
 	for(;;) {
 		var s0 = smptp+2-b; // try the sample as being this
 		if(s0 > X.Sz()+6) return false; // tentatively
 		if(isWithin(s0, 8, max) && isWithin(p1 = X.U16(s0)-b, 8, max) && isWithin(t = X.U16(s0-4)-b, 6, max))
-				if(p1-t == 0x20) {
-					pt = X.U16(ptnp+2)-b;
-					if(isWithin(pt,22,max)) {
-						if(isWithin(p1 = X.U16(ptnp)-b, 21, max))
-							if(!X.U8(p1-1))
-								while(p1 <= max && X.U8(p1) < 0xFF) { //channel data tests
-									for(; p1 < X.Sz();) {
-										bt = X.U8(p1++); if(bt <= 0x5F || bt == 0x80 || bt == 0x81) break;
-										else if(isWithin(bt,0x82,0x8E)); // select ornament
-										if(p1 > X.Sz()) break;
-									}
-								}
-						if(p1+1 == pt) break;
+			if(p1-t == 0x20) {
+				if(isWithin(pb = X.U16(ptnp+2/*ptnB*/)-b, 22, max) &&isWithin(pa = X.U16(ptnp/*ptnA*/)-b, 21, max))
+					if(!X.U8(pa-1)) {
+						while(pa < max && X.U8(pa) !== 0xFF) //the tedious channel data tests
+							for(; pa < max; ) {
+								bt = X.U8(pa++); if(bt <= 0x5F || bt == 0x80 || bt == 0x81) break; //notes, rest, empty
+								else if(isWithin(bt,0x82,0x8E)) pa++; // select ornament
+								if(pa > max) break;
+							}
+						if(pa+1 == pb) break
 					}
-				}
+			}
 		b--; if(b < 0) return false
 	}
-	postp -= b; smptp -= b; ptntp -= b; orntp -= b; if(!isWithin(postp,16,max) || (smptp&1)) return false;
+	postp -= b; smptp -= b; orntp -= b; if(!isWithin(postp,16,max) || (smptp&1)) return false;
 	sz = X.U16(postp-2/*last smp ptr*/)-b+0x60/*smp: 20h ticks, 3 bt*/; if(!isWithin(sz, postp+1, X.Sz()+1)) return false;
 	orn = smptp-orntp; if(orn & 1) return false;  orn >>= 1;
+	if(X.U8(X.U16(smptp+2)-b/*1st smp ptr*/-orn*0x20-1) != 0xFF) return false; //end of channel data
 	ptn_ = orntp-ptnp; if(ptn_ % 6) return false;  ptn_ /= 6;
 	for(ord=ptn=0,i=postp+1; X.U8(i); i++) { ord++; if(X.U8(i) > ptn) ptn = X.U8(i) }//  if(ptn != ptn_) return false;
 	return true
 }
 if(!bDetected && X.isDeepScan() && isFLS()) {
-	sName = "Flash Tracker module (.FLS)"; sVersion = "@"+Hex(b); bDetected = 1;
-	if(X.isVerbose()) sOption('ord:'+ord+' ptn:'+ptn+(ptn_!=ptn?'/'+ptn_:'')+' smp:'+smp+' orn:'+orn+' sz:'+outSz(sz))
+	sName = "Flash Tracker module (.FLS)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption(Hex(b),'@');
+		sOption('ord:'+ord+' ptn:'+ptn+(ptn_!=ptn?'/'+ptn_:'')+' smp:'+smp+' orn:'+orn+' sz:'+outSz(sz))
+	}
 }
 
 
