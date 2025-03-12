@@ -10809,7 +10809,7 @@ function isTFMX() {
 	//from https://github.com/neumatho/NostalgicPlayer/blob/main/Source/Agents/Players/Tfmx/TfmxWorker.cs / TestModule, Load
 	if(X.Sz() < 0x200) return false;
 	var hdrsz = tp = mdatsz = smplsz = -1, p0 = 0, maxlen = 0x10000;
-	title = album = by = ''; flag5 = -1;
+	title = album = by = ''; flag5 = -1; tfmxst = false;
 	function isStFile(p0) {
 		var stidx, edidx = X.U32(p0+0x1D4,_BE);
 		if(!edidx) { stidx = X.U32(p0+0x600,_BE); edidx = X.U32(p0+0x7FC,_BE) }
@@ -10859,7 +10859,7 @@ function isTFMX() {
 				if(gottms) break
 			}
 			if(isStFile()) return false;
-			else if(gottms) tp = '7v'; else tp = 'pro'
+			else { tfmxst = true; if(gottms) tp = '7v'; else tp = 'pro' }
 		} else return false;
 	for(i=0,p=p0+0x10,cmt=''; i < 6; i++,p += 40) cmt = cmt.appendS(decAnsi(p,40,CPAmiga).trim(),'  '); //F0 bytes cmt
 	cmt = cmt.trim();
@@ -10892,10 +10892,11 @@ function isTFMX() {
 	return true
 }
 if(!bDetected && isTFMX()) {
-	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (TFX.,TFM.,MDAT.+SMPL.)"; bDetected = 1;
+	sName = "Chris Hülsbeck's The Final Musicsystem eXtended module (TFX.,TFM.,MDAT.,MDST.+SMPL.)"; bDetected = 1;
 	switch(tp) {
 	case '1.5': sVersion = 'v1.5'; break;  case 'pro': sVersion = 'Professional'; break;  case '7v': sVersion = '7 voices'
 	}
+	if(tfmxst) sVersion = 'ST '+sVersion;
 	if(X.isVerbose()) {
 		sOptionT(title); if(x > 1) sOption(x,'×'); sOption(album,'in: '); sOptionT(by,'by: '); if(flag5 >= 0) sOption(flag5,'flag5:')
 		if(cmt == '(Empty)') cmt = ''; sOption(addEllipsis(cmt,0xA0),'msg:"','"');
