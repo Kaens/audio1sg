@@ -23,6 +23,7 @@ This is where you can contribute the most! (sorted by extension)
  - Cybertracker C64 and not `.CT` (info for non-C64, size)
  - CustomPlay `.CUST` (size -- just parse the Amiga hunks)
  - Megadrive `.CYM`
+ - Delta Music 1/2 (info, size)
  - Digital FM `.DFM` (info, size)
  - David Hanney's `.DH` (info,size)
  - Twin TrackPlayer `.DMO` (decrypt, unpack...)
@@ -46,6 +47,7 @@ This is where you can contribute the most! (sorted by extension)
  - FM-Kingtracker `.FMK` (info, size)
  - FM Tracker `.FMT` (info, size)
  - FM Tracker (Adlib) `.FMT` (info, size)
+ - Fred Editor Final `.FRED` (count orders/positions and patterns/tracks)
  - Fast Tracker `.FTC` (info, size)
  - FamiTracker `.FTM` (info, size)
  - Flash Tracker `.FTS` (info, size)
@@ -128,7 +130,8 @@ This is where you can contribute the most! (sorted by extension)
  - Faust Music Creator `.SNG` (info, size)
  - Jonne Valtonen's SNG Player `.SNG` (info, size)
  - Richard Joseph `.SNG` (info, size)
- - SAM Coupe `.SNG`
+ - SAM Coupé `.SNG`
+ - ---//---- Samadeus `.samadeus`
  - Synder Tracker & its `.SNG` series (unpack, info, size)
  - Paul Summers `.SNK`
  - Nintendo SNES `.SPC` (size)

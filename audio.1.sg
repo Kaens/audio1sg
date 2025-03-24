@@ -1510,7 +1510,7 @@ function detect() {
 				p += 0x60; //name & parameters
 			}
 		}
-		smp = X.U16(p,_BE); syn -= smp; p += 2; for(i=0; i < smp && p < X.Sz(); i++) { p += 4+X.U16(p+2,_BE) }
+		smp = X.U16(p,_BE); syn -= smp; p += 2; for(i=0; i < smp && p < X.Sz(); i++) p += 4+X.U16(p+2,_BE);
 		if(X.c("12345678",p)) { bDetected = 1; sz = p+4 }
 		if(bDetected) {
 			sName = "Fred & Julien Clermonte's Fred Editor module (.FRED,.MOD)"; sVersion = 'project';
@@ -3558,7 +3558,11 @@ function detect() {
 			sOptionT(X.SC(0x8C,0x20,'CP1252'),"orig.: ")
 		}
 	}
-	if(X.c("00000000 00000200",0x0C) && X.c("00")
+	else if(X.c("01FF..3EFF32018079FEFF2846320280B7201301FF013E1CED79053E02ED79AF320180C9") && X.c("21A9843D280E232347237E2BB67820F6232318EF5E23567AB328D22B2224803EFE320E823E08325280C35C80", 0x26)) {
+		sName = "František Fuka/Fuxoft Samadeus module (.samadeus)"; bDetected = 1;
+		//TODO reverse and extract info
+	}
+	else if(X.c("00000000 00000200",0x0C) && X.c("00")
 	  && X.U16(0x18,_LE) === X.U16(0x40,_LE)
 	  && X.c("00'ST-Module.'", 0x4B7)) {
 		sName = "Amstrad CPC Soundtrakker module (.STK)"; bDetected = 1;
@@ -10585,15 +10589,28 @@ function isFredF() {
 		for(; i < 60; i++) if(X.c("47FA....D7FA",p+i*2)) { ofsdiff = p+(i+1)*2+X.I16(p+i*2+2,_BE); return true }
 		return false
 	}
-	if(!_check0()) return false; p = modp+1; x = X.U8(p++)+1; if(x > 10) return false; spd0 = X.U8(p++);
+	if(!_check0()) return false;  p = modp+1; x = X.U8(p++)+1; if(x > 10) return false;  spd0 = X.U8(p++);
 	spds = []; for(i=0; i < 10; i++) { t = X.U8(p++); if(spds.indexOf(t) < 0) spds.push(t) } p++;
-	insp = ofsdiff+X.U32(p,_BE); trkp = ofsdiff+X.U32(p+4,_BE);
-	p += 0x26C+x*8 /*replay data & subsong starts*/; if(p > X.Sz()) return false;
-	ord = (Math.min(insp,trkp) - p) >> 1; ptnsz = Math.abs(insp-trkp);
-	for(i=ptn=0; i < ptnsz;) {
-		while(X.U8(trkp+(i++)) != 0x80) if(i === ptnsz) break;
-		if(i == ptnsz && X.U8(trkp+i-1) != 0x80) break; ptn++
+	var insp = ofsdiff+X.U32(p,_BE), trkp = ofsdiff+X.U32(p+4,_BE), ptnsz = Math.abs(insp-trkp);
+	// subsong start pos per voice init and read
+	var stpt = [], ordt = [], trkt = [], trks = []; for(i=0,ord=[],p+=0x26C/*replay data*/; i < x; i++) { stpt[i] = [0,0,0,0]; ord[i] = 0 }
+//_l2r('frf',p,'starts')
+	for(i=0; i < x; i++) for(j=0; j < 4 && p < X.Sz(); j++,p+=2) stpt[i][j] = (X.U16(p,_BE) - x*8) >> 1;
+//_l2r('frf',p,' -> '+outArray(stpt,16))
+	if(p > X.Sz()) return false; ordp = p;
+	for(otsz=(Math.min(insp,trkp)-p)>>1,i=0; i < otsz; i++,p+=2) ordt.push(X.I16(p,_BE));
+	trksz = Math.abs(insp-trkp);
+	for(i=tr=0; i < trksz; tr++) { // for checking ofs in the orderlist
+		for(si=i; X.U8(p+(i++)) != 0x80 && i != trksz && p+i < X.Sz();){}
+		if(i == trksz && X.U8(p+i-1) != 0x80) break;
+		trkt[si] = tr
 	}
+	for(i=0; i < x && p < X.Sz(); i++) {
+		for(j=0; j < 4 && p < X.Sz(); j++) {
+			for(on=true,c=stpt[i][j]; c - stpt[i][j] < 0xFF && ordt[c] >= 0; c++)
+				if(typeof trkt[ordt[c]] == 'undefined') return false;
+		}
+	} 
 	for(syn=smp=0,msmpp=0x7fffffff,Msmpp=smpe=0,p=insp;;) {
 		var smpp = X.U32(p,_BE), tsyn = X.I16(p+4,_BE), ssz = X.U16(p+6,_BE) << 1;
 		var tins = X.U8(p+0x27); if(p+0x28 >= X.Sz() || p+0x3F >= msmpp) break;
@@ -10615,7 +10632,7 @@ if(!bDetected && isFredF()) {
 	if(bad != '') sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
 		if(x > 1) sOption(x,'×');
-		sOption('tempo:'+spds.sort().join('-')+' ord:'+ord+' ptn:'+ptn+(smp?' smp:'+smp:'')+(syn?' syn:'+syn:'')+' sz:'+outSz(sz))
+		sOption('tempo:'+spds.sort().join('-')+(smp?' smp:'+smp:'')+(syn?' syn:'+syn:'')+' sz:'+outSz(sz))
 	}
 }
 
@@ -10833,17 +10850,18 @@ function isTFMX() {
 			if(!t) { sz += 17; break } else sz += tagsz
 		}
 	}
-	if(X.c("'TFHD'")) { //1c500
+	if(X.c("'TFHD'")) {
 		hdrsz = X.U32(4,_BE); tp = X.U8(8); v = X.U8(9); mdatsz = X.U32(10,_BE); smplsz = X.U32(14,_BE);
 		sz = hdrsz+mdatsz+smplsz; if(hdrsz < 18 || !mdatsz || !isWithin(sz, 0x212, X.Sz())) return false;
 		if((tp&0x80) || !(tp&0x7F)) p0 = p = hdrsz; else
 		switch(tp&0x7F) { case 1: tp = '1.5'; break; case 2: tp = 'pro'; break; case 3: tp = '7v'; break; default: return false }
 	} else if(X.c("'TFMX '",p0) && !X.c("'SONG'",p0+5)) tp = '1.5';
 		else if(X.c("'TFMX-SONG'",p0) || X.c("'TFMX_SONG'",p0) || X.c("'tfmxsong'",p0)) { //pro or 7v?
+			//check the trackstep (info for sequencing and mastering)
 			var tm = 0, gottms = false, stp = X.readBytes(p0+0x100,31), trksp = X.U32(p0+0x1D0,_BE); if(!trksp) trksp = 0x800;
 			for(i=0; i < 31; i++) {
 				var getNext = true, pos = stp[i]; if(pos == 0x1FF) break;
-				while(getNext) {
+				while(getNext && p < X.Sz()) {
 					p = p0+trksp+pos*16; t = X.U16(p,_BE); p += 4;
 					if(t != 0xEFFE) getNext = false;  else switch(X.U16(p-2,_BE)) {
 					case 1: //loop a section
@@ -10852,7 +10870,7 @@ function isTFMX() {
 							else { tm--; pos = X.U16(p,_BE); p += 2 }
 						break;
 					case 2: case 4: pos++; break; //set tempo + start master vol slide
-					case 3: gottms = true; pos++; break;
+					case 3: gottms = true; pos++; break; //start master vol slide too
 					default: getNext = gottms = false
 					}
 				}
