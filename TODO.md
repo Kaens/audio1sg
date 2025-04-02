@@ -114,8 +114,6 @@ This is where you can contribute the most! (sorted by extension)
  - Real Tracker `.RTM` (info, size)
  - Scream Tracker 3 `.S3M` (version info)
  - S98 `.S98` (tighten if possible, size)
- - Speedy A1 System `.SAS`
- - Slight Atari Player `.SAP` (size)
  - Sierra Adlib `.SCI` (rewrite)
  - SCUMMVM `.SCUMM`
  - Synth Dream `SDR.`
