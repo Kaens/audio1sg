@@ -1351,7 +1351,7 @@ function detect() {
 	else if(X.c("'FAR'FE") && X.c("0D0A1A",0x2C)) {
 		//ref https://web.archive.org/web/20151027135146/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Format%20Specifications%20(FAR,%20FSM,%20USM,%20F2R)%20by%20Daniel%20Potter.cp437.txt.utf-8.txt
 		bDetected = 1; nV = X.U8(0x31);
-		sName = "Farandole Composer module (.FAR)";
+		sName = "Daniel Potter/Digital Infinity's Farandole Composer module (.FAR)";
 		sVersion = "v"+ (nV>>4) +"."+ (nV&0x0F);
 		if(X.isVerbose()) {
 			sOptionT(X.SC(4,0x28,'CP850'));
@@ -1364,13 +1364,13 @@ function detect() {
 	}
 	else if(X.c("'FPT'FE") && X.c("0D0A1A",0x24)) {
 		//ref https://web.archive.org/web/20151027135146/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Format%20Specifications%20(FAR,%20FSM,%20USM,%20F2R)%20by%20Daniel%20Potter.cp437.txt.utf-8.txt
-		sName = "Farandole Composer pattern (.FPT)"; bDetected = 1;
+		sName = "Daniel Potter/Digital Infinity's Farandole Composer pattern (.FPT)"; bDetected = 1;
 		if(X.isVerbose())
 			sOptionT(X.SC(4,0x20,'CP850'));
 	}
 	else if(X.c("'FSM'FE") && X.c("0A0D1A",0x24)) {
 		//ref https://web.archive.org/web/20151027135146/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Format%20Specifications%20(FAR,%20FSM,%20USM,%20F2R)%20by%20Daniel%20Potter.cp437.txt.utf-8.txt
-		sName = "Farandole Composer sample (.FSM)"; bDetected = 1;
+		sName = "Daniel Potter/Digital Infinity's Farandole Composer sample (.FSM)"; bDetected = 1;
 		if(X.isVerbose()) {
 			sOptionT(X.SC(4,0x20,'CP850'));
 			if(X.U8(0x35)) type = "16bit"; else type = "8bit";
@@ -3579,8 +3579,8 @@ function detect() {
 			} else if(cwtv == 0x1320 && !special && !uc && fl == 8 && !usept)
 				tracker = 'Impulse Tracker < 1.03';
 			else {
-				isST3 = true; if(cwtv == 0x1320) tracker = 'Scream Tracker 3.20-21'; else {
-					tracker = 'Scream Tracker'; fmttrkstr = true }
+				isST3 = true; if(cwtv == 0x1320) tracker = "Sami 'Psi' Tammilehto's Scream Tracker 3.20-21"; else {
+					tracker = "Sami 'Psi' Tammilehto's Scream Tracker"; fmttrkstr = true }
 			} break;
 		case 2: fmttrkstr = cwtv != 0x2013; if(fmttrkstr) tracker = 'Imago Orpheus'; else tracker = 'PlayerPRO';
 			trknc = true; break;
@@ -3860,6 +3860,7 @@ function detect() {
 	else if(X.c("'SNGs'") && X.Sz() > 0x10 && X.U8(0xA) <= X.U8(7) && X.U8(0xB) <= 0x1E && isWithin(X.U8(0xC),0,0x78)
 	  && isWithin(X.U8(0xD),1,30) && isWithin(X.U8(0xE),1,30)) {
 	  	//TODO RE reading additional data
+	  	// blocks: SMP SYN BNK SNG BLK TMP
 		sName = "BlueMoon's Sound Club for DOS module (.SN)"; bDetected = 1;
 		if(!(ord=X.U8(7))) sVersion = 'malformed!0ord';
 		if(X.isVerbose()) {
@@ -4003,7 +4004,7 @@ function detect() {
 	else if(X.c("'SNES-SPC700 Sound File Data'")) {
 		// ref http://snesmusic.org/files/spc_file_format.txt   and snippets from
 		// http://www.alpha-ii.com/Source/SAmp310s.rar/snes/id666.cpp, .h
-		sName = "Nintendo SNES SPC module (.SPC)"; bDetected = 1;
+		sName = "Nintendo SNES SPC chiptune (.SPC)"; bDetected = 1;
 		sVersion = "v0."+X.U8(0x24);
 		if(X.isVerbose()) {
 			id666inhdr = X.U8(0x23)==0x1A;
@@ -4161,7 +4162,7 @@ function detect() {
 		}
 	}
 	else if(X.c("'Nu!SOPROL!'", 0x22)) {
-		sName = "Sound Programming Language module (.SPL)"; bDetected = 1;
+		sName = "Holger Gehrmann's Sound Programming Language/SOPROL module (.SPL)"; bDetected = 1;
 		if(X.isVerbose()) {
 			t = X.SA(0x58,0x100);
 			a = X.SA(0x58+t.length+1,0x100);
@@ -4169,7 +4170,7 @@ function detect() {
 			sOptionT(t); sOptionT(a,"by: "); sOptionT(c)
 		}
 	}
-	if(X.c("'SPM'0.")) {
+	if(/SPM[\x01-\x02]/.test(X.SA(0,4))) {
 		//ref http://aminet.net/mus/edit/stonefree1.lha
 		sName = "Stonetracker tune file (.SPM)"; sVersion = "v"+X.U8(3); bDetected = 1;
 		if(X.isVerbose()) {
@@ -4177,13 +4178,12 @@ function detect() {
 			//TODO find pointer and read the extra stuff
 		}
 	}
-	if(X.c("'SPS'0.0.")) {
-		sName = "Stonetracker samples file (.SPS)"; sVersion = "v"+X.U8(3); bDetected = 1;
+	if(/SPS[\x01-\x02]{2}/.test(X.SA(0,5)) && X.c("'psn'",6+0x20*(smp=X.U8(5)))) {
+		sName = "Stonetracker sample bank (.SPS)"; sVersion = "v"+X.U8(3); bDetected = 1;
 		if(X.isVerbose()) {
-			smp=X.U8(5);
-			sOption(smp,"smp:")
-			for(i=0; i < Math.min(10,smp); i++)
-				sOptionT(X.SA(0x20*i+6,8))
+			for(i=smpsz=0,smps=[]; i < smp; i++)
+				if((t=decAnsi(0x20*i+6,8,CPAmiga).trim()).length) smps.push(t);
+			sOption(addEllipsis(smps.join(' ')),'smp/msg:"','"'); sOption('smp:'+smp)
 		}
 	}
 	else if(X.c("'SPU'00") || X.c("'SPU1'") ||
@@ -5483,7 +5483,7 @@ function isProtrackerMOD() {
 	}
 	if(onlyAmigaNotes && !hasRepLen0 && ['M.K.','M!K!','PATT'].indexOf(s) >= 0) {}
 	else if(!onlyAmigaNotes && restartpos == 0x7F && isMdKd && restartpos+2 >= ord)
-		tracker = 'Scream Tracker';
+		tracker = "Sami 'Psi/Future Crew' Tammilehto's Scream Tracker";
 	//modsize
 	sz = hdr+ptn*chn*256;
 	if(sz > X.Sz()) return false;
@@ -5837,7 +5837,7 @@ function isSTM() {
 		nVm = X.U8(0x1F); ptn = X.U8(0x21);
 		if(nVm) maxord = 128; else maxord = 64;
 		minsz = 0x30+31*0x20+maxord+ptn*256; if(X.Sz() < minsz) return false;
-		smp = 0; ord = -1; tracker = "Scream Tracker 2 module"; ext = "STM"; return true
+		smp = 0; ord = -1; tracker = "Sami 'Psi/Future Crew' Tammilehto's Scream Tracker 2 module"; ext = "STM"; return true
 	}
 	function _isstx() {
 		if(!X.c("'SCRM'",0x3C)) return false;
@@ -11349,7 +11349,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 	if(!restartp || /jjk55/.test(X.SA(0,6))) restartp = 0x78;
 	bpm0 = 125;
 	if(restartp != 0x78) {
-		bpm0 = ((709379*125/50)/((240-restartp)*122)).toFixed(2); //between ≈60 and ≈976
+		bpm0 = (709379*125 / (50*122*(240-restartp))).toFixed(2); //between ≈60 and ≈976
 		if(minV > UST1_80) minV = Math.max(minV, hasDiskNames?ST_IX:MST1_00);
 		else minV = Math.max(minV, hasDiskNames?UST1_80:ST2_00_Exterminator);
 	}
@@ -11406,13 +11406,13 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 	}
 	if(tnDxx > ptn+32 && minV == ST2_00) minV = MST1_00;
 	if(X.isDeepScan()) switch(minV) {
-	case UST1_00: tracker = "Ultimate ST 1.0~21"; break;
-	case UST1_80: tracker = "Ultimate ST 1.8~2.0"; break;
-	case ST2_00_Exterminator: tracker = "ST 2.0 / D.O.C. ST II"; break;
-	case ST_III: tracker = "Defjam ST III / Alpha Flight ST IV / D.O.C. ST IV / VI"; break;
-	case ST_IX: tracker = "D.O.C. ST IX"; break;
-	case MST1_00: tracker = "Master ST 1.0"; break;
-	case ST2_00: tracker = "ST 2.0~2"; break;
+	case UST1_00: tracker = "Karsten Obarski's Ultimate ST 1.0~21"; break;
+	case UST1_80: tracker = "Karsten Obarski's Ultimate ST 1.8~2.0"; break;
+	case ST2_00_Exterminator: tracker = "The Exterminator's ST 2.0 / D.O.C.'s ST II"; break;
+	case ST_III: tracker = "Il Scuro/Defjam's ST III / Alpha Flight ST IV / D.O.C.'s' ST IV / VI"; break;
+	case ST_IX: tracker = "D.O.C.'s' ST IX"; break;
+	case MST1_00: tracker = "Tip/The New Masters' Master ST 1.0"; break;
+	case ST2_00: tracker = "D.O.C.'s ST 2.0~2"; break;
 	default: tracker = "???"
 	}
 	sz = 0x258+0x400*ptn+allsmpsz;
@@ -11431,6 +11431,7 @@ function isSoundtrackerMOD() { //goes after IMS for speed
 		if(debug>1)_log("STKFault: too suspicious"); return false }
 	if(ic) bad = bad.addIfNone("!baddata="+ic);
 	if(sz > X.Sz()) bad = bad.addIfNone("!short");
+	if(badscore) bad = bad.addIfNone('!badscore'+badscore)
 	return true;
 }
 if(!bDetected && isSoundtrackerMOD()) {
@@ -11539,7 +11540,7 @@ if(!bDetected && isKSM()) {
 
 
 function isTMC() {
-	function rt(p,m) { if(debug>-11)_l2r('tmc',p,m); return false }
+	function rt(p,m) { if(debug>1)_l2r('tmc',p,m); return false }
 	//ref http://atariki.krap.pl/index.php/TMC
 	if(X.Sz() < 0x1D0 || X.U8(0x23) != 0x20) return false; //data starts from 1A0+instr.+ptns., obligatory space
 	if((bin = parseAtariBinary())[0] < 0x1D6) return rt('!binsz'); // an Atari binary, of this size
@@ -11998,7 +11999,7 @@ if(X.isHeuristicScan()) { //parallel block
 	}
 	if(isKDM()) {
 		if(sz > X.Sz()) sversion = "no panning effects"; else sversion = "";
-		_setResult("~audio","Ken's Digital Music module (.KDM)",sversion,X.isVerbose()? "trk:"+numtracks+" notes:"+numnotes: '');
+		_setResult("~audio","Ken Silverman's Digital Music module (.KDM)",sversion,X.isVerbose()? "trk:"+numtracks+" notes:"+numnotes: '');
 	}
 
 
