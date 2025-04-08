@@ -4170,16 +4170,18 @@ function detect() {
 			sOptionT(t); sOptionT(a,"by: "); sOptionT(c)
 		}
 	}
-	if(/SPM[\x01-\x02]/.test(X.SA(0,4))) {
 		//ref http://aminet.net/mus/edit/stonefree1.lha
-		sName = "Stonetracker tune file (.SPM)"; sVersion = "v"+X.U8(3); bDetected = 1;
+	if(/SPM[\x01-\x02]/.test(X.SA(0,4))) {
+		sName = "Emmanuel Marty & Michael Lavaire's Stonetracker module (.SPM)";
+		sVersion = "v"+X.U8(3); bDetected = 1;
 		if(X.isVerbose()) {
-			sOptionT(X.SA(4,0x20));
-			//TODO find pointer and read the extra stuff
+			sOptionT(decAnsi(4,0x20,CPAmiga));
+			//TODO find chunks and read the extra info
 		}
 	}
 	if(/SPS[\x01-\x02]{2}/.test(X.SA(0,5)) && X.c("'psn'",6+0x20*(smp=X.U8(5)))) {
-		sName = "Stonetracker sample bank (.SPS)"; sVersion = "v"+X.U8(3); bDetected = 1;
+		sName = "Emmanuel Marty & Michael Lavaire's Stonetracker sample bank (.SPS)";
+		sVersion = "v"+X.U8(3); bDetected = 1;
 		if(X.isVerbose()) {
 			for(i=smpsz=0,smps=[]; i < smp; i++)
 				if((t=decAnsi(0x20*i+6,8,CPAmiga).trim()).length) smps.push(t);
@@ -5400,7 +5402,7 @@ function isProtrackerMOD() {
 	else if(/[1-9]CHN/.test(s)) { chn = b[0]-0x30; isGenericMCh = true; tracker = "generic MOD-compatible" }
 	else if(/[1-9][0-9]C[HN]/.test(s)) {
 		chn = b[0]*10+b[1]-0x210; isGenericMCh = true; tracker = "generic MOD-compatible" }
-	else if(/TDZ[1-9]/.test(s)) { chn = b[3]-0x30; tracker = "TakeTracker" }
+	else if(/TDZ[1-3]/.test(s)) { chn = b[3]-0x30; tracker = "Twaddler and Dr. Zon's TakeTracker" }
 	//else if(/\.M\.K/.test(s)) { chn = 4; swapBytes = true } just one hacked module, TODO after fast patches are in
 	else if(/WARD/.test(s)) { chn = 8; isGenericMCh = true; tracker = "generic MOD-compatible" }
 	else return false;
@@ -5499,7 +5501,15 @@ function isProtrackerMOD() {
 		if(X.c("'ADPCM'",sz)) { anyADPCM++; ssz = (ssz+1>>1)+5+16; }
 		sz += ssz;
 	}
-	if(isMdKd && X.c("00115533 2211 040101",sz)) { tracker = 'Tetramed'; sz += 9 } //040101 may have been version number
+	if(X.c("8BBEB4BA 8BADBEBC B4BAAD",sz)) {
+		var exts = '', ext = [];
+		while(sz < X.Sz() && isWithin(X.U8(sz) ^ 0xDF, 0xA,0x7F)) ext.push(X.U8(sz++)^0xDF);
+		exts = decEncoding(ext,CP437);
+		tracker = "Twaddler and Dr. Zon's TakeTracker";
+		if(/\ version\ \d+\./.test(exts)) tracker +=' v' + /\ version\ (\d[^!]+)/.exec(exts)[1];
+//		if(smps.length) smps.unshift('/'); smps.unshift(exts);
+	}
+	else if(isMdKd && X.c("00115533 2211 040101",sz)) { tracker = 'Tetramed'; sz += 9 } //040101 may have been version number
 	if(anyADPCM && !isInconexia) tracker += ' (ADPCM packed: '+anyADPCM+')';
 	return true
 }
