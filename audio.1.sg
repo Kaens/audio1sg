@@ -5452,7 +5452,7 @@ function isProtrackerMOD() {
 	if(wowsmpsz && wowsmpsz+hdr+ptn*8*256 == alignedfsz) {
 		if(cntBadPtnData(hdr+ptn*4*256) < 16) chn = 8; //⚠no good for ripping -- best to err toward no WOW
 	} else
-	if(ptn != optn && cntBadPtnData(hdr+optn*chn*256) < 64) ptn = optn;
+	if(ptn != optn && cntBadPtnData(hdr+optn*chn*256) > 64) ptn = optn;
 	if(iptn > ptn && hdr+ssz+iptn*chn*256 == alignedfsz) ptn = iptn;
 
 	if(maybeWOW && chn === 8) { tracker = "Mod's Grave"; isGenericMCh = true }
@@ -5509,7 +5509,9 @@ function isProtrackerMOD() {
 		if(/\ version\ \d+\./.test(exts)) tracker +=' v' + /\ version\ (\d[^!]+)/.exec(exts)[1];
 //		if(smps.length) smps.unshift('/'); smps.unshift(exts);
 	}
-	else if(isMdKd && X.c("00115533 2211 040101",sz)) { tracker = 'Tetramed'; sz += 9 } //040101 may have been version number
+	else if(isMdKd && X.c("001155332211",sz)) {
+		tracker = 'Tetramed v'+X.U8(sz+6)+'.'+X.U8(sz+7)+X.U8(sz+8); sz += 9
+	}
 	if(anyADPCM && !isInconexia) tracker += ' (ADPCM packed: '+anyADPCM+')';
 	return true
 }
@@ -5520,7 +5522,7 @@ if(!bDetected && isProtrackerMOD()) {
 		sOptionT(decAnsi(0,20,CPAmiga));
 		sOption(tracker,'in: ');
 		sOptionT(addEllipsis(smps.join(" "),200),'smp/msg:\"','"');
-		sOption('chn:'+chn+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+		sOption('chn:'+chn+' ord:'+ord+' ptn:'+(optn!=ptn?optn+'/':'')+ptn+' smp:'+smp+' sz:'+outSz(sz))
 	}
 }
 
@@ -5945,7 +5947,7 @@ function isIT() {
 	if(X.c("'IMPM'")) type = "it";
 	else if(X.c("'tpm.'")) type = "mpt";
 	else return false;
-	ord = X.U16(0x20,_LE);
+	ord = X.U16(0x20,_LE); if(!ord) t++;
 	ins = X.U16(0x22,_LE); if(ins > 0x63) t++;
 	smp = X.U16(0x24,_LE); if(smp > 255) t++;
 	ptn = X.U16(0x26,_LE); if(!ptn && !X.isHeuristicScan()) t++;
@@ -5957,8 +5959,8 @@ function isIT() {
 	spd0 = X.U8(0x32); if(!spd0) t++;
 	tmp0 = X.U8(0x33); if(tmp0 < 31) t++;
 	sep = X.U8(0x34); if(sep > 0x80) t++;
-	if(t > 1) return false; bad = ""; if(t) bad = bad.addIfNone("!badinitinfo");
-	msglen = X.U16(0x36,_LE); msgofs = X.U32(0x38,_LE);
+	msglen = X.U16(0x36,_LE); msgofs = X.U32(0x38,_LE); if(msgofs+msglen > X.Sz()) t++;
+	if(t > 2) return false; bad = ""; if(t) bad = bad.addIfNone("!badinitinfo");
 	pwd = X.U8(0x35);
 	nreserved = X.U32(0x3C,_LE); sreserved = X.SA(0x3C,4);
 	tracker = auth = ""; mVlsw = mVcw = sV ="?"; ch = 1; cord = 0; sz = -1;
@@ -5976,13 +5978,13 @@ function isIT() {
 		//TODO this↓ part is not ripper-friendly but thankfully also likely unnecessary:
 		if(X.c("'tpm.'")) { type = "mpt";
 			p = X.Sz()-4; mptp = X.U32(p,_LE);
-			if(!X.c("'228'04'mptm'",mptp)) mptp = 0;
+			if(X.c("'228'04'mptm'",mptp)) sz = X.Sz(); else mptp = 0;
 		} else {
 			if(0x888 < cwtv <= 0xFFF) {
 				p = X.Sz()-4; mptp = X.U32(p,_LE);
 				if(0x100 <= mptp < X.Sz()-4)
 					if(X.c("'228'04'mptm'",mptp)) {
-						type = "mpt"; if(cwtv >= verLoadLimit) {
+						type = "mpt"; sz = X.Sz(); if(cwtv >= verLoadLimit) {
 							sV = "future"; charset = "UTF8"; extsmp = 0;  return true }
 					} else mptp = 0;
 				//if the above fails, there's a near-zero chance the ords will be misread and everything goes oof
@@ -6016,8 +6018,8 @@ function isIT() {
 		if(b32ord >= 0) ord = b32ord;
 		for(i=0; i < ord; i++)
 			if(b32ord < 0) { o = X.U8(p++);
-				if(o === 0xFF) lastord = 0xFFFF; else if(o === 0xFE) lastord = 0xFFFE; else cord++ }
-			else { o = X.U32(p,_LE); p += 4; lastord = o; if(o < 0xFFFF) cord++ }
+				if(o === 0xFE) lastord = 0xFFFE; else { cord++; if(o === 0xFF) lastord = 0xFFFF } }
+			else { o = X.U32(p,_LE); p += 4; lastord = o; cord++ }
 
 //_log("read pointers & find the smallest @"+Hex(p));
 		//TODO maybe, at some point in the future, autodetect b32ord
@@ -6042,7 +6044,7 @@ function isIT() {
 			var oldUNMO3 = true;
 			for(i=0; i < smp; i++)
 				if(X.U32(p)) { oldUNMO3 = false; p -= i*4; break } else p += 4;
-			if(oldUNMO3) tracker = "UNMO3 <= 2.4";
+			if(oldUNMO3) tracker = "UNMO3 <= v2.4";
 		}
 		if(possiblyUNMO3 && !cwtv) tracker = "UNMO3 v0/1";
 		if(special & sEditHistory) {
@@ -6477,25 +6479,22 @@ if(!bDetected && isIT()) {
 	bDetected = 1;
 	if(sV != "?") sVersion = "v."+sV; if(bad != "") sVersion += "/malformed"+bad;
 	if(X.isVerbose()) {
-		sOptionT(decAnsi(4,25,charset));
+		sOptionT(decAnsi(4,26,charset));
 		if(X.isDeepScan()) {
 			sOption(tracker,"in: ");
 			sOptionT(auth,"by: ")
-			if(extsmp.length)
-				sOption("ext.smp: \""+addEllipsis(extsmp.join(", "),0x40,0x30)+"\"");
-			if(chnm.length)
-				sOption("ch.names: \""+addEllipsis(chnm.join(", "),0x40,0x30)+"\"")
+			sOption(addEllipsis(extsmp.join(", "),0x40,0x30),'ext.smp: "','"');
+			sOption(addEllipsis(chnm.join(", "),0x50,0x30),'ch.names: "','"')
 		}
 		if(special & 1)
-			sOptionT(addEllipsis(X.SC(msgofs,Math.min(msglen,0x100),'CP437'),0x100),"msg: ");
-		if(insnlst.length)
-			sOption("inss: \""+addEllipsis(insnlst.join(" "),0x200,0x30)+"\"");
-		if(smpnlst.length)
-			sOption("smps: \""+addEllipsis(smpnlst.join(" "),0x200,0x30)+"\"");
+			sOptionT(addEllipsis(X.SC(msgofs,Math.min(msglen,0x100),'CP437'),0xC0),'msg: "','"');
+		sOption(addEllipsis(insnlst.join(" "),0x80,0x30),'ins/msg: "','"');
+		sOption(addEllipsis(smpnlst.join(" "),0x80,0x30),'smp/msg: \"','"');
 		if(X.isDeepScan())
-			sOption("ch:"+ch+" ord:"+ord+"("+cord+") ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0+(tunings?"tunings:"+tunings:"")+" sz:"+outSz(sz))
+			sOption('bpm0:'+tmp0+' spd0:'+spd0+' ch:'+ch+' ord:'+ord+(ord != cord?'('+cord+')':'')
+				+' ptn:'+ptn+' ins:'+ins+' smp:'+smp+(tunings?"tunings:"+tunings:"")+" sz:"+outSz(sz))
 		else
-			sOption("ch:"+ch+" ord:"+ord+" ptn:"+ptn+" ins:"+ins+" smp:"+smp+" spd0:"+spd0+" tmp0:"+tmp0)
+			sOption('bpm0:'+tmp0+' spd0:'+spd0+' ch:'+ch+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp:'+smp)
 	}
 }
 
