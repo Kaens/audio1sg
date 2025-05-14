@@ -7380,46 +7380,6 @@ if(!bDetected && isSidMon2()) {
 }
 
 
-function isADXAHX() { //non-module! sanity check a bit because 8000 is too broad
-	if(!X.c("8000")) return false;
-	fmt = X.U8(4);
-	if([2,3,4,0x10,0x11].indexOf(fmt)<0) return false;
-	if(X.U8(6)!=4) return false; //4 bit per sample only
-	if([1,2].indexOf(X.U8(7))<0) return false; //1/2 ch only
-	nV = X.U8(0x12);
-	if([3,4,5].indexOf(nV)<0) return false;
-	return true;
-}
-if(!bDetected && X.isHeuristicScan() && isADXAHX()) {
-	//from https://wiki.multimedia.cx/index.php/CRI_ADX_file
-	bDetected = 1;
-	sVersion = "";
-	if([2,3,4].indexOf(fmt) >= 0)
-		sName = "CRI ADX 4-bit ADPCM audio (.ADX)";
-	else if([0x10,0x11].indexOf(fmt) >= 0)
-		sName = "CRI AHX 4-bit ADPCM audio (.AHX)";
-	switch(nV) {
-		case 3: sVersion = "v3"; break;
-		case 4: sVersion = "v4"; break;
-		case 5: sVersion = "v4NL"
-	}
-	switch(fmt) {
-		case 2: sVersion+=" PPC"; break;
-		case 3: sVersion+=" std"; break;
-		case 4: sVersion+=" exSc"; break;
-		case 0x11: sVersion+=" AHX" }
-	if(X.U8(0x13) > 0) sVersion += " encrypted";
-	if(X.isVerbose()) {
-		sOption(X.SA(pcprt,6));
-		pcprt = X.U16(2,_BE)-2;
-		sOption("blk: "+X.U8(5));
-		sOption("ch: "+X.U8(7));
-		sOption("sr: "+X.U32(8,_BE)+"Hz");
-		sOption("smp: "+X.U32(0x0C,_BE));
-	}
-}
-
-
 function isDigiIllu() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/DigitalIllusion.c
 	if(X.Sz()<17) return false;
