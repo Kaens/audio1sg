@@ -7416,53 +7416,85 @@ if(!bDetected && isDigiIllu()) {
 function isPMD() {
 	// ref https://raw.githubusercontent.com/ValleyBell/MidiConverters/master/pmd_SeqFormat.txt
 	// & https://web.archive.org/web/20220928062748/https://lithcore.cn/2318/
-	if(X.Sz() < 37) return false;
-	nV = X.U8(0); if(nV < 0xFF) if(nV > 0x0F) return false;
-	for(i=0; i < 13; i++) {
-		p = X.U16(1+i*2,_LE);
-		if((p && p < 0x1A)  || p+1 > X.Sz()) return false
+	// & https://github.com/mistydemeo/pmdmini/blob/master/src/pmdmini.c
+	if(X.Sz() < 37 || !isWithin(nV=X.I8(0), -1,0xF)) return false;
+	if(X.U16(1) == 0x1A) var nptr = 13; else if(X.U16(1) == 0x18) var nptr = 12; else return false;
+	function re(p,t) { if(debug>1)_l2r('pmd',p,t); return false }
+	function trktxt(n) {
+		if(n < 0) return '??';
+		else if(n < 6) return 'FM '+(n+1);
+		else if(n < 9) return 'SSG '+(n-5);
+		else if(n === 9) return 'OPNA ADPCM B';
+		else if(n === 10) return 'OPNA Rhythm';
+		else if(n === 11) return 'Rhythm Subs';
+		else if(n === 12) return  'FM insts';
+		else return '??'
 	}
-	extrap = X.U16(0x19,_LE)-3; if(X.U8(extrap+3) != 0xFE) return false;
-	extra_type = X.U8(extrap+2); if(extra_type < 0x40 || extra_type > 0x4F) return false;
-	if(extra_type < 0x42) ttype = "PCP/P86";
-	else if(extra_type < 0x48) ttype = "PPS";
-	else if(nV == 0xFF) ttype = "PPZ"; else ttype = "FM Towns";
-	extra = X.U16(extrap,_LE)+1; if((extra > 0 && extra < extrap) || extra > X.Sz()) return false;
-	for(i=0; i < 4; i++) {
-		p = X.U16(extra+i*2,_LE);
-		if(p < 27 || p+1 > X.Sz()) return false
+//var trkpt = []; //debug
+	for(i=0,oldchn=X.U16(1); i < nptr; i++) { //ptrs to the 11 tracks, rhythm funcs, (maybe optionally?) FM insts
+		p = X.U16(1+i*2); if(/*p &&*/ !isWithin(p, 0x1A,X.Sz()-1)) return re(p,'!badtrkp');
+//trkpt.push(Hex(p+1)+': '+trktxt(i)); //debug
+		if(isWithin(i, 1,11) && X.U8(p) != 0x80) return re(p,'!badtrkend'+X.U8(p)); //data blocks end in 80h
+		if(isWithin(i, 1,10) && p <= oldchn) return re(p,'!badtrkp'); // not sorted right
+		oldchn = p;
+	}
+//_l2r('pmd','',trkpt.join(' || ')); //debug
+	rhy = (X.U16(0x19)-X.U16(0x17)) >> 1;
+	bad = ''; ttype = ''; extra = -1;
+	if(rhy) {
+		extrap = p-3; extra_type = X.U8(extrap+2);
+		// The following breaks at, for example, Curse/logo.m; might have to parse callees to know the real number
+		for(q=X.U16(0x17)+1; q < X.U16(0x19)+1; q+=2) { //rhythm subroutine pointers
+//_l2r('rhy',q,'*'+Hex(X.U16(q)+1))
+		}
+		if(X.U8(p) != 0xFE) bad = bad.addIfNone('!badFE:'+Hex(p)+' != '+X.U16(i*2-3)+' @'+Hex(i*2-3));
+		if(!isWithin(extra_type, 0x40,0x4F)) bad = bad.addIfNone('!badxtype'+Hex(extra_type));
+		if(extra_type < 0x42) ttype = "PCP/P86";
+		else if(extra_type < 0x48) ttype = "PPS";
+		else if(nV == -1) ttype = "FM Towns"; else ttype = "PPZ";
+		extra = X.U16(extrap,_LE)+1;
+		if(!isWithin(extra, 1,X.Sz()))
+			bad = bad.addIfNone('!'+Hex(extra)+' out of '+Hex(extrap-1));
+		for(i=0; i < 4; i++) {
+			p = X.U16(extra+i*2,_LE);
+			if(p < 27 || p+1 > X.Sz()) bad = bad.addIfNone('!extrapOOB'+Hex(extra))
+		}
 	}
 	return true
 }
-if(/*!bDetected && */X.isDeepScan() && isPMD() ) {
+if(/*!bDetected && */ isPMD() ) {
 	bDetected = 1;
 	sName = "Professional Music Driver module (.M,.M2)";
-	sVersion = "v"+nV+" t"+Hex(extra_type).substr(0,2)+":"+ttype/*+" tagptrs:"+Hex(extra)*/;
+	sVersion = nV >= 0? 'v'+nV: '';
+	sVersion = sVersion.appendS(/*'t'+Hex(extra_type).substr(0,2)+":"+*/ttype/*+" tagptrs:"+Hex(extra)*/,' ');
+	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 	if(X.isVerbose()) {
 		fnames = [];
-		if(extra_type >= 0x48) {
+		if(extra > 0) {
+			if(extra_type >= 0x48) {
+				n = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
+				if(n != "") fnames.push("PPZ:"+n)
+			}
+			if(extra_type >= 0x42) {
+				n = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
+				if(n != "") fnames.push("PPS:"+n)
+			}
 			n = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
-			if(n != "") fnames.push("PPZ:"+n)
+			if(n != "") fnames.push("PPC/P86:"+n);
+			title = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS");
+			if(title == "\x1A") title = "";
+			artist = X.SC(X.U16(extra+2,_LE)+1,0x100,"Shift_JIS");
+			if(artist == "\x1A") artist = "";
+			arenji = X.SC(X.U16(extra+4,_LE)+1,0x100,"Shift_JIS");
+			if(arenji == "\x1A") arenji = "";
+			rem = X.SC(X.U16(extra+6,_LE)+1,0x100,"Shift_JIS");
+			if(rem == "\x1A") rem = "";
+			sOption(title);
+			sOption(artist,"by: ");
+			sOption(arenji,"mixed by: ");
+			sOption(rem);
+			sOption(fnames.join(", "),"fn: ")
 		}
-		if(extra_type >= 0x42) {
-			n = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
-			if(n != "") fnames.push("PPS:"+n)
-		}
-		n = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS"); extra+=2;
-		if(n != "") fnames.push("PPC/P86:"+n);
-		title = X.SC(X.U16(extra,_LE)+1,0x100,"Shift_JIS");
-		if(title == "\x1A") title = "";
-		artist = X.SC(X.U16(extra+2,_LE)+1,0x100,"Shift_JIS");
-		if(artist == "\x1A") artist = "";
-		arenji = X.SC(X.U16(extra+4,_LE)+1,0x100,"Shift_JIS");
-		if(arenji == "\x1A") arenji = "";
-		rem = X.SC(X.U16(extra+6,_LE)+1,0x100,"Shift_JIS");
-		if(rem == "\x1A") rem = "";
-		sOption(title);
-		sOption(artist,"by: ");
-		sOption(arenji,"mixed by: ");
-		sOption(rem);
-		sOption(fnames.join(", "),"fn: ")
 	}
 }
 
@@ -10640,6 +10672,7 @@ function cmdStr(ch,o) { //useful for logging music too
 	if(crypt) {
 		sz = X.fSig(ofs+20,m,"'protected by cryptmdx v1.00 (c)1995 H.Yano'00")+0x2B; return true
 	}
+	// !!! FIXME ch gets decreased and so EX-PCM isn't reported
 	var chn0 = chn = oldchn = X.U16(p,_BE)+ofs; //we begin with mml data 0 ptr, stored as offset from post-info point 
 	if(!isWithin(chn,p,m)) return re(chn,'!chn'+Hex(p)+'-'+Hex(m)); // it shouldn't point at EoF-ish nor to 0 or 1
 	ch = (chn-ofs-2)/2; //0x14 or 0x22, ie. either 9 or 16
@@ -10651,13 +10684,12 @@ function cmdStr(ch,o) { //useful for logging music too
 		p += 2;
 //re(p,'--= Parsing ch'+k+'/'+ch+' =--');
 		if(p > mp) mp = p;
-		if(k == ch)
-			if(isWithin(vd, oldchn+2,X.Sz())) chn = vd; else chn = m;
+		if(k == ch) if(isWithin(vd, oldchn+2,X.Sz())) chn = vd; else chn = m;
 		else {
 			chn = X.U16(p,_BE)+ofs;
 			if(!isWithin(chn,oldchn+2,m) || (X.U8(chn-2) != 0xF1 && X.U8(chn-3) != 0xF1)) {
 //re(chn,'DEBUG2:'+Hex(X.U24(chn-3,_BE))+' ch'+ch);
-				v = [1,1]; chn = oldchn; ch--;
+				v = [1,1]; chn = oldchn; emptych++;
 			}
 			if(!isWithin(chn,oldchn+2,m)) { re(chn,'!p='+Hex(p)+',ch['+k+'] not between '+Hex(oldchn+2)+' and '+Hex(m)); sus += 2 }
 			if(X.U8(chn-2) != 0xF1 && X.U8(chn-3) != 0xF1) {
@@ -10675,8 +10707,8 @@ function cmdStr(ch,o) { //useful for logging music too
 			if(c < 0x80) clk += c+1; //rest
 			else if(c <= 0xDF) { cnotes++; notes++; clk += X.U8(q++)+1 } //note or sample
 			else switch(c) { //MMLscript
-			case 0xFF: q++; if(bpm0 < 0) bpm0 = X.U8(q); break; //tempo0 (t)
-			case 0xFE: q += 2; break; //OPM reg set: reg and data
+			case 0xFF: if(bpm0 < 0) bpm0 = X.U8(q); q++; break; //tempo0 (t)
+			case 0xFE: q += 2; cnotes++/*digdug bs!*/; break; //OPM reg set: reg and data
 			case 0xFD: t = X.U8(q++); if(vds.indexOf(t) < 0) vds.push(t); break; //vd selection (@)
 			case 0xFC: q++; break; //pan
 			case 0xFB: t = X.U8(q++); if(isWithin(t,0x16,0x7F)) { bad = bad.addIfNone('!FB@'+Hex(q-2)+'='+Hex(t)); sus++ } v[0] = 1;
@@ -10722,7 +10754,8 @@ function cmdStr(ch,o) { //useful for logging music too
 		oldchn = chn;
 		if(sus > 8) return re(mp,sus+' '+bad);
 	} // /for k=1; k<=ch
-	if(X.isDeepScan() &&/*typeof bpm0 !== 'number' || ← some FF5 tracks*/ v.join('') != '11') return re(q,'bpm0:'+bpm0+' v:'+v);
+	if(X.isDeepScan() && v[0] != '1') { bad = bad.addIfNone('!novol'); sus++ }
+	if(sus > 8) return re(mp,sus+' '+bad);
 	if(vd > 0 && vd < chn) { bad = bad.addIfNone('!ins@'+Hex(vd)+'<chn@'+Hex(chn)); sus++ }
 
 	if(X.isDeepScan()) {
