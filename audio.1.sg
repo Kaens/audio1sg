@@ -8,6 +8,7 @@
 
 init("audio", "");
 includeScript("chunkparsers");
+includeScript("soundchips");
 debug = 0; //verbosity up to 3, where every note/command is shown. Overrides the debug() function; use _l2r()
 
 function detect() {
@@ -7439,15 +7440,14 @@ function isPMD() {
 		oldchn = p;
 	}
 //_l2r('pmd','',trkpt.join(' || ')); //debug
-	rhy = (X.U16(0x19)-X.U16(0x17)) >> 1;
+	//rhy = (X.U16(0x19)-X.U16(0x17)) >> 1;
+	fe = X.U8(p) == 0xFE;
 	bad = ''; ttype = ''; extra = -1;
-	if(rhy) {
 		extrap = p-3; extra_type = X.U8(extrap+2);
 		// The following breaks at, for example, Curse/logo.m; might have to parse callees to know the real number
 		for(q=X.U16(0x17)+1; q < X.U16(0x19)+1; q+=2) { //rhythm subroutine pointers
 //_l2r('rhy',q,'*'+Hex(X.U16(q)+1))
 		}
-		if(X.U8(p) != 0xFE) bad = bad.addIfNone('!badFE:'+Hex(p)+' != '+X.U16(i*2-3)+' @'+Hex(i*2-3));
 		if(!isWithin(extra_type, 0x40,0x4F)) bad = bad.addIfNone('!badxtype'+Hex(extra_type));
 		if(extra_type < 0x42) ttype = "PCP/P86";
 		else if(extra_type < 0x48) ttype = "PPS";
@@ -7460,9 +7460,10 @@ function isPMD() {
 			if(p < 27 || p+1 > X.Sz()) bad = bad.addIfNone('!extrapOOB'+Hex(extra))
 		}
 	}
+	//if(oldchn >= ch) return false;
 	return true
 }
-if(/*!bDetected && */ isPMD() ) {
+if(!bDetected && isPMD() ) {
 	bDetected = 1;
 	sName = "Professional Music Driver module (.M,.M2)";
 	sVersion = nV >= 0? 'v'+nV: '';
@@ -10597,42 +10598,6 @@ function isMXDRV() {
 	// ref ditto / SRC/MDX2MUS.ASM
 	// useful links: https://gorry.haun.org/mx/index_e.html
 function re(p,t) { if(debug>-1)_l2r('mdx',p,t); return false }
-function cmdStr(ch,o) { //useful for logging music too
-	const C = ['A','B','C','D','E','F','G','H', 'P', 'Q','R','S','T','U','V','W'];
-	const notes = ['D#','E','F','F#','G','G#','A','A#','B','B#','C','C#','D']; var c = X.U8(o);
-	if(c < 0x80) return C[ch]+': rest '+ (c+1);
-	else if(c <= 0xDF) { c -= 0x80;
-		if(ch > 8) return C[ch]+': smp#'+c;
-		else return C[ch]+': '+notes[c%12]+(Util.divu64(c,12))+' ~'+(X.U8(o+1)+1)
-	}
-	else switch(c) {
-	case 0xFF: return C[ch]+': bpm '+X.U8(o+1); case 0xFE: return C[ch]+': OPM R'+X.U8(o+1)+' := '+Hex(X.U8(o+2));
-	case 0xFD: return C[ch]+': voicedata '+X.U8(o+1); case 0xFC: return C[ch]+': pan '+X.U8(o+1);
-	case 0xFB: if(X.U8(o+1) & 0x80) return C[ch]+': @vol '+(X.U8(o+1)&0x7F); else return C[ch]+': vol '+X.U8(o+1);
-	case 0xFA: return C[ch]+': vol-'; case 0xF9: return C[ch]+': vol+';
-	case 0xF8: return C[ch]+': staccato '+X.U8(o+1); case 0xF7: return C[ch]+': legato';
-	case 0xF6: return C[ch]+': rep.'+X.U8(o+1)+' ['+(X.U8(o+2)?'/'+X.U8(o+2):'')+'...';
-	case 0xF5: return C[ch]+': ...]rep.,ret→'+Hex(o+X.I16(o+1,_BE));
-	case 0xF4: return C[ch]+': .../rep.esc→'+Hex(o+X.I16(o+1,_BE));
-	case 0xF3: return C[ch]+': detune '+X.I16(o+1,_BE)/0x40;
-	case 0xF2: return C[ch]+': portamento '+X.I16(o+1,_BE)/0x4000+' ↓';
-	case 0xF1: if(X.U8(o+1)) return C[ch]+': loop from '+Hex(o+3+X.I16(o+1,_BE))+'.'; else return C[ch]+' ends.';
-	case 0xF0: return C[ch]+': delay key-on '+X.U8(o+1); case 0xEF: return C[ch]+': sync send on ch'+X.U8(o+1);
-	case 0xEE: return C[ch]+': sync wait on ch'+X.U8(o+1); case 0xED: return C[ch]+': noise/smp freq '+X.U8(o+1);
-	case 0xEC: if(X.U8(o+1) == 0x80) return C[ch]+': pitch LFO off';
-		else if(X.U8(o+1) == 0x81) return C[ch]+': pitch LFO on';
-		else return C[ch]+': LFO pitch wf '+X.U8(o+1)+' freq '+X.U16(o+2,_BE)+' amp '+X.U16(o+4,_BE);
-	case 0xEB: if(X.U8(o+1) == 0x80) return C[ch]+': vol LFO off';
-		else if(X.U8(o+1) == 0x81) return C[ch]+': vol LFO on';
-		else return C[ch]+': LFO vol wf '+X.U8(o+1)+' freq '+X.U16(o+2,_BE)+' amp '+X.U16(o+4,_BE);
-	case 0xEA: if(X.U8(o+1) == 0x80) return C[ch]+': OPM LFO off';
-		else if(X.U8(o+1) == 0x81) return C[ch]+': OPM LFO on';
-		else return C[ch]+': LFO OPM syn/wf '+X.U8(o+1)+' lfrq '+X.U8(o+2)+' PMD '+X.U8(o+3)+' AMD '+X.U8(o+4)+' P/AMS '+X.U8(o+5);
-	case 0xE9: return C[ch]+': LFO key-on dly '+X.U8(o+1); case 0xE8: return C[ch]+': PCM8 on';
-	case 0xE7: return C[ch]+': Fadeout'+(X.U8(o+1)==1?'':Hex(X.U8(o+1)))+' spd '+X.U8(o+2);
-	default: return C[ch]+': unknown command '+Hex(X.U8(o))
-	}
-}
 //detection starts from here
 	if(X.Sz() < 4+2+9*2+9*2) return false; //0d0a1a+00, vd ptr, chn ptrs, f100 f100....
 	da1 = X.fSig(0,Math.min(0x400,X.Sz()),"0D0A1A"); //the longest title I saw was that long
@@ -10672,11 +10637,11 @@ function cmdStr(ch,o) { //useful for logging music too
 	if(crypt) {
 		sz = X.fSig(ofs+20,m,"'protected by cryptmdx v1.00 (c)1995 H.Yano'00")+0x2B; return true
 	}
-	// !!! FIXME ch gets decreased and so EX-PCM isn't reported
 	var chn0 = chn = oldchn = X.U16(p,_BE)+ofs; //we begin with mml data 0 ptr, stored as offset from post-info point 
 	if(!isWithin(chn,p,m)) return re(chn,'!chn'+Hex(p)+'-'+Hex(m)); // it shouldn't point at EoF-ish nor to 0 or 1
 	ch = (chn-ofs-2)/2; //0x14 or 0x22, ie. either 9 or 16
-	emptych = notes = vdn = mp = 0; vds = []; bpm0 = -1;
+	usedch = [false, false, false, false, false, false, false, false, false,  false, false, false, false, false, false];
+	notes = vdn = mp = 0; vds = []; bpm0 = -1;
 	var q = -1, lp = [], v = [0,1]; // v is for registering the presence of expected commands across the file; all must be 1
 	if(X.isDeepScan()) { visited = []; for(i=0; i < m; i++) visited[i] = 0 } // to keep looping in check
 
@@ -10689,7 +10654,7 @@ function cmdStr(ch,o) { //useful for logging music too
 			chn = X.U16(p,_BE)+ofs;
 			if(!isWithin(chn,oldchn+2,m) || (X.U8(chn-2) != 0xF1 && X.U8(chn-3) != 0xF1)) {
 //re(chn,'DEBUG2:'+Hex(X.U24(chn-3,_BE))+' ch'+ch);
-				v = [1,1]; chn = oldchn; emptych++;
+				chn = oldchn; usedch[k-1] = false;
 			}
 			if(!isWithin(chn,oldchn+2,m)) { re(chn,'!p='+Hex(p)+',ch['+k+'] not between '+Hex(oldchn+2)+' and '+Hex(m)); sus += 2 }
 			if(X.U8(chn-2) != 0xF1 && X.U8(chn-3) != 0xF1) {
@@ -10700,15 +10665,19 @@ function cmdStr(ch,o) { //useful for logging music too
 
 		if(X.isDeepScan()) for(q=oldchn,stop=false; !stop && q != chn && q < m; ) {
 
-//re(q,'>> '+cmdStr(k-1,q)); // !! the heavy logger of music data here. Much fun, much debug info
+//re(q,'>> '+MDXCmdStr(k-1,q)); // !! the heavy logger of music data here. Much fun, much debug info
 
 			visited[q] = 1; if(q > mp) mp = q;
 			var c = X.U8(q++);
 			if(c < 0x80) clk += c+1; //rest
-			else if(c <= 0xDF) { cnotes++; notes++; clk += X.U8(q++)+1 } //note or sample
+			else if(c <= 0xDF) { cnotes++; notes++; usedch[k-1] = true; clk += X.U8(q++)+1 } //note or sample
 			else switch(c) { //MMLscript
 			case 0xFF: if(bpm0 < 0) bpm0 = X.U8(q); q++; break; //tempo0 (t)
-			case 0xFE: q += 2; cnotes++/*digdug bs!*/; break; //OPM reg set: reg and data
+			case 0xFE: a = X.U8(q); b = X.U8(q+1);//OPM reg set: reg and data
+				if(badYM2151Reg.indexOf(a) >= 0) { sus++; bad = bad.addIfNone('!OPMreg@'+Hex(q-2)) }
+				else if(a == 8 && (b&0xC8)) { cnotes++; notes++; usedch[b&7] = true }
+				else if(isWithin(a, 0x60,0x7F)) v[0] = true;
+				q += 2; break;
 			case 0xFD: t = X.U8(q++); if(vds.indexOf(t) < 0) vds.push(t); break; //vd selection (@)
 			case 0xFC: q++; break; //pan
 			case 0xFB: t = X.U8(q++); if(isWithin(t,0x16,0x7F)) { bad = bad.addIfNone('!FB@'+Hex(q-2)+'='+Hex(t)); sus++ } v[0] = 1;
@@ -10748,7 +10717,7 @@ function cmdStr(ch,o) { //useful for logging music too
 			}
 			if(q > mp) mp = q;
 		} // /if isDeepScan scan the channel
-		if(chn-oldchn < 3 || !cnotes) emptych++;
+		if(cnotes) usedch[k-1] =  true;
 //re(oldchn,'ch'+(k-1)+' stopped @'+Hex(q)+', has '+Hex(chn-oldchn)+' data ...'+Hex(X.U24(chn-3,_BE))+']')
 //re(q,'ch'+(k-1)+' v:'+v.join('')+' clk:'+clk+' ... cmd:'+Hex(c))
 		oldchn = chn;
@@ -10789,7 +10758,8 @@ if(!bDetected && isMXDRV()) {
 	if(bad.length) sVersion = sVersion.appendS('malformed'+bad+(sus?'/sus'+sus:''),'/');
 	if(X.isVerbose()) {
 		sOption(addEllipsis(title),'"','"');
-		if(!crypt) sOption('ch:'+(ch-emptych)+' bpm0:'+(bpm0 < 0?'default':bpm0)
+		for(ch=0,i=0; i < 16; i++) if(usedch[i]) ch++;
+		if(!crypt) sOption('ch:'+ch+' bpm0:'+(bpm0 < 0?'default':bpm0)
 			+(notes? ' notes:'+notes: '')+(vdn? ' ins:'+vdn: '')+(sz > 0? ' sz:'+outSz(sz): ''));
 		else sOption('sz:'+outSz(sz))
 	}
