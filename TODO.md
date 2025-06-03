@@ -1,5 +1,4 @@
 # How to contribute
-
 This file covers the grand TODO of things, the conventions of informing, and the scan flags.
 
 ## TODO
@@ -47,6 +46,8 @@ This is where you can contribute the most! (sorted by extension)
  - FM-Kingtracker `.FMK` (info, size)
  - FM Tracker `.FMT` (info, size)
  - FM Tracker (Adlib) `.FMT` (info, size)
+ - FMX music driver `.FMX` (parse for surety)
+   - and all other formats from https://gitlab.com/bunnylin/supersakura/-/tree/dev/doc/mus , https://kurohane.net/gmpv4/
  - Fred Editor Final `.FRED` (count orders/positions and patterns/tracks)
  - Fast Tracker `.FTC` (info, size)
  - FamiTracker `.FTM` (info, size)
@@ -60,7 +61,6 @@ This is where you can contribute the most! (sorted by extension)
  - Fred Gray `.GRAY` (info, size)
  - Beaver Sweeper `.GTK` (info, size)
  - Howie Davies `.HD` (info, size)
- - Imago Orpheus `.IMF` (size)
  - In Stereo! `.IS` & `.IS20` (info, size)
  - Ixalance `.IXS` (access via zlib & calcsize the last section of the unpacked data)
  - Galaxy Sound System `.J2B` (access via zlib)
@@ -68,6 +68,7 @@ This is where you can contribute the most! (sorted by extension)
  - Jeroen Tel `.JT` (some more info?)
  - Kris Hatlelid's `.KH` (count subsongs)
  - Klystrack `.KT` (size, sources available)
+ - `.KSS` (fix size)
  - Lucas Arts Adlib `.LAA` (info, size)
  - Sound Interface System `.LEM` (tighten, info, size)
  - Mlat Adlib Tracker `.MAD` (tighten, info, size)
@@ -80,6 +81,7 @@ This is where you can contribute the most! (sorted by extension)
  - Megatracker `.MGT` (info, size)
  - MK-Jamz `.MKJ` (info, size)
  - Music Maker EXT `.MM4` & `.MM8` (info)
+ - Protracker `.MOD` et al. (implement that lengthy algo that counts subsongs)
  - Megastation `.MS` & `.MSM` (info, size)
  - Medley `.MSO` (info, size - a toughie as there's no pre-existing easy-to-RE player)
  - Master Tracker Adlib `.MTR` (size)
