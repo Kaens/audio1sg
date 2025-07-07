@@ -1,7 +1,7 @@
 # audio1sg
  The comprehensive tracker/retro/exotic music format detection script for Detect-it-Easy (https://github.com/horsicq/Detect-It-Easy)
 
-I've been working over the entirety of http://modland.com/pub/modules/ and some more rarities. This currently supports 383 distinct formats, and 19 more of them less reliably for various reasons. 217 of them are parsed for the expected filesize, allowing for basic integrity checks, or ripping. (I count them by counting occurrences of `bDetected =`, `"~audio"`, and `outSz`, correspondingly.)
+I've been working over the entirety of http://modland.com/pub/modules/ and some more rarities. This currently supports 383 distinct formats, and 19 more of them less reliably for various reasons. 218 of them are parsed for the expected filesize, allowing for basic integrity checks, or ripping. (I count them by counting occurrences of `bDetected =`, `"~audio"`, and `outSz`, correspondingly.)
 
 I've made this separate from DiE for the sake of flexibility, as DiE releases are rather slow per se, and keeping its sources cloned is very storage-heavy. That said, please use [the latest build](https://github.com/horsicq/DIE-engine/releases/tag/Beta) of DiE!\
 In case of issues, also ensure the `read` and `chunkparsers` scripts from [the master github repo](https://github.com/horsicq/Detect-It-Easy/tree/master/db) are current!
