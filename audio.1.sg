@@ -5954,6 +5954,37 @@ if(!bDetected && isAHX()) {
 }
 
 
+function isPha() {
+	// from http://asle.free.fr/prowiz/prowiz.src.zip / r/pha.c
+	if(X.Sz() < 0x3C0 || !X.c("03C000",10)) return;
+	//!(X.U8(0) < 0x30 && isWithin(X.U8(2), 0x60,0x80) && X.U8(3) <= 0x40 && X.U8(4) < 0x10 && X.c("00400600", 0x1B6)
+	smp = 0; var allsmpsz = 0;
+	for(p=0; p < 0x1B2; p+=14) {
+		if(X.U8(p+3) > 0x40 || (ssz=X.U16(p,_BE)) < X.U16(p+4,_BE)) return; //vol > 64, smpsz < lpstart
+		if(!isWithin(X.U32(p+8,_BE), 0x3C0,X.Sz())) return; // smpp
+		allsmpsz += ssz << 1; if(X.U16(p,_BE)) smp++
+	}
+	if(!isWithin(allsmpsz, 3,31*65535)) return;
+	ptnp = 0; ptn = [];
+	for(p=0x1C0; p < 0x3C0; p+=4) {
+		t = X.U32(p,_BE); if(t+2 < allsmpsz+0x3C0 || t > X.Sz()) return;  ptnp = Math.max(ptnp,t);
+		if(!ptn.includes(t)) ptn.push(t);
+	}
+	ord = 127;
+	for(p = 0x3B8; p > 0x1C0; p-=4,ord--) if(X.U32(p,_BE) != t) break; else t = X.U32(p,_BE);
+	ptn = ptn.length; p = ptnp;
+	for(i = 0; i < 0x100; i++) if(X.U8(p) >= 0xC0) { i += 254-X.U8(p+1); p += 2 } else p += 4;
+	sz = p;
+	return true
+}
+if(!bDetected && isPha()) {
+	sName = "Azatoth/Phenomena's Pha Packer module (.PHA)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+	}
+}
+
+
 function isSTM() {
 	//ref https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_stm.cpp
 	t = X.readBytes(0x14,8); for(i = 0; i < 8; i++) { if(t[i] < 0x20 || t[i] >= 0x7F) return false }
