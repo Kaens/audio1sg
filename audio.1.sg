@@ -5955,24 +5955,28 @@ if(!bDetected && isAHX()) {
 
 
 function isPha() {
-	// from http://asle.free.fr/prowiz/prowiz.src.zip / r/pha.c
-	if(X.Sz() < 0x3C0 || !X.c("03C000",10)) return;
+	// ref http://asle.free.fr/prowiz/prowiz.src.zip / r/pha.c
+	if(X.Sz() < 0x3C0 || !X.c("000003C0",8)) return;
 	//!(X.U8(0) < 0x30 && isWithin(X.U8(2), 0x60,0x80) && X.U8(3) <= 0x40 && X.U8(4) < 0x10 && X.c("00400600", 0x1B6)
-	smp = 0; var allsmpsz = 0;
+	ins = 0; smp = []; var allsmpsz = olds = 0;
 	for(p=0; p < 0x1B2; p+=14) {
 		if(X.U8(p+3) > 0x40 || (ssz=X.U16(p,_BE)) < X.U16(p+4,_BE)) return; //vol > 64, smpsz < lpstart
-		if(!isWithin(X.U32(p+8,_BE), 0x3C0,X.Sz())) return; // smpp
-		allsmpsz += ssz << 1; if(X.U16(p,_BE)) smp++
+		if(!isWithin(sofs=X.U32(p+8,_BE), 0x3C0,X.Sz()) || sofs%2) return; // smpp
+		allsmpsz += ssz << 1; if(X.U16(p,_BE)) ins++; if(!smp.includes(sofs)) smp.push(sofs);
+		if(p && Math.abs(sofs-olds) > 2) return;
+		olds = sofs + (ssz << 1)
 	}
+	smp = smp.length;
 	if(!isWithin(allsmpsz, 3,31*65535)) return;
-	ptnp = 0; ptn = [];
+	var ptnM = 0, ptnm = 0xFFFFFFFF; ptn = [];
 	for(p=0x1C0; p < 0x3C0; p+=4) {
-		t = X.U32(p,_BE); if(t+2 < allsmpsz+0x3C0 || t > X.Sz()) return;  ptnp = Math.max(ptnp,t);
+		t = X.U32(p,_BE); if(t+2 < allsmpsz+0x3C0 || t > X.Sz()) return;
+		ptnM = Math.max(ptnM,t); ptnm = Math.min(ptnm,t);
 		if(!ptn.includes(t)) ptn.push(t);
 	}
-	ord = 127;
-	for(p = 0x3B8; p > 0x1C0; p-=4,ord--) if(X.U32(p,_BE) != t) break; else t = X.U32(p,_BE);
-	ptn = ptn.length; p = ptnp;
+	if(ptnm%2 || Math.abs(0x3C0+allsmpsz-ptnm) > 2) return;
+	for(ord=127,p = 0x3B8; p > 0x1C0; p-=4,ord--) if(X.U32(p,_BE) != t) break; else t = X.U32(p,_BE);
+	ptn = ptn.length; p = ptnM;
 	for(i = 0; i < 0x100; i++) if(X.U8(p) >= 0xC0) { i += 254-X.U8(p+1); p += 2 } else p += 4;
 	sz = p;
 	return true
@@ -5980,7 +5984,7 @@ function isPha() {
 if(!bDetected && isPha()) {
 	sName = "Azatoth/Phenomena's Pha Packer module (.PHA)"; bDetected = 1;
 	if(X.isVerbose()) {
-		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
+		sOption('ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp:'+smp+' sz:'+outSz(sz))
 	}
 }
 
@@ -12670,21 +12674,25 @@ if(X.isHeuristicScan()) { //parallel block
 		//ref https://github.com/libxmp/libxmp/blob/master/src/bitrot/loaders/hsc_load.c
 		// & https://github.com/libxmp/libxmp/blob/master/docs/formats/hsc.txt
 		if(X.Sz() < 1587+1152 || X.Sz() > 59187+1) return;
-		ptn = ord = 0;
+		ptn = ord = 0; var ic = 0;
 		for(p=0x600; p < 0x633; p++)
-			if((t = X.U8(p)) == 0xFF) break;
+			if((t = X.U8(p)) == 0xFF) break; //rainyday.hsc doesn't have FF
 			else if((t & 0x80) && t <= 0xB0) {
 				t &= 0x3F; t += 0x600;
 				if(t > 0x632 || X.U8(t) == 0xFF || t == p) return;  else {} // else {p = 0x600+t-1; continue} //not tracing the loops!
 			}
 			else { if(ptn < t) ptn = t;  ord++ }
 		if(!ord) return;
-		ptn++; if(p == 0x633 || ptn > 50) return; //test number of patterns
+		ptn++; if(p == 0x633) ic += 5/*rainyday.hsc should be valid*/;  if(ptn > 50) return; //test number of patterns
 		p = 0x633;  sz = p + ptn*0x480;
 		for(i=0; i < ptn*0x240; i++) {
 			n = X.U8(p++); m = X.U8(p++);
-			if(isWithin(m,7,0xF) && n != 0x80) { _l2r('hsc',p-1,''); return; } //test effects 07..0F
-			if(isWithin(m,0x70,0x9F)) return; //test effects 7x..9x
+			if(isWithin(m,7,0xF)) if(n != 0x80 /*fmtrk2.hsc should be valid*/) { if(n != 0) return; ic++; } //test effects 07..0F
+			if(isWithin(m,0x70,0x9F)) { //test effects 7x..9x
+				if(m != 0x81 && m != 0x89) return; //rainyday.hsc should be valid
+				ic++
+			}
+			if(ic > 20) return
 		}
 //		if(sz > X.Sz()) return;
 		//if(sz%2) sz++; // all HSC files are word-aligned like it were Amiga, but it aint. Not sure whether to include
