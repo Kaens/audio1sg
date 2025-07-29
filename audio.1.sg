@@ -4768,7 +4768,7 @@ function detect() {
 			if(smpn) {
 				anyInsSmp = true;
 				if(midichecks) madewith &= ~(verOldModPlug | verNewModPlug | verPlayerPRO);
-				if(ihdsz != 263 || instp) madewith &= ~verPlayerPRO;
+				if(ihdsz != 0x107 || instp) madewith &= ~verPlayerPRO;
 				if(!(madewith & verConfirmed) && (madewith & verPlayerPRO))
 					if(!(vef & 4) && vls == 0xFF && vle == 0xFF
 					  || !(pef & 4) && pls == 0xFF && ple == 0xFF) {
@@ -4779,7 +4779,7 @@ function detect() {
 					var sft = X.I8(p+0xD), sf = X.U8(p+0xE), sp = X.U8(p+0x0F), sr = X.U8(p+0x11),
 					  sname = X.SC(p+0x12,22,'CP437'), snt = sname.trim(); smpReserved |= sr;
 					smpns.push(snt);
-					isADPCM = sr === 0xAD && (!sf & !(sf&0x30));
+					isADPCM = (sr === 0xAD) && !(sf&0x30); //flags sample16bit=10h and sampleStereo=20h
 					if(sr && sr != 0xAD) madewith &= ~(verOldModPlug | verNewModPlug | verOpenMPT);
 					if(lastsmpreserved == -1) lastsmpreserved = sr;
 					else if(lastsmpreserved != sr) madewith &= ~verPlayerPRO;
@@ -4792,11 +4792,11 @@ function detect() {
 					  && !(madewith & verConfirmed) && (sr > 22 || sname.slice(sr).indexOf(' ') < 0)) {
 						madewith &= ~verFT2Generic; madewith |= verFT2Clone | verConfirmed
 					}
-					if((sf&3) == 3 && (madewith & verNewModPlug)) madewith |= verMPfBiDi;
-				}
+					if((sf&3) === 3 && (madewith & verNewModPlug)) madewith |= verMPfBiDi;
+				} //read the instrument's samples info
 				smpsz += slens;
 				if(V >= 0x104) { if(X.c("'OggS'",p)) isOXM = true; p += slens }
-			}
+			} //if smpn
 		} //for i in ins
 		if(!smpReserved && (madewith & verNewModPlug) && X.fSig(0x11,0x14,"00") > -1)
 			madewith |= verConfirmed;
