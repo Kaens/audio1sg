@@ -108,7 +108,7 @@ function detect() {
 		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
 		if(X.isVerbose()) {
 			sOptionT(title); sOptionT(by,'by: ');
-			sOptionT(addEllipsis(inss.join(' ')),'ins/msg:"','"');
+			sOptionT(addEllipsis(inss.filter(funSampleName).join(' ')),'ins/msg:"','"');
 			sOptionT(addEllipsis(ptns.join(' ')),'ptns:"','"');
 			sOption((ch > 0? 'ch:'+ch+' ': '')+'ord:'+ord+' ptn:'+(ptn!=ptn_?ptn+'/':'')+ptn_+' ins:'+ins+' smp:'+smp
 				+' xpos:'+X.I32(0x34)+(sz?' sz:'+outSz(sz):''))
@@ -302,7 +302,7 @@ function detect() {
 				}
 			sz = p;
 			sOption(addEllipsis(schs.join(' '),0xA0,0x80),'chns:"','"');
-			sOption(addEllipsis(inss.join(' '),0xA0,0x80),'insts/msg:"','"');
+			sOption(addEllipsis(inss.filter(funSampleName).join(' '),0xA0,0x80),'insts/msg:"','"');
 			//sOption(addEllipsis(smps.join(' '),0xA0,0x80),'smps/msg:"','"');
 			sOption(addEllipsis(msg.trim(),0xA0),'msg:"','"');
 			sOption('ch:'+ch+' ins:'+ins+(shd?'+'+shd+'sh':'')+' ord:'+ord+' ptn:'+ptn+
@@ -590,13 +590,13 @@ function detect() {
 		sName = 'Instrument bank for Adlib Visual Composer (STANDARD.BNK)'; bDetected = 1;
 		if(X.isVerbose()) sOption(outSz(0x6E5C),'sz:')
 	}
-	else if(X.c("'BRTF'")) {
+	else if(X.c("'BRTF'") && ['NAME','INFO'].includes(X.SA(8,4))) {
 		sName = "Benjamin 'BeRo' Rousseaux's BeRoTracker module (.BRT)"; bDetected = 1;
 		if(X.isVerbose()) {
-			p = 8; t = ''; c = ''; q = ''; instmsg = []; sainmsg = [];
-			ins = 0; smp = 0; ord = 0; //TODO figure out how to get ptn
-			bpm0 = 0; spd0 = 0; st0 = 0; mvol = 0; rowsperbeat = 0; hltu = 0; hltd = 0;
-			while (p < X.Sz()) {
+			p = 8; t = c = q = ''; instmsg = []; sainmsg = [];
+			ins = smp = ptn = ord = 0; //TODO figure out how to get ptn
+			bpm0 = spd0 = st0 = mvol = rowsperbeat = hltu = hltd = 0; end = false;
+			while (!end && p < X.Sz()) {
 				hkhd = X.SA(p,4);
 				hksz = X.U32(p+4,_LE);
 				p += 8;
@@ -609,6 +609,7 @@ function detect() {
 						st0 = X.U8(p+6); mvol = X.U8(p+10);
 						break;
 					case "PORD": ord = X.U8(p); break;
+					case "PATT": ptn++; break;
 					case "PAIN": hltu = X.U8(p+1); hltd = X.U8(p+2); break;
 					case "SAIN":
 						smp++;
@@ -618,14 +619,15 @@ function detect() {
 						if(X.U8(p)) ins++;
 						q = X.UCSD(p+1); if(q.trim().length) instmsg.push(q);
 						break;
-					case "DONE": p = X.Sz(); break;
+					case "DONE": end = true; break;
 				}
 				p += hksz;
 			}
 			sOption(t); sOption(c);
-			sOption("ord:"+ord+" ins:"+ins+" smp:"+smp+" hlt:"+hltu+"/"+hltd+
-				" RPB:"+rpb+" spd0:"+spd0+" bpm0:"+bpm0+" st.sep0:"+st0+" mixvol:"+mvol);
-			sOption(instmsg.join("\n"),"ins.text:\n"); sOption(sainmsg.join("\n"),"smp.text:\n");
+			sOption(instmsg.filter(funSampleName).join("\n"),"ins/msg:\n");
+			sOption(sainmsg.filter(funSampleName).join("\n"),"smp/msg:\n");
+			sOption('bpm0:'+bpm0+' spd0:'+spd0+' ord:'+ord+' ins:'+ins+' smp:'+smp+' hlt:'+hltu+'/'+hltd+
+				' RPB:'+rpb+' st.sep0:'+st0+' mixvol:'+mvol+' sz:'+outSz(X.U32(4)+8));
 		}
 	}
 	else if(X.c("01000000") && isWithin(X.U8(4),1,0xF) && X.c("FFFFFFFF",0x34)
@@ -4885,7 +4887,7 @@ function detect() {
 			sOptionT(tracker,"in:");
 			if(isOXM) sOption("OggMod FastTracker 2 (.OXM)","via:");
 			if(text.length) sOption(addEllipsis(text,0x100));
-			if(insns.length) sOption(addEllipsis(insns.join(' '),0x100),'ins/msg:"','"');
+			if(insns.length) sOption(addEllipsis(insns.filter(funSampleName).join(' '),0x100),'ins/msg:"','"');
 			if(smpns.length) sOption(addEllipsis(smpns.filter(funSampleName).join(' '),0x100),'smp/msg:"','"')
 			var info = 'chn:'+chn+' ord:'+ord+' ptn:'+ptn+' ins:'+ins+' smp:'+smp;
 			if(fx) info += ' fx:'+fx; if(xt.length) info += ' xt:'+xt;
@@ -5284,9 +5286,10 @@ function isPreTracker() {
 //_l2r('prt',p,outArray(ptnp,16)+' s'+outArray(steps,16)+' ->'+outArray(mpp,16))
 	}
 	//ptn data
-p = mpp[0]+3*mpp[1];
-// TODO: WIP
+//_l2r('prt',p,'ptn')
+//p = mpp[0]+3*mpp[1];
 //_l2r('prt',p,outArray(X.readBytes(p,6),16))
+// TODO: WIP
 	return X.Sz() > p
 }
 if(!bDetected && isPreTracker()) {
@@ -5303,6 +5306,19 @@ if(!bDetected && isPreTracker()) {
 		sOptionT(X.SA(0x28,0x14),"by: ");
 		sOption('ord:'+(lp?lp+'-':'')+ord+' ptn:'+ptn+' ins:'+ins+' wf:'+(wf=X.U8(0x41)))
 	}
+}
+
+
+function isComebackTracker() {
+	//ref REing PreTracker 1.5 which has CBT beta import routines
+	if(X.Sz() < 0x64 || !X.c("'CBT'") || !isWithin(nV=X.U8(3), 1,12)) return;
+	// ecx = 0x10; eax = ecx+1; max = Math.min(0x10000,X.Sz());
+	// while(X.U8(ecx++));
+	return true
+}
+if(!bDetected && isComebackTracker()) {
+	sName = "Manfred 'Pink' Linzner's Comeback Tracker module (.CBT)"; bDetected = 1;
+	sVersion = 'v'+nV+'β'
 }
 
 
@@ -12137,7 +12153,7 @@ if(!bDetected && isSoundtrackerMOD()) {
 	if(X.isVerbose()) {
 		sOptionT(X.SA(0,0x14));
 		if(X.isDeepScan()) sOption(tracker,"in:");
-		sOption(snames.join(" "),'smps/msg:"','"');
+		sOption(snames.filter(funSampleName).join(" "),'smps/msg:"','"');
 		sOption('bpm0:'+bpm0+' ord:'+ord+(ord_!=ord? '/'+ord_: '')+' ptn:'+(offptn!=ptn? offptn+'/': '')+ptn
 			+' smp:'+smp+(X.isDeepScan()? ' notes:'+notes: '')+' sz:'+outSz(sz))
 	}
@@ -12770,7 +12786,7 @@ if(X.isHeuristicScan()) { //parallel block
 		sname = "Underground Systems Digital Studio module (.DST)";
 		sversion = compiled?'compiled':'';
 		if(X.isVerbose()) {
-			sOptionT(title); sOptionT(smps.join(' '),'smp/msg:"','"');
+			sOptionT(title); sOptionT(smps.filter(funSampleName).join(' '),'smp/msg:"','"');
 			sOption('ord:'+ord+' ptn:'+ptn+(lp?' loop:'+lp:'')+' page0:'+X.U8(0x200)+' sz:'+outSz(compiled?0x1C200:0x1B200))
 			soption = sOptions; sOptions = ''
 		} else soption = '';
@@ -12807,7 +12823,7 @@ if(X.isHeuristicScan()) { //parallel block
 	if(isExtremeTrackerZX()) {
 		sname = "Red Limited's Extreme Tracker module (.ET1)";
 		if(X.isVerbose()) {
-			sOptionT(title); sOptionT(smps.join(' '),'smp/msg:"','"');
+			sOptionT(title); sOptionT(smps.filter(funSampleName).join(' '),'smp/msg:"','"');
 			sOption('tmp0:'+tmp+' ord:'+ord+' ptn:'+ptn+(lp?' loop:'+lp:'')+' sz:'+outSz(112640))
 			soption = sOptions; sOptions = ''
 		} else soption = '';
