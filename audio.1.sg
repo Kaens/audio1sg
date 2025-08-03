@@ -695,7 +695,7 @@ function detect() {
 	}
 	else if(X.c("000003F3") && X.c("70FF4E75'S.PHIPPS'",0x20) &&
 	  0 < X.I32(0x40,_BE) < X.Sz() && 0 < X.I32(0x44,_BE) < X.Sz() ) {
-		sName = "Core Design/Simon Phipps module (.CORE)"; bDetected = 1;
+		sName = "Simon Phipps/Core Design module (.CORE)"; bDetected = 1;
 		if(X.isVerbose()) {
 			title = X.SA(0x68,0x100);
 			auth = X.SA(0x68+title.length+1,0x100);
@@ -1113,7 +1113,7 @@ function detect() {
 		sVersion = "v"+X.SA(9,3);
 		if(X.isVerbose()) {
 			sOptionT(X.SA(0xD,20));
-			sOptionT(X.SA(0x21,20));
+			sOptionT(X.SA(0x21,20),'by: ');
 		}
 	}
 	else if(X.c("'SONG'........'NAME'")) {
@@ -1265,18 +1265,81 @@ function detect() {
 			sOption(X.SC(0,0x20,'CP932'))
 		}
 	}
-	else if(X.c("'FAR'FE") && X.c("0D0A1A",0x2C)) {
+	else if(X.c("'EuGH'") && X.c("'EuSH'",t=8+X.U32(4,_BE))
+	  && X.c("'MThd'",t=t+8+X.U32(t+4,_BE)) && X.c("'MTrk'",p=t+8+X.U32(t+4,_BE))) {
+		sName = "Fujitsu EUPHONY II/MTR module (.EUX)"; bDetected = 1;
+		//from here on it's just a MIDI file
+		trk = X.U16(t+0xA,_BE); //seems it's always 100 in this format
+		sz = p; txt = by = title = lyr = "";
+		for(i=0; i < trk; i++) {
+			var readmore = 20;
+			if(!X.c("'MTrk'",p) || (i && !X.c("FF2F00",p-3))) { bad += "!badtrk"+i; break }
+			len = X.U32(p+4,_BE); p += 8; sz = p;
+			while(readmore && p < sz+len && p < X.Sz()) {
+				readmore--; dt = readVarUInt(p);
+				p += dt[0];
+				switch(X.U8(p++)) {
+				case 0xF0: case 0xF7: t = readVarUInt(p); p += t[0]+t[1]; break;
+				case 0xFF: a = X.U8(p++);
+					switch(a) {
+						case 0: if(X.U8(p++) != 2) readmore = 0; else p += 4; break;
+						case 3: t = readVarUInt(p); p += t[0];
+							title = title.append(X.SC(p,t[1],'SJIS')); p += t[1];
+							break;
+						case 2: t = readVarUInt(p); p += t[0];
+							by = by.append(X.SC(p,t[1],'SJIS')); p += t[1]; break;
+						case 1: t = readVarUInt(p); p += t[0];
+							txt = txt.append(X.SC(p,t[1],'SJIS')); p += t[1]; break;
+						case 5: t = readVarUInt(p); p += t[0];
+							lyr = lyr.append(X.SC(p,t[1],'SJIS'),"-"); p += t[1];
+							break;
+						case 4: case 6: case 7: t = readVarUInt(p); p += t[0]+t[1]; break;
+						case 0x20: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 1) {
+							readmore = 0; bad += "!badprefix@"+(p-t[0]-t[1]) } break
+						case 0x2F: t = readVarUInt(p); p += t[0]+t[1]; if(t[1])
+							bad += "!badEoTtag@"+(p-t[0]-t[1]); readmore = 0; break;
+						case 0x51: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 3) {
+							readmore = 0; bad += "!badtempo@"+(p-t[0]-t[1]) } break;
+						case 0x54: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 5) {
+							readmore = 0; bad += "!badSMPTE@"+(p-t[0]-t[1]) } break;
+						case 0x58: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] < 2 || t[1] > 4) {
+							readmore = 0; bad += "!badtime@"+(p-t[0]-t[1]) } break;
+						case 0x59: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 2) {
+							readmore = 0; bad += "!badkey@"+(p-t[0]-t[1]) } break;
+						default: t = readVarUInt(p); p += t[0]+t[1]
+					} break;
+				default:
+				}
+				if((txt != "" && by != "" && title != "") || p-sz > 0x200) readmore = 0;
+			}
+			sz += len; p = sz; if(p > X.Sz() && !X.isVerbose()) { bad += "!short"; break }
+		} //for..trk
+		if(bad) sVersion = sVersion.appendS('malformed'+bad,'/');
+		if(X.isVerbose()) {
+			sOptionT(title); sOptionT(by,"by: "); sOptionT(txt);
+			sOption((trk>1?'trk:'+trk+' ':'')+'sz:'+outSz(sz))
+		}
+	}
+	else if(X.c("'FAR'FE") && X.c("0D0A1A",0x2C) && X.Sz() > X.U16(0x2F)) {
 		//ref https://web.archive.org/web/20151027135146/http://hackipedia.org/File%20formats/Music/Sample%20based/text/Format%20Specifications%20(FAR,%20FSM,%20USM,%20F2R)%20by%20Daniel%20Potter.cp437.txt.utf-8.txt
 		bDetected = 1; nV = X.U8(0x31);
 		sName = "Daniel Potter/Digital Infinity's Farandole Composer module (.FAR)";
 		sVersion = "v"+ (nV>>4) +"."+ (nV&0x0F);
+		ch = X.readBytes(0x32,16).filter(function(x){return x==1}).length;
 		if(X.isVerbose()) {
-			sOptionT(X.SC(4,0x28,'CP850'));
-			var stlen = X.U16(0x60,_LE);
-			sOption(X.SC(0x62,stlen,'CP850').trim().slice(0,0x100).trim()+"...");
-			sOption("ord:"+X.U8(stlen+0x163)
-				+" ptn:"+X.U8(stlen+0x162)
-				+" lp:"+X.U8(stlen+0x164))
+			sOptionT(X.SC(4,0x28,'CP437'));
+			msgsz = X.U16(0x60); msg = [];
+			for(i=0,p=0x62; i < msgsz && p < X.Sz(); i+=132,p+=Math.max(0,Math.min(132,msgsz-i)))
+				msg.push(X.SC(p,Math.max(0,Math.min(132,msgsz-i)),'CP437').trim());
+			sOptionT(addEllipsis(msg.join(' '),0x100),'msg:"','"');
+			p = 0x62+msgsz+0x100; ptn = X.U8(p++); ord = X.U8(p++); lp = X.U8(p++);
+			for(i=psz=0; i < 0x100; i++,p += 2) psz += X.U16(p);
+			p = X.U16(0x2F)+psz;
+			smp = 0; smpm = X.readBytes(p,8); smps = []; p += 8;
+			for(i=0; i < 64; i++) if(smpm[i >> 3] & (1 << (i & 7))) smp++;
+			for(i=0; i < smp; i++) { smps.push(X.SC(p,0x20,'CP437')); p += 0x30+X.U32(p+0x20) }
+			sOptionT(addEllipsis(smps.filter(funSampleName).join(' '),0x100),'smp/msg:"','"');
+			sOption('ch:'+ch+' ord:'+(lp?lp+'~':'')+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(p))
 		}
 	}
 	else if(X.c("'FPT'FE") && X.c("0D0A1A",0x24)) {
@@ -2123,8 +2186,7 @@ function detect() {
 		sName = "Megatracker module (.MGT)"; bDetected = 1;
 		sOptionT(X.SA(0x3A,0x20))
 	}
-	else if(X.c("'MThd'") && X.c("'MTrk'",8+X.U32(4,_BE))
-	  && X.U16(8,_BE) <= 2) {
+	else if(X.c("'MThd'") && X.c("'MTrk'",8+X.U32(4,_BE)) && X.U16(8,_BE) <= 2) {
 		//ref. spec. from midi.org: RP-001_v1-0_Standard_MIDI_Files_Specification_96-1-4.pdf
 		sName = "Standard MIDI File (.MID)"; sVersion = "v1.0";
 		nV = X.U16(8,_BE); bad = ""; bDetected = 1;
@@ -2184,7 +2246,7 @@ function detect() {
 			}
 			sz += len; p = sz; if(p>X.Sz()) { bad += "!short"; break }
 		} //for..trk
-		if(bad) sVersion += "/malformed"+bad;
+		if(bad) sVersion = sVersion.appendS('malformed'+bad,'/');
 		if(X.isVerbose()) {
 			sOptionT(title); sOptionT(by,"by: "); sOptionT(txt);
 			sOption(outSz(sz),"sz:")
