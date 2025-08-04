@@ -4431,64 +4431,6 @@ function detect() {
 				+' smp:'+smp+' notes:'+notes+' sz:'+outSz(sz))
 		}
 	}
-	else if(/(UN0[4-6].*|APUN\x01[1-6])/.test(X.SA(0,6))) {
-		// ref https://github.com/sezero/mikmod/blob/master/libmikmod/loaders/load_uni.c
-		sName = "libmikmod UNIMOD module (.UNI)"; bDetected = 1;
-		if(X.SA(3,1) != 'N') {
-			v = +X.SA(3,1);
-			if(v > 6) v = X.U16(4,_LE);
-			sVersion = "v"+v;
-		}
-		else {
-			sVersion = "v.APlayer";
-			v = 0x100;
-		}
-		if(X.isVerbose()) {
-			p = 4;
-			if(v >= 6) {
-				if(v == 6) p++;
-				flg = X.U16(p,_LE); p+=2;
-				ch = X.U8(p++);
-				voc = X.U8(p++);
-				pos = X.U16(p,_LE); p+=2;
-				ptn = X.U16(p); p+=2;
-				trk = X.U16(p); p+=2;
-				ins = X.U16(p); p+=2;
-				smp = X.U16(p); p+=2;
-				reppos = X.U16(p); p+=2;
-				spd0 = X.U8(p++);
-				tmp0 = X.U8(p++);
-				vol0 = X.U8(p++);
-				if(v >= 0x106) { bpmlimit = X.U16(p,_LE); p+=2; }
-				  else bpmlimit = 32;
-			}
-			else {
-				ch = X.U8(p++);
-				pos = X.U16(p,_LE); p+=2;
-				if(v == 5) { reppos = X.U16(p,_LE); p+=2; }
-				  else reppos = 0;
-				ptn = X.U16(p,_LE); p+=2;
-				trk = X.U16(p,_LE); p+=2;
-				ins = X.U16(p,_LE); p+=2;
-				smp = 0;
-				spd0 = X.U8(p++);
-				tmp0 = X.U8(p++);
-				p += 256+32; // positions+panning
-				flg = X.U8(p++);
-			}
-			ts = X.U16(p,_LE);
-			sOptionT(X.SA(p+2,ts));
-			if(v < 0x102) {
-				porig = p+2+ts;
-				origs = X.U16(porig,_LE);
-				if(origs>0) sOptionT(X.SA(porig+2,origs),"orig: ");
-				p = porig+2+origs;
-				sOptionT(X.SA(p+2,X.U16(p,_LE)))
-			}
-			sOption("ch:"+ch+" spd0:"+spd0+" tmp0:"+tmp0+" trk:"+trk
-				+" ord:"+pos+" ptn:"+ptn+" ins:"+ins+" smp:"+smp)
-		}
-	}
 	else if(X.c("'VGEfmtV'") && isWithin(nV=X.U8(7)-0x30,1,3)) { // this format is similar to TFM Music Maker
 		sName = "Shiru's VGM Music Maker module (.VGE)"; bDetected = 1;
 		sVersion = 'v'+nV; ord = -1; //TODO determine whether to unpack from 0 or 0x10, and RE v1
@@ -4665,10 +4607,10 @@ function detect() {
 				if(!X.U8(p+1)) continue;
 				minst = Math.min(minst,X.U8(p)); maxed = Math.max(maxed,X.U8(p+1)); x++
 			}
+			for(ptn=0,p=0x3C2; p < 0x7C2; p++) ptn = Math.max(X.U8(p),ptn); ptn++;
 			if(x > 1) sOption(x,'×');
 			sOptionT(X.SA(0x1AE,0x10),"by: "); sOptionT(X.SA(0x1BE,0x10),"'");
-			ord = maxed-minst;
-			sOption('ord:'+ord+' ptn:'+maxed+' sz:'+outSz(0x8C2+0x40*ord))
+			sOption('ptn:'+ptn+' sz:'+outSz(0x8C2+0x40*ptn))
 		}
 	}
 	else if(X.fSig(X.Sz()-0x20,TOEOF,"'VSS0'00") > -1) {
@@ -5730,6 +5672,85 @@ if(!bDetected && isAnders0land()) {
 		if(x > 1) sOption(x,"×");
 		sOption("ord:"+ord+" smp:"+smp+" songsz:"+Hex(songsz)+" smpsz:"+Hex(smpsz));
 		sOption(outSz(sz),"sz:")
+	}
+}
+
+
+function isUNIMOD() {
+	// ref https://github.com/sezero/mikmod/blob/master/libmikmod/loaders/load_uni.c
+	if(!/(UN0[4-6].*|APUN\x01[1-6])/.test(X.SA(0,6))) return;
+	p = 4; voc = 0; var v, e;
+	if(X.SA(3,1) != 'N') { v = X.U8(3)-0x30; if(v > 6) v = X.U16(4,_BE) } else v = 0x100;
+	if(v >= 6) { e = _BE;
+		if(v == 6) p++; else { v = X.U16(p,e); p+=2 }
+		flg = X.U16(p,e); p+=2;
+		ch = X.U8(p++);
+		voc = X.U8(p++);
+		ord = X.U16(p,e); ptn = X.U16(p+2,e); trk = X.U16(p+4,e); ins = X.U16(p+6,e);
+		smp = X.U16(p+8,e); reppos = X.U16(p+0xA,e); p+=0xC;
+		spd0 = X.U8(p++); tmp0 = X.U8(p++); vol0 = X.U8(p++);
+		if(v >= 0x106) { bpmlimit = X.U16(p,e); p+=2 }
+		else bpmlimit = 32;
+	}
+	else { e = _LE;
+		ch = X.U8(p++);
+		ord = X.U16(p,e); p+=2;
+		if(v == 5) { lp = X.U16(p,e); p+=2 } else lp = 0;
+		ptn = X.U16(p,e);
+		trk = X.U16(p+2,e);
+		ins = X.U16(p+4,e); p += 6;
+		smp = 0; spd0 = X.U8(p++); tmp0 = X.U8(p++);
+		p += 256+32; // positions+panning
+		flg = X.U8(p++);
+		bpmlimit = 32;
+	}
+	sv = X.SA(3,1) == 'N'? 'v.APlayer': 'v'+Hex(v);
+	if((v < 6 && !(isWithin(ch,1,32) || isWithin(ord,1,256))) || lp > ord || !trk || !ptn
+	  || !isWithin(ins,1,256) || !spd0 || !tmp0) return;
+	titlesz = X.U16(p,_LE); titlep = p+2; p += 2+titlesz;
+	if(v < 0x102) {
+		origssz = X.U16(p,_LE); origsp = p+2;
+		p = p1 = p+2+origssz; p = origsp+origssz;
+	} else origssz = 0;
+	cmtsz = X.U16(p,_LE); cmtp = p+2; p += 2+cmtsz;
+	if(v >= 6) {
+		if(v >= 0x100) p += ord*2; else p += ord;
+		p += ch*3;
+	}
+	smps = []; inss = [];
+	if(v >= 6) {
+		//loadsmp6:
+		for(i=0; i < smp; i++) {
+			t = X.U16(p+0x23,_LE); p += 0x25; smps.push(X.SC(p,t,'CP437')); p += t
+		}
+		//loadinstr6:
+		for(i=0; i < ins; i++) {
+			p += 13;
+			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
+			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
+			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
+			if(v >= 0x103) p += 240*smp; else p += 120*smp;
+			t = X.U16(p+0x23,_LE); p += 0x25; inss.push(X.SC(p,t,'CP437')); p += t
+		}
+	} else {
+		//loadinstr5:
+
+		//loadsmp5:
+	}
+	for(i=0; i < trk; i++) {
+		//readtrack:
+	}
+	//TODO complete parsing
+	return true
+}
+if(!bDetected && isUNIMOD()) {
+	sName = "Otto Chrons/libmikmod UNIMOD/UNITRK module (.UNI)"; sVersion = sv; bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(X.SC(titlep,titlesz,'CP437'));
+		if(origssz) sOptionT(X.SA(origsp,origssz),"orig: ");
+		sOptionT(X.SC(p1+2,X.U16(p1),'CP437'))
+		sOption('ch:'+ch+(voc?'/'+voc:'')+' spd0:'+spd0+' tmp0:'+tmp0+' trk:'+trk
+			+' ord:'+(lp?lp+'~':'')+ord+' ptn:'+ptn+' ins:'+ins+(smp?' smp:'+smp:''))
 	}
 }
 
