@@ -5717,30 +5717,32 @@ function isUNIMOD() {
 		if(v >= 0x100) p += ord*2; else p += ord;
 		p += ch*3;
 	}
-	smps = []; inss = [];
+	smps = []; inss = []; smpsz = 0;
 	if(v >= 6) {
-		//loadsmp6:
-		for(i=0; i < smp; i++) {
-			t = X.U16(p+0x23,_LE); p += 0x25; smps.push(X.SC(p,t,'CP437')); p += t
+		for(i=0; i < smp; i++) { //loadsmp6
+			smpsz += X.U32(p+7,e); t = X.U16(p+0x23,_LE); p += 0x25; smps.push(X.SC(p,t,'CP437').trim()); p += t
 		}
-		//loadinstr6:
-		for(i=0; i < ins; i++) {
+		for(i=0; i < ins; i++) { //loadinstr6
 			p += 13;
 			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
 			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
 			pt = X.U8(p+1); p += 6 + (v>=0x100? 0x20: pt)*4;
 			if(v >= 0x103) p += 240*smp; else p += 120*smp;
-			t = X.U16(p+0x23,_LE); p += 0x25; inss.push(X.SC(p,t,'CP437')); p += t
+			t = X.U16(p,_LE); p += 2; inss.push(X.SC(p,t,'CP437').trim()); p += t
 		}
 	} else {
-		//loadinstr5:
-
-		//loadsmp5:
+		for(i=0; i < ins; i++) { //loadinstr5
+			smpn = X.U8(p); smp += smpn; p += 0xD1;
+			t = X.U16(p,_LE); p += 2; if(t) { inss.push(X.SC(p,t,'CP437').trim()); p += t }
+			for(j=0; j < smpn; j++) {
+				smpsz += X.U32(p+5,e);
+				t = X.U16(p+0x13,_LE); p += 0x15; if(t) { smps.push(X.SC(p,t,'CP437').trim()); p += t }
+			}
+		}
 	}
-	for(i=0; i < trk; i++) {
-		//readtrack:
-	}
-	//TODO complete parsing
+	p += 2*ptn + 2*ch*ptn;
+	for(i=0; i < trk; i++) p += X.U16(p,e)+2;
+	sz = p+smpsz;
 	return true
 }
 if(!bDetected && isUNIMOD()) {
@@ -5748,9 +5750,11 @@ if(!bDetected && isUNIMOD()) {
 	if(X.isVerbose()) {
 		sOptionT(X.SC(titlep,titlesz,'CP437'));
 		if(origssz) sOptionT(X.SA(origsp,origssz),"orig: ");
-		sOptionT(X.SC(p1+2,X.U16(p1),'CP437'))
+		sOptionT(X.SC(p1+2,X.U16(p1),'CP437'));
+		sOption(addEllipsis(inss.filter(funSampleName).join(' ')),'ins/msg:"','"');
+		// sOption(addEllipsis(smps.filter(funSampleName).join(' ')),'smp/msg:"','"');
 		sOption('ch:'+ch+(voc?'/'+voc:'')+' spd0:'+spd0+' tmp0:'+tmp0+' trk:'+trk
-			+' ord:'+(lp?lp+'~':'')+ord+' ptn:'+ptn+' ins:'+ins+(smp?' smp:'+smp:''))
+			+' ord:'+(lp?lp+'~':'')+ord+' ptn:'+ptn+' ins:'+ins+(smp?' smp:'+smp:'')+' sz:'+outSz(sz))
 	}
 }
 
