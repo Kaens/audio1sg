@@ -6,7 +6,7 @@
 // Due to the extreme script file size, many good code practices were sacrificed to ensure it loads
 /* beautify ignore:start */
 
-init("audio", "");
+meta("audio", "");
 includeScript("chunkparsers");
 includeScript("soundchips");
 includeScript("bytecodeparsers");
@@ -1153,7 +1153,7 @@ function detect() {
 		}
 	}
 	else if(X.c("'E.M.S. V6.0'..00010000") && isWithin(X.U8(0xB),0x31,0x36)) {
-		sName = "Sean Connolly's Electronic Music System module (.EMS)"; bDetected = 1;
+		sName = "Sean 'Odie' Connolly's Electronic Music System module (.EMS)"; bDetected = 1;
 		sVersion = "v6."+X.SA(10,2);
 		if(X.isVerbose()) {
 			//ref ems_player_dis.asm
@@ -1988,7 +1988,7 @@ function detect() {
 				else { sVersion = sVersion+'#MSX-AUDIO'; hnmmode = true }
 			} else sVersion = sVersion+'#MSX-AUDIO';
 			if(chip & 1) sVersion = sVersion+'/MSX-MUSIC';
-			if(chip & 0x80) { rammode = true; scc = false }
+ 			if(chip & 0x80) { rammode = true; scc = false }
 			else {
 				rammode = (chip & 4) != 0; scc = !rammode
 			}
@@ -2215,14 +2215,14 @@ function detect() {
 					switch(a) {
 						case 0: if(X.U8(p++) != 2) readmore = 0; else p += 4; break;
 						case 3: t = readVarUInt(p); p += t[0];
-							title = title.append(X.SC(p,t[1],charset)); p += t[1];
+							title = title.append(X.SC(p,t[1],charset).trim()); p += t[1];
 							break;
 						case 2: t = readVarUInt(p); p += t[0];
-							by = by.append(X.SC(p,t[1],charset)); p += t[1]; break;
+							by = by.append(X.SC(p,t[1],charset).trim()); p += t[1]; break;
 						case 1: t = readVarUInt(p); p += t[0];
-							txt = txt.append(X.SC(p,t[1],charset)); p += t[1]; break;
+							txt = txt.append(X.SC(p,t[1],charset).trim()); p += t[1]; break;
 						case 5: t = readVarUInt(p); p += t[0];
-							lyr = lyr.append(X.SC(p,t[1],charset,"-")); p += t[1];
+							lyr = lyr.append(X.SC(p,t[1],charset,"-").trim()); p += t[1];
 							break;
 						case 4: case 6: case 7: t = readVarUInt(p); p += t[0]+t[1]; break; //ins., lyrics, markers, cues
 						case 0x20: t = readVarUInt(p); p += t[0]+t[1]; if(t[1] != 1) {
@@ -4902,7 +4902,7 @@ function detect() {
 
 	else if(X.c("'FORM' 0000000E 'XDIRINFO'  00000002 .... 'CAT ' ........ 'XMIDFORM' ........ 'XMID'")) {
 		bDetected = 1;
-		sName = "Extended MIDI chiptune (.XMI)";
+		sName = "Extended MIDI chiptune (.XMI,.C55,.PCS)";
 		if(X.isVerbose()) {
 			if((x=X.U8(0x14)) > 1) sOption(x,'×')
 			sOption(outSz(0x1E+X.U32(0x1A,_BE)),'sz:')
@@ -7661,12 +7661,12 @@ function isSQTracker() {
 	return true;
 }
 if(!bDetected && isSQTracker()) {
-	sName = "Scalex Qjeta Tracker module (.SQT)"; sVersion  = "compiled"; bDetected = 1;
+	sName = "Jiří 'George' Koudelka's Scalex Qjeta Tracker module (.SQT)"; sVersion  = "compiled"; bDetected = 1;
 	sOption('ord:'+ord+' ptn:'+ptn+' sz:'+outSz(sz))
 }
 
 
-function isST() {
+function isSTC() {
 	//ref https://ay.strangled.net/Ay_Emul30.src.7z/Players.pas -> FoundST
 	if(X.Sz() < 6) return false;
 	tempo = X.U8(0); if(tempo == 0 || tempo > 0x20) return false; //delay
@@ -7720,8 +7720,8 @@ function isST() {
 
 	return true;
 }
-if(!bDetected && X.isDeepScan() && isST()) {
-	sName = "Sound Tracker module (.STC,.ZXS)"; sVersion  = "v1.x"; bDetected = 1;
+if(!bDetected && X.isDeepScan() && isSTC()) {
+	sName = "Jarosław 'BZYK' Burczyński's Sound Tracker module (.STC,.ZXS)"; sVersion  = "v1.x"; bDetected = 1;
 	if(bad) sVersion += "/malformed"+bad;
 	sz = X.U16(0x19,_LE); i_d = X.SA(7,18);
 	if(['SONG BY ST COMPILE','SONG BY MB COMPILE','SONG BY ST-COMPILE',
@@ -7743,52 +7743,53 @@ if(!bDetected && X.isDeepScan() && isST()) {
 
 function isST3() {
 	//ref https://ay.strangled.net/Ay_Emul30.src.7z/Players.pas -> FoundST3
-	if(X.Sz() < 8) return false;
-	orntp = X.U16(5,_LE); if(orntp > X.Sz()-6) return false; //ST3 ornaments/STC patterns table ptr
-	ptntp = X.U16(7,_LE); //ST3 patterns table ptr
-	j1 = ptntp-orntp; if(j1 <= 0) return false;
-	smptp = X.U16(3,_LE); //samples table ptr
-	j2 = orntp-smptp; if(j2 <= 0) return false;
-	postp = X.U16(1,_LE); //positions table ptr
-	j3 = smptp-postp; if(j3 > X.Sz()) return false;
-	j4 = postp-9; if(j4<=0) return false;
-	fID = false;
-	if(j4%130) {
-		if(j4 < 55 || ((j4-55)%130)) return false;
+	if(X.Sz() < 8) return;
+	orntp = X.U16(5); if(orntp > X.Sz()-6) return; //ST3 ornaments/STC patterns table ptr
+	ptntp = X.U16(7); //ST3 patterns table ptr
+	j1 = ptntp-orntp; if(j1 <= 0) return;
+	smptp = X.U16(3); //samples table ptr
+	j2 = orntp-smptp; if(j2 <= 0) return;
+	ordp = X.U16(1); //orderlist ptr
+	j3 = smptp-ordp; if(j3 > X.Sz()) return;
+	j4 = ordp-9; if(j4 <= 0) return;
+	if(j4 % 130) {
+		if(j4 < 55 || (j4-55) % 130) return;
 		fID = true
+	} else fID = false;
+	smp = X.U8(smptp); if(!isWithin(smp, 1,16)) return; // smp # , j5
+	p = smp*130 + 9 + (fID? 55: 0);
+	if(ordp != p) return;
+	ord = X.U8(p); if(!ord) return; //pos # , j6
+
+	for(i=0,ptn=0; i < ord; i++) ptn = Math.max(ptn+1,X.U8(p+1+i*2))
+	p += ord*2+1; if(smptp != p && smptp != p+2) return;
+	orn = X.U8(orntp); if(!orn || orn > 16) return; // orn # , j7
+	p = smptp+smp*2+1+orn*32; if(orntp != p) return;
+	p += orn*2+1; if(X.U16(ptntp) != p) return;
+	base = X.U16(smptp+1)-9;
+	if(fID) base -= 55; if(base < 0) return;
+	p = X.U16(orntp+1)-base;
+	if(p != smptp+smp*2+1) return;
+	for(i=p; i < p+32; i++) if(X.U8(i)) return;
+	j8 = -1; p = ordp+2;
+	for(i=0; i < ord; i++) {
+		b = X.U8(p); if(b % 6) return;
+		if(j8 < b) j8 = b; p += 2
 	}
-	smp = X.U8(smptp); if(!smp || smp>16) return false; // smp # , j5
-	j = smp*130+9; if(fID) j += 55;
-	if(posptr != j) return false;
-	ord = X.U8(j); if(!ord) return false; //pos # , j6
-	j += ord*2+1;
-	if(smptp != j && smptp != j+2) return false;
-	orn = X.U8(orntp); if(!orn || orn>16) return false; // orn # , j7
-	j = smptp+smp*2+1+orn*32; if(orntp != j) return false;
-	j += orn*2+1; if(X.U16(ptntp,_LE) != j) return false;
-	base = X.U16(smptp+1,_LE)-9;
-	if(fID) base -= 55; if(base < 0) return false;
-	j = X.U16(X.U8(orntp+1),_LE)-base;
-	if(j != smptp+j5*2+1) return false;
-	for(i=j; i < j+32; i++) if(X.U8(i)) return false;
-	j8 = -1; j = postp+2;
-	for(i=0; i<ord; i++) {
-		b = X.U8(j); if(b%6) return false;
-		if(j8 < b) j8 = b; j += 2
-	}
-	len = ptntp+j8+6;
-	if(len-1 < X.Sz()) return false;
-	if(base+j > 65536) return false;
-	if(fID && !X.c("''KSA SOFTWARE COMPILATION OF ''",9)) return false;
-	delay = X.U8(0) //delay
+	bad = '';
+	sz = ptntp+j8+6; if(sz-1 > X.Sz()) bad = bad.addIfNone('!short');
+	if(base+p > 65536) return;
 	return true;
 }
-if(!bDetected && X.isDeepScan() && isST()) {
-	sName = "Sound Tracker module (.ST3)"; sVersion  = "v3.0"; bDetected = 1;
-	if(bad) sVersion += "/malformed"+bad;
+if(!bDetected && X.isDeepScan() && isST3()) {
+	sName = "S.T. Music's Recompiler v2 rebuilt STC module (.ST3)"; sVersion  = "v3.0"; bDetected = 1;
+	if(bad && !X.isVerbose()) sVersion += "/malformed"+bad;
 	if(X.isVerbose()) {
-		sOptionT(X.SA(9,55));
-		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smp+" delay:"+delay+" @"+Hex(base)+" sz:"+outSz(len));
+		if(fID) {
+			sOptionT(decAnsi(9,55,CPSpeccy,false,Chars0to1FSpeccy));
+			if(!X.c("'KSA SOFTWARE COMPILATION OF '",9)) sOption(X.SA(9,28),'in: ');
+		}
+		sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' delay:'+X.U8(0)+" @"+Hex(base)+" sz:"+outSz(sz));
 	}
 }
 
@@ -10063,7 +10064,7 @@ function isSeanConnolly() {
 	return true
 }
 if(!bDetected && isSeanConnolly()) {
-	sName = 'Sean "Odie" Connolly\'s module (.SCN)'; sVersion = "v"+v; bDetected = 1
+	sName = "Sean 'Odie' Connolly\'s module (.SCN)"; sVersion = "v"+v; bDetected = 1
 }
 
 
@@ -12035,6 +12036,30 @@ if(!bDetected && isiXalanceUnp()) {
 }
 
 
+function isOPX() {
+	var p = 0x7E;
+	if(X.c("200D0A1A",0x7A)) {
+		if(!X.c("0D0A",0x35) || !X.c("0D0A",0x6C)) return; //obligatory line breaks?
+	} else if(!X.c("20202020",0x7A)) //wiped out with spaces!
+		// 2 fringe cases:
+		if(X.c("04C50964c504641A2609810F9919008C82100C830382100CC464C464C464C4641A"))
+			p = 0; // no header
+		else if(X.c("'msx2'00469E2A4E8A22626C2D'bl-demo.bas'00",0xA2F) && X.c("'OPXPLAY SYS'00",0xB2C))
+			p = 0xC7E; //a bit too much of a header :o
+		else return;
+	if(X.U8(0) != 4) for(i=0; i < 0x35; i++) if(X.U8(i) < 0x20) return;
+	if(X.U8(p+1) > 2 || X.U8(p+3) > 0x3F || X.U8(p+4) > 6 || X.U8(p+6) > 5 || X.U8(p+7) > 0x21 || X.U8(p+8) > 1
+		|| X.U8(p+9) > 0x4F || X.U8(p+10) || X.U8(p+12) > 1 || X.U8(p+14) > 3 || X.U8(p+16) > 3 || X.U8(p+18) > 3) return;
+	return true
+}
+if(!bDetected && isOPX()) {
+	sName = "MSX Performer OPX chiptune (.OPX)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption(addEllipsis(X.SC(0,0x7B,'SJIS')))
+	}
+}
+
+
 // new stable detections :go here ↑
 // BELOW THIS POINT ARE THE DETECTIONS THAT ARE IFFIER THAN THE REST
 
@@ -12621,55 +12646,103 @@ if(!bDetected && isMFP()) {
 
 function isADL() {
 	//ref https://github.com/adplug/adplug/blob/master/src/adl.cpp -> CadlPlayer::load
-	//TODO debug and prevent all those FPs
-	if(X.Sz() < 720 || X.Sz() > 0xFFFF) return false; //v1 min. size
-	p = 0; nV = 4; ofs = 500 /*0x1F4*/; //track entries
-	for(i=0; i < 250; i++) { //500=1F4h is the trackentries buffer
-		w = X.U16(p,_LE); p += 2;
-		if(500 <= w && w < 0xFFFF) { //in v4, all entries are within this range
-			nV = 3; ofs = 120 /*0x78*/; break
+	// & https://www.vgmpf.com/Wiki/index.php?title=ADL_(Westwood)
+	if(X.Sz() < 720) return; //v1 min. size
+	// Active Pointers, Zeroes and Invalid Chars are heuristics to filter out random sparse files in the obscurity that is ADL
+	// There must be at least some active pointers, and too many zeroes at prog start is suspicious. IC is when a prog doesn't start on a well-expected byte
+	p = ap = z = ic = 0;
+	nV = 4;
+	ofs = 500; //track entries
+	for(; p < ofs; p+=2) { //500=1F4h is the trackentries buffer
+		if(nV == 4 && isWithin(w = X.U16(p), 0x1F4,0xFFFE)) { //in v4, all entries are either within 500 or FFFF
+if(debug>1)_logIt('@'+Hex(p)+': '+Hex(w))
+			nV = 3 /*or less*/; ofs = X.c("6C776DFFFFFF6E6F",0x78) ? 250 : 120 // 78h, or FAh just for loresfx.adl
 		}
 	}
-	p = ofs; var z = true;
+	const M = Math.min(0xFFFF+ofs,X.Sz());
+	p = ofs;
+// v1: EoB; v2: EoB2, Kyr1, Dune2; v3: LandsOfLore, Kyr2
+// _trackEntries[]      _soundData[]   -- program/instrument offsets are ofs-relative
+// | pt ids (ord?) | Program pt: sound/music tracks | Instrument pt: adlib ins | Trk data | Ins data |
+// v1:   120 bytes          | 150 words         | 150 words     | @2D0h
+// v2: 120 bytes          | 250 words         | 250 words     | @460h
+// loresfx.adl: 250 bytes | 250 words     | 250 words    | @4E2h
+// v3:   250 words          | 500 words         | 500 words     | @9C4h
+
+if(debug>0)_logIt('  v'+nV+' ofs:'+ofs+'/'+Hex(ofs))
+	// test prog offsets: start with the first 150
 	if(nV < 4) {
 		nprog = 150; //for v1
 		for(i=0; i < nprog; i++) {
-			w = X.U16(p,_LE); p += 2;
-			if(w) { z = false;
-				if(w != 0xFFFF && w+ofs > X.Sz()) return false;
-				if(w < 600) return false;
-				if(w < 1000) { nV = 1; if(X.U16(120,_LE) != 0x258) return false }
+			w = X.U16(p); p += 2;
+			if(w && w != 0xFFFF) { ap++;
+				if(w < 1000) { nV = 1; if(X.U16(0x78) != 0x258 /*in v1, the 0th prog always starts at 2D0*/) return }
+				if(!isWithin(w, 600,M)) { if(debug>0)_logIt('!w='+w+'<600 or > sz'); return }
+				w += ofs; y = X.U8(w);
+				if(y != 0x8E && y > 9) { // progs always start with 1~9 or, seldom, 0 or 8E
+//if(debug>1)_logIt('!v'+nV+'@'+Hex(p-2)+': ['+Hex(w)+'] = '+Hex(y))
+					z++
+				}
 			}
-			if(nV > 1) {
-				if(X.Sz() < 1120) return false; //v2/3 min. size
-				nprog = 250 /*0xFA*/;
-				for(i=150; i < nprog; i++) { //check the rest of'em
-					w = X.U16(p,_LE); p += 2;
-					if(w) { z = false;
-						if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprog)) return false;
-						if(w < 1000) return false;
-					}}}}
-		} else { //v4
-		if(X.Sz() < 2500) return false;
-		nprog = 500;
-		for(i=0; i < nprog; i++) { //check the rest of'em
-			w = X.U16(p,_LE); p += 2;
-			if(w) { z = false;
-				if(w != 0xFFFF && (w+ofs > X.Sz() || ofs < nprog)) return false;
-				if(w < 2000) return false;
-			}}}
-	return !z
-	//whilst it'd be nice to have instruments (same len as prog ptr tbl) subsong detection...
-	//... it's too much already
-	//TODO false positives keep occurring though! Gotta invent and do some more sanity checks
+		}
+//if(debug>0)_logIt('  v'+nV+'@'+Hex(p))
+		// check the rest of the program offsets:
+		if(nV > 1) {
+			if(X.Sz() < 1120) return; //v2/3 min. size
+			nprog = 250; p = ofs+300;
+			for(i=150; i < nprog; i++,p+=2) {
+				w = X.U16(p);
+				if(w && w != 0xFFFF) { ap++;
+					if(!isWithin(w, 1000,M)) { if(debug>0)_logIt('!w='+w+'<1000 or > sz'); return }
+					w += ofs; y = X.U8(w);
+					if(!y) z++;
+					if(y != 0x8E && y > 9) {
+//if(debug>1)_logIt('!v'+nV+'@'+Hex(p)+': ['+Hex(w)+'] = '+Hex(y))
+						ic++
+					}
+				}
+			}
+		}
+//if(debug>0)_logIt('v'+nV+'@'+Hex(p)+' ')
+	} else { //v4
+		if(X.Sz() < 2500) return;
+		nprog = 500; p = ofs;
+		for(i=0; i < nprog; i++,p+=2) {
+			w = X.U16(p);
+			if(w && w != 0xFFFF) { ap++;
+				if(!isWithin(w, 2000,M)) { if(debug>0)_logIt('!w='+w+'< 2000 or > sz'); return }
+				w += ofs; y = X.U8(w);
+				if(!y) z++;
+				if(y != 0x8E && y > 9) {
+//if(debug>1)_logIt('!v'+nV+'@'+Hex(p)+': ['+Hex(w)+'] = '+Hex(y))
+					ic++;
+				}
+			}
+		}
+	}
+	// also test ins offsets and find the max one+11 = filesize:
+	for(mw=i=0,mo=(nprog<<1)+ofs; i < nprog; i++,p+=2) {
+		w = X.U16(p);
+		if(w && w != 0xFFFF) { ap++;
+			w += ofs;
+//if(debug>1)_logIt('@'+Hex(p)+': ['+Hex(w)+'] = '+Hex(X.U8(w)))
+			if (!isWithin(w, mo,X.Sz())) { if(debug>0)_logIt(!'@'+Hex(p)); return; }
+			mw = Math.max(mw,w)
+		}
+	}
+	sz = mw+11;
+	ptn = [];
+	if(nV == 4) { for(p=0; p < 500; p+=2) if(isWithin(y=X.U16(p),1,0xFFFE)) if(!ptn.includes(y)) ptn.push(y); }
+	else for(p=ofs; p < 250; p+=2) if(isWithin(y=X.U16(p),1,0xFFFE)) if(!ptn.includes(y)) ptn.push(y);
+	ptn = ptn.length;
+if(debug>0)_log('@'+Hex(p)+' v:'+nV+' ic:'+ic+' zeros:'+z+' ap:'+ap+' ptn:'+ptn)
+	return ic < 5 && z < 50 && ap > 1 // heuristics
 }
 if(!bDetected && isADL()) {
-	sType = '~audio'; sName = "Westwood ADL module (.ADL)"; bDetected = 1;
-	switch(nV) {
-	case 1: sVersion = "v1"; break;
-	case 3: sVersion = "v2.x"; break;
-	case 4: sVersion = "v3"
-	}
+	sType = 'audio'; sName = "Westwood ADL module (.ADL)"; bDetected = 1;
+	if(ofs == 250) sVersion = 'v.sfx'; else sVersion = 'v'+[,'1','2','2','3'][nV];
+	
+	if(X.isVerbose()) sOption('ptn:'+ptn+' sz:'+outSz(sz))
 }
 
 
@@ -13051,6 +13124,7 @@ if(X.isHeuristicScan()) { //parallel block
 	}
 
 
+// these are heavy as well as heuristic, so they must come last
 	function isGYM() { // the headerless one's nooooot easy to check
 		if(X.Sz() < 4) return false;
 		if(parseMDGYM() < 0) return false;

@@ -9,6 +9,7 @@ This is where you can contribute the most! (sorted by extension)
 
  - Adlib Tracker || `.A2M` (info, size)
  - Herad Music System `.AGD`/`.SDB`/`.SQX`
+ - Ace Tracker `.AM` (fix info)
  - AND Xynth `.AMX` (info, size)
  - AProSys `.APS` (info, size)
  - Arpeggiator `.ARP` (info, size)
