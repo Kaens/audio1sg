@@ -4,7 +4,7 @@
 I've been working over the entirety of http://modland.com/pub/modules/ and some more rarities. This currently supports 387 distinct formats, and 20 more of them less reliably for various reasons. 232 of them are parsed for the expected filesize, allowing for basic integrity checks, or ripping. (I count them by counting occurrences of `bDetected =`, `"~audio"`, and `outSz`, correspondingly.)
 
 I've made this separate from DiE for the sake of flexibility, as DiE releases are rather slow per se, and keeping its sources cloned is very storage-heavy. That said, please use [the latest build](https://github.com/horsicq/DIE-engine/releases/tag/Beta) of DiE!\
-In case of issues, also ensure the `read` and `chunkparsers` scripts from [the master github repo](https://github.com/horsicq/Detect-It-Easy/tree/master/db) are current!
+In case of issues, also ensure the `read`, `chunkparsers`, `bytecodeparsers` scripts are the current ones from [the master github repo](https://github.com/horsicq/Detect-It-Easy/tree/master/db), and try specifically the Qt6 build!
 
 Changes are quite welcome; if you know more about a format, please add used software to sVersion, and add the sOptions (which are basically extra info fields) regarding orderlist lengths, pattern/instrument/sample counts, check for basic file integrity like pointers leading outside the file or impossible pattern counts or volumes (for example, to add credibility to some overly generic-looking signature scans) — and of course, make it more fun in general for the user who chose "Verbose"! Read more in detail at [TODO.md](TODO.md) (which also includes contribution guidelines).
 
