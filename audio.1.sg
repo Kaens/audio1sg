@@ -7097,7 +7097,8 @@ function isASC1() { //basically ASC0 + loop pos
 	return true
 }
 if(!bDetected && isASC1()) {
-	sName = "ASC Sound Master module (.ASC)"; sVersion = 'v1.x-2.x'+bad; bDetected = 1;
+	sName = "A.'Andrew Strikes Code' Sendetskii/Power of Sound's ASC/Advanced Sound Master module (.ASC)"; sVersion = 'v1.x-2.x'+bad; bDetected = 1;
+	//TODO find out how exactly to credit this one
 	if(X.isVerbose()) {
 		pt = X.fSig(8,0x80,"'ASM COMPILATION OF '")+0x13;
 		if(pt > 8) {
@@ -7130,7 +7131,7 @@ function isASC0() {
 }
 if(!bDetected && isASC0()) {
 	bDetected = 1; sVersion = 'v0.x'+bad;
-	sName = "ASC Sound Master module (.AS0)";
+	sName = "Andrei 'Andrew Strikes Code' Sendetskii/Titus's Advanced Sound Master module (.AS0)";
 	if(X.isVerbose()) {
 		pt = X.fSig(7,0x80,"'ASM COMPILATION OF '")+0x13;
 		if(pt > 7) {
@@ -7156,7 +7157,7 @@ function isGlobalTracker() {
 	return true
 }
 if(!bDetected && isGlobalTracker()) {
-	sName = "Global Tracker module (.GTR)"; bDetected = 1;
+	sName = "Doctor Max/Global Corp.'s' Global Tracker module (.GTR)"; bDetected = 1;
 	sVersion = 'v'+(X.U8(4)>>4)+'.'+(X.U8(4)&0xF);
 	if(X.isVerbose()) {
 		dly = X.U8(0); ptn = X.U8(0x125); lp = X.U8(0x126);
@@ -7226,7 +7227,7 @@ function isFuchs() {
 	return true
 }
 if(!bDetected && isFuchs()) {
-	sName = "FuchsTracker module (.FUCHS)";
+	sName = "Andreas Fuchs's FuchsTracker module (.FUCHS)";
 	bDetected = 1;
 	if(X.isVerbose()) sOption('ord:'+ord+' ptn:'+ptn+' smp:'+smp+' sz:'+outSz(sz))
 }
@@ -7235,61 +7236,67 @@ if(!bDetected && isFuchs()) {
 function isGMC() {
 	//ref https://github.com/tonioni/WinUAE/blob/master/prowizard/rippers/GMC.c
 	// & https://github.com/OpenMPT/openmpt/blob/master/soundlib/Load_gmc.cpp
-	if(X.Sz() < 444 || !X.c("000000",0xF0)) return false;
+	if(X.Sz() < 444 || !X.c("000000",0xF0)) return;
 	//smp descriptions
 	allsmpsz = 0; j = 0; smps = [];
-	for(k=0; k < 15; k++) {
-		o = X.U32(16*k,_BE); if(o > 0x7FFFFF || (o&1)) return false; //ofs
-		l = X.U16(4+16*k,_BE)<<1; //length
-		if(l > 0xFFFF) return false;
-		if(X.U8(6+16*k)) return false; //zero byte
-		if(X.U8(7+16*k) > 0x40) return false; //vol
-		a = X.U32(8+16*k,_BE); if(a > 0x7FFFFF || (a&1)) return false; //address
-		n = X.U16(0xC+16*k,_BE); //looplen
-		if(n > 2 && n > l) return false;
-		if(X.U16(0xE+16*k,_BE)&1) return false; //datastart
+	for(k=p=0; k < 15; k++,p+=0x10) {
+		o = X.U32(p,_BE); if(o > 0x7FFFFF || (o&1)) return; //ofs
+		l = X.U16(p+4,_BE)<<1; //length
+		if(l > 0xFFFF) return;
+		if(X.U8(p+6)) return; //zero byte
+		if(X.U8(p+7) > 0x40) return; //vol
+		a = X.U32(p+8,_BE); if(a > 0x7FFFFF || (a&1)) return; //address
+		n = X.U16(p+0xC,_BE); //looplen
+		if(n > 2 && n > l) return;
+		if(X.U16(p+0xE,_BE) & 1) return; //datastart
 		allsmpsz += l;
 		if(l) smps.push([o,l]);
 	}
-	if(allsmpsz <= 4) return false;
+	if(allsmpsz <= 4) return;
 	smps.sort(function(a,b){return a[0]-b[0]});
-	for(k=0; k < smps.length-1; k++)  if(smps[k][0]+smps[k][1] > smps[k+1][0]) return false;
+	for(k=0; k < smps.length-1; k++)  if(smps[k][0]+smps[k][1] > smps[k+1][0]) return;
 	ord = X.U8(0xF3); //ptn table size
-	if(ord > 0x64 || !ord) return false;
+	if(!isWithin(ord, 1, 0x64)) return;
 	ptn = 0; ords = [];
 	for (i=0; i < 100; i++) { //ptn order table
 		p = X.U16(0xF4+i*2,_BE);
-		if (p & 0x3FF) return false;
+		if (p & 0x3FF) return;
 		if(i < ord) { p >>= 10; if(p > ptn && p != 63) ptn = p }
 	} ptn++;
-	if(ptn > 64) return false;
-	m = notes = badnotes = badled = 0; p = 0x1BC; nps = [];
-	for (i=0; i < ptn; i++) { //test pattern data
+	if(ptn > 64) return;
+	m = notes = badnotes = badled = 0; end = false; p = 0x1BC; nps = [];
+	if(p+ptn*0x400 > Math.min(X.Sz(),0xFFFC)) return;
+	for (i=0; i < ptn && !end; i++) { //test pattern data
 		badnotes = badled = 0;
-		for (j = 0; j < 256; j++) {
+		for (j = 0; j < 256 && !end; j++,p+=4) {
 			d = X.readBytes(p,4);
 			np = (d[0]<<8)+d[1];
 			if(np && np != 0xFFFE)
-				if(np < 113 || np > 856) badnotes++; else { if(nps.indexOf(np) < 0) nps.push(np); notes++ }
+				if(isWithin(np, 113,856)) {
+					notes++; if(!nps.includes(np)) nps.push(np);
+					if(notes > 100 && !X.isDeepScan()) end = true;
+				}
+				else badnotes++;
 			d[2] &= 0xF;
 			if(d[2] == 3 && d[3] > 0x40) badnotes++; //vol effect
-			if(d[2] == 4 && d[3] > 0x63) return false;
-			if(d[2] == 5 && d[3] > ord+1) return false;
-			p += 4; if(p > 0xFFFC || p > X.Sz()) return false
+			if(d[2] == 4 && d[3] > 0x63) return;
+			if(d[2] == 5 && d[3] > ord+1) return;
 		}
-	if(badnotes > 16) { _log("GMCFault: over 16 bad notes"); return false }
+	if(badnotes > 16) { if(debug>0)_log("GMCFault: over 16 bad notes"); return}
 	}
-	if(!notes && !X.isHeuristicScan()) return false;
-	nps.sort(function(a,b){return a-b});
-//_log(nps.length+" different nps used: "+nps)
-	sz = allsmpsz + ptn*1024 + 0x1BC;
+	nps = nps.length;
+	if(!notes) return;
+	if(nps <= 2 && !X.isHeuristicScan()) return; // that's not music...
+	sz = 0x1BC + ptn*0x400 + allsmpsz;
 	return true
 }
-if(!bDetected && X.isDeepScan() && isGMC()) {
+if(!bDetected && isGMC()) {
 	bDetected = 1;
-	sName = "Game Music Creator module (.GMC)";
+	sName = "Andreas Tadic's Game Music Creator module (.GMC)";
 	if(X.isVerbose()) {
-		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smps.length+" notes:"+notes+"("+nps.length+" diff.) sz:"+outSz(sz)); if(X.Sz() < sz) sVersion = "malformed!short"
+		sOption("ord:"+ord+" ptn:"+ptn+" smp:"+smps.length
+			+((X.isDeepScan() || notes < 100) ? " notes:"+notes+"("+nps+" diff.)" : '')
+			+" sz:"+outSz(sz)); if(X.Sz() < sz) sVersion = "malformed!short"
 	}
 }
 
@@ -7330,8 +7337,8 @@ function isMoonBlaster() {
 }
 if(!bDetected && isMoonBlaster()) {
 	//MUS is "FST-song", MBM is song, MBK is drumkit, MBV is voice-e, MBB is voice-b, MBS is samples
-	sName = 'MSX MoonBlaster for MoonSound module (.MBM)'; bDetected = 1;
-	if(ofs) sVersion = '200-pos.ver.';
+	sName = "Remco Schrijvers et al.'s MSX MoonBlaster for MoonSound module (.MBM)";
+	bDetected = 1; if(ofs) sVersion = '200-pos.ver.';
 	drumkit = X.SA(ofs+0x140,8).trim();
 	if(drumkit != 'NONE') sVersion = sVersion.appendS('+'+drumkit+'.MBK','/');
 	if(X.isVerbose()) {
@@ -7341,38 +7348,43 @@ if(!bDetected && isMoonBlaster()) {
 }
 
 
-function isProTracker1() {
+function isProTracker1_sp() {
+	//PT1's project file
+	//TODO()
+}
+
+
+function isProTracker1_c() {
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker1.cpp
 	// & https://ay.strangled.net/Ay_Emul30.src.7z/Formats.pas -> FoundPT1
-	if(X.Sz() < 0x66) return false;
-	tempo = X.U8(0); if((tempo < 2) || (tempo > 15)) return false; //delay
-	ptntp = X.U16(0x43,_LE); if(ptntp >= X.Sz()) return false; //patterns table pointer
-	numofpos = X.U8(1);// if(len == 0) return false; //numofpositions, can be corrupted?
+	if(X.Sz() < 0x66) return;
+	tempo = X.U8(0); if(!isWithin(tempo, 2,15)) return; //delay
+	ptntp = X.U16(0x43); if(ptntp >= X.Sz()) return; //patterns table pointer
+	numofpos = X.U8(1);// if(len == 0) return; //numofpositions, can be corrupted?
 	loop = X.U8(2);
 	j = 0; j1 = 65535;
 	for(i=0; i < 0x10; i++) { //samples pointers
-		sp = X.U16(3+i*2,_LE); if(sp > X.Sz()) return false;
-		if(j < sp) j=sp;
-		op = X.U16(0x23+i*2,_LE); if(op > X.Sz()) return false;
-		if(op != 0 && j1 > op) j1 = op
+		sp = X.U16(3+i*2); if(sp > X.Sz()) return;
+		if(j < sp) j = sp;
+		op = X.U16(0x23+i*2); if(op > X.Sz()) return;
+		if(op && j1 > op) j1 = op
 	}
 	if((j1 < 0x67) || (j < 0x67) || (j > 65534) || (j > X.Sz())
-	  || (j + X.U8(j) * 3 + 2 != j1)) return false;
-	j = 0;
-	for(i=0; i < 0x10; i++) { //ornaments pointers
-		op = X.U16(0x23+i*2,_LE); if(op > X.Sz()) return false;
+	  || (j + X.U8(j) * 3 + 2 != j1)) return;
+	for(i=j=0; i < 0x10; i++) { //ornaments pointers
+		op = X.U16(0x23+i*2,_LE); if(op > X.Sz()) return;
 		if(j < op) j = op
 	}
-	if(j<0x67) return false;
-	len = j+0x40; if(len>65536) return false; if(len>X.Sz()+1) return false;
+	if(j < 0x67) return;
+	len = j+0x40; if(len > 0x10000 || len > X.Sz()+1) return;
 	j = 0x63;
 	while(j <= ptntp && X.U8(j) < 0xFF) j++;
-	if(j+1 != ptntp) return false;
-	ord = j-0x63; if(loop > ord) return false;
+	if(j+1 != ptntp) return;
+	ord = j-0x63; if(loop > ord) return;
 	return true
 }
-if(!bDetected && X.isDeepScan() && isProTracker1()) {
-	sName = "ProTracker module (.PT1)"; sVersion = "v1.x"; bDetected = 1;
+if(!bDetected && isProTracker1_c()) {
+	sName = "Golden Disk ProTracker module (.PT1)"; sVersion = "v1.x/compiled"; bDetected = 1;
 	if(X.isVerbose()) {
 		sOptionT(X.SA(0x45,0x1E)); //musicname
 		sOption("tempo:"+tempo+" ord:"+ord+" len:"+len)
@@ -7406,7 +7418,7 @@ function isProTracker2() {
 	return true
 }
 if(!bDetected && isProTracker2()) {
-	sName = "ProTracker module (.PT2)"; sVersion = 'v2.x'; bDetected = 1;
+	sName = "Golden Disk ProTracker module (.PT2)"; sVersion = 'v2.x'; bDetected = 1;
 	if(X.isVerbose()) {
 		nc = charStat(t=X.readBytes(0x65,0x1E), 1);
 		if(nc.indexOf('allxsc') >= 0) sOptionT(decEncoding(t,CPSpeccy)); else sOption('<broken title>');
@@ -7484,7 +7496,7 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 	return true
 }
 if(!bDetected && isProTracker3()) {
-	sName = "Pro Tracker module (.PT3)"; sVersion = sv; bDetected = 1;
+	sName = "Golden Disk ProTracker module (.PT3)"; sVersion = sv; bDetected = 1;
 	tsmode = (nv >= 7 && (X.U8(0x62) != 0x20 || X.c("'Vortex Tra'",sz) || X.c("'ProTracker v'",sz)));
 	if(tsmode) sVersion += ' TurboSound';
 	if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
@@ -12759,6 +12771,7 @@ if(!bDetected && isADL()) {
 
 
 function isFLS() {
+	//TODO() re-adapt from the new detection code
 	//this detection is based purely on sanity checks
 	//  AND a tiiiiiny ~bruteforce~ of membase, which is why it comes in last
 	//ref https://ay.strangled.net/Ay_Emul30.src.7z/Players.pas -> FoundFLS
