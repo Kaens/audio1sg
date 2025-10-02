@@ -7435,18 +7435,19 @@ if(!bDetected && isProTracker2()) {
 function isProTracker3() { //PT3's detection but sanity checks because SOME people -_-
 	//ref https://bitbucket.org/zxtune/zxtune/src/develop/src/formats/chiptune/aym/protracker3_compiled.cpp
 	// & https://ay.strangled.net/Ay_Emul30.src.7z /Help/html/ay_ru_fmt_pt3.htm
-	if(X.Sz() < 0xCA) return false; p = 0; var maxsz = Math.min(65535,X.Sz()+X.isHeuristicScan()*0x200);
+	if(X.Sz() < 0xCA) return; p = 0; var maxsz = Math.min(65535,X.Sz()+X.isHeuristicScan()*0x200);
 	var smps=[], orns=[], trks=[], ptns=[]; bad = '';
-	function rf(msg) { if(debug>1)_l2r('pt3',p,msg); return false }
-	ttn = X.U8(0x63); if(ttn > 4) if(X.isHeuristicScan()) bad = bad.addIfNone('!badtuning'); else return rf('badtuning');
-	tmp = X.U8(0x64); if(!tmp) return false;
-	ord = X.U8(0x65); ptnp = 0xCA+ord; if(ptnp != X.U16(0x67) || ptnp > X.Sz()-2) return false;
-	lp = X.U8(0x66); if(lp > ord-1) return false;
+	function re(msg) { if(debug>1)_l2r('pt3',p,msg); return }
+	ttn = X.U8(0x63); if(ttn > 4) if(X.isHeuristicScan()) bad = bad.addIfNone('!badtuning'); else return;
+	tmp = X.U8(0x64); if(!tmp) return;
+	ord = X.U8(0x65); ptnp = 0xCA+ord;
+	if(ptnp != X.U16(0x67) || ptnp > X.Sz()-2) return re('!badptnp+'+Hex(ptnp));
+	lp = X.U8(0x66); if(lp > ord-1) return re('!badlp');
 	orn = smp = mp = 0;
 	for(p=0x69; p < 0xA9; p+=2) if(X.U16(p)) smp++;  for(; p < 0xC9; p+=2) if(X.U16(p)) orn++;
-	for(ptn=i=0,p=0xC9; i <= 0xFF; i++) { if((o=X.U8(p++)) == 0xFF) break; if(o%3) return false;
+	for(ptn=i=0,p=0xC9; i <= 0xFF; i++) { if((o=X.U8(p++)) == 0xFF) break; if(o%3) return;
 		if(ptns.indexOf(o/3) < 0) ptns.push(o/3); if(o/3 > ptn) ptn = o/3 }
-	ptn++; if(!i || i != ord) return rf('realord:'+i+' != ord:'+ord);
+	ptn++; if(!i || i != ord) return re('!realord:'+i+' != ord:'+ord);
 	t = X.readBytes(0,10); tracker = '';
 	if(charStat(t,1).indexOf('allasc') >= 0) { t = decEncoding(t,CPSpeccy);
 		if(t == 'ProTracker') { tracker = 'Pro Tracker'; sv = 'v'+X.SA(0xB,4).trim(); nv = X.U8(0xD)-0x30 }
@@ -7455,11 +7456,11 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 	} else { tracker = 'hacked Pro Tracker'; sv = 'v3.x'; nv = 7 }
 	//track parser
 	function isTrkIn(tracks,track) {
-		for(var i=0; i < tracks.length; i++) if(tracks[i][0] == track[0]) return true;  return false }
+		for(var i=0; i < tracks.length; i++) if(tracks[i][0] == track[0]) return true;  return }
 	for(i=notes=0; i < ptn*3 && p < maxsz; i++,p+=2) {
 		// echo track addresses, pertinent to debugging:
 		// 6F3, 719, 745...
-		if(!isWithin(t=X.U16(p),p,maxsz)) return rf('badptnp2:'+Hex(t));
+		if(!isWithin(t=X.U16(p),p,maxsz)) return re('!badptnp2:'+Hex(t));
 		if(ptns.indexOf(Util.divu64(i,3)) < 0) continue;
 		trk = [t,0]; if(isTrkIn(trks,trk)) continue;
 		var lines = 0, eot = false;
@@ -7470,7 +7471,7 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 //_l2r('pt3',t,'    #'+Hex(X.U8(t))+' +'+z)
 				if((x=X.U8(t++)) == 0) eol = eot = true;
 				else if(x == 1 || x == 8) z += 3;  else if(x == 2) z += 5;  else if([3,4,6,9].indexOf(x) >= 0) z++;
-				else if(x == 5) z += 2;  else if(x == 7) bad = bad.addIfNone('badcmd07h');
+				else if(x == 5) z += 2;  else if(x == 7) bad = bad.addIfNone('!badcmd07h');
 				else if(x == 0x10) { x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
 					if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
 				else if(x < 0x20) { t += 2; x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
@@ -7486,17 +7487,17 @@ function isProTracker3() { //PT3's detection but sanity checks because SOME peop
 					x = X.U8(t++); y = X.U16(0x69+x); if(smps.indexOf(x) < 0) {
 						if(y && !isWithin(y,ptnp,maxsz)) bad = bad.addIfNone('!badsmp'); smps.push(x) } }
 			}
-			lines++; t += z; z = 0; if(lines > 256) if (!X.isHeuristicScan()) return rf('badlines'); else bad = bad.addIfNone('!badlns')
+			lines++; t += z; z = 0; if(lines > 256) if (!X.isHeuristicScan()) return re('!badlines'); else bad = bad.addIfNone('!badlns')
 		}//trkparse
 		trk[1] = t-trk[0]; if(!isTrkIn(trks,trk)) trks.push(trk); if(mp < t) mp = t
 	}//all tracks parsed
 //	function tupleSort(lst) { function sf(a, b) { if(a[0] != b[0]) return a[0]-b[0]; else return a[1]-b[1] } return lst.sort(sf) }
 //_l2r('pt3',0,outArray(tupleSort(trks),16)+'::: '+outArray(findGaps(trks,0),16)+' :: '+outArray(findIntersections(trks,true),16))
-	if(t=findIntersections(trks,true).length) if(!X.isHeuristicScan() || t > 5) return rf('trackintersections');
+	if(t=findIntersections(trks,true).length) if(!X.isHeuristicScan() || t > 5) return re('trackintersections');
 		else bad = bad.addIfNone('!trkxsec'); //so there are some broken files, like echo.pt3 (5753 bytes)
-	if(t=findGaps(trks,0).length) if(!X.isHeuristicScan() || t > 5) return rf('trackgaps');
+	if(t=findGaps(trks,0).length) if(!X.isHeuristicScan() || t > 5) return re('trackgaps');
 		else bad = bad.addIfNone('!trkgap'); //tracks are monolithic BUT SOME PEOPLE
-	rsmp = smps.length; rorn = orns.length; rptn = ptns.length; if(!rptn || !isWithin(rsmp,1,32)) return false;
+	rsmp = smps.length; rorn = orns.length; rptn = ptns.length; if(!rptn || rsmp > 32) return re('!rptn='+rptn+',rsmp='+rsmp); if(X.fStr("compilation of",10,20) < 0 && !rsmp) return re('!nosmp');
 	sz = mp+2+X.U8(mp+1); //ornaments! either at the last orn ptr, or just straight after the patterns
 	return true
 }
