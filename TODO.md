@@ -181,7 +181,7 @@ I was principally copying the other people's sanity checks (hello Bul'ba, asle, 
 
 As long as we just want to show what kind of file it is and what version it is, the information should appear either way.
 
-Sometimes the version includes mentioning which chip a chiptune uses, sometimes a word when we want to complain that the tune is malformed. The version always starts with a `v` followed by either a floating-point info like `1.0xx` or, usually for internal format versions, a single number either in decimal or in hexadecimal (in the latter case, output it like `0Eh`: the module `read` has the function `Hex` for that, for simplicity.)
+Sometimes the version includes mentioning which chip a chiptune uses, sometimes a word when we want to complain that the tune is malformed. Unless the specs or original format authors' explicit preference state otherwise, the version always starts with a small `v` followed by either a floating-point info like `1.0xx` or, usually for internal format versions, is a single number either in decimal or in hexadecimal (in the latter case, output it like `0Eh`: the module `read` has the function `Hex` for that, for simplicity.)
 
 However, if we want to show the user the track title, or the author's rant, or how many different instruments the track has, or whatever else that goes into sOptions, then only add those if `Binary.isVerbose()` is `true`. Very simple.
 
@@ -211,12 +211,12 @@ I additionally follow the rule "don't overload it", like I don't show all sample
 It's generally nice to report files that are clearly of the detected format but are broken in some way, anyway. Two functions are there in "read" script to facilitate that: appendS and addIfNone. Quicker shown than explained, the code would look like this:
  ```js
 bad = ''; ...
-if(globalvolume > 0x40) bad = bad.addIfNone('!badgvol');
+if (globalvolume > 0x40) bad = bad.addIfNone('!badgvol');
 ...
 
 numericVersion = File.read_uint8(4);
-if(numericVersion > 0) sVersion = 'v'+numericVersion;
-if(bad != "") sVersion.appendS('malformed'+bad,'/');
+if (numericVersion > 0) sVersion = 'v'+numericVersion; //do everything else with sVersion here...
+if (bad.length) sVersion = sVersion.appendS('malformed'+bad, '/');
 ```
-And if `numericVersion` is 2 and globalvolume's malformed, the version line would look like this:
+And if `numericVersion` is 2 and globalvolume's malformed, the version line would look like this:  
 `v2/malformed!badgvol`
