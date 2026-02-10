@@ -12,7 +12,21 @@ includeScript("soundchips");
 includeScript("bytecodeparsers");
 const debug = 0; //verbosity up to 3, where every note/command is shown. Overrides the debug() function; use _l2r()
 
+function isWinCert() {
+	// I'll skip WIN_CERTIFICATE+bCertificate things for overlay scans to save time :)
+	if(X.Sz() >= (_wcsz=X.U32(0,_LE)) && X.c('00 02 02 00 30', 4)) { // assuming the tag's just present immediately
+		_wcp = 9; _wca = X.U8(_wcp++);
+		if(_wca < 0x80) {} else if(_wca > 0x80) {
+			_wcc = _wca ^ 0x80; for(_wci=_wca=0; _wci < _wcc; _wci++) _wca = (_wca << 8) + X.U8(_wcp++); //big-endian here
+		}  else _wca = -1;
+		if(_wca > 0 && _wca+_wcp <= _wcsz && X.c("06 09 2A 86 48 86 F7 0D 01 07 02",_wcp)) return true; //handoff to other decectors
+	}
+	return false
+}
+
 function detect() {
+
+	if(isWinCert()) return;
 
 	// this C-like pre-declaration is here because lol Qt6
 	var p = 0, i = 0, j = 0, k = 0, l = 0, r = 0, t = 0, x = 0, sz = -1,
@@ -2589,7 +2603,7 @@ function detect() {
 			if(flags & 2) { //automation; 8 is drum autn., 0x10 is master autn.
 				env = trk + (flags & 8) + ((nV >= 0x50) ? vst2 : 0) + ((flags & 0x10) ? 1 : 0);
 				for(q = 0; q < ptn; q++)
-					for(e = 0; e < env && p+4 <= X.Sz(); e++) {
+					for(var e = 0; e < env && p+4 <= X.Sz(); e++) {
 						if(nV >= 3) { fl = X.U32(p); p += 8 }
 						else { fl = X.U16(p); p += 4 }
 						while(fl) {
@@ -3293,60 +3307,67 @@ function detect() {
 		else if(dt <= "071119") { sV = "v5"; nV = 5 }
 		d = dt.substr(0,2)+"-"+dt.substr(2,2)+"-"+dt.substr(4,2);
 		sVersion = sV+"/20"+d;
-		if(X.isVerbose()) {
-			switch(nV) {
-				case 1: case 2: p = 0x10; break;
-				case 3: case 4: p = 0x14; break;
-				default: p = 0x14
-			}
-			t = ""; c = ""; bclock = 0; bnum = 0; btempo = 0; bps = 0; bEnd = false;
-			while(!bEnd && p < X.Sz()) {
-				hkhd = X.SA(p,8); hksz = X.U32(p+8,_LE);
-				switch (hkhd) {
-					case "PROJECT=":
-						t = X.SC(p+12,0x10,"Shift_JIS");
-						btempo = X.F32(p+0x1C,_LE).toFixed(0);
-						bclock = X.I16(p+0x20,_LE);
-						bnum = X.I16(p+0x22,_LE);
-						break;
-					case "evenMAST":
-						if(X.U16(p+12,_LE) != 3)
-							sVersion += "/unk";
+		switch(nV) {
+			case 1: case 2: p = 0x10; break;
+			case 3: case 4: p = 0x14; break;
+			default: p = 0x14
+		}
+		t = c = bad = ""; bclock = lclock = bnum = btempo = bps = ch = 0; bEnd = false;
+		while(!bEnd && p < X.Sz()) {
+			hkhd = X.SA(p,8); hksz = X.U32(p+8,_LE);
+//_l2r('px',p,hkhd)
+			switch (hkhd) {
+				case "PROJECT=":
+					t = X.SC(p+12,0x10,"Shift_JIS");
+					btempo = X.F32(p+0x1C,_LE).toFixed(0);
+					bclock = X.I16(p+0x20,_LE);
+					bnum = X.I16(p+0x22,_LE);
+					break;
+				case "evenMAST": //x4x
+					if(X.U16(p+12,_LE) != 3)
+						sVersion += "/unk";
+					else {
+						var p_ = X.fSig(p+3,0x100,"'textNAME'")-12;
+						if(p_ > -12) p = p_-hksz;
 						else {
-							var p_ = X.fSig(p+3,0x100,"'textNAME'")-12;
+							p_ = X.fSig(p+3,0x100,"'textCOMM'")-12;
 							if(p_ > -12) p = p_-hksz;
-							else {
-								p_ = X.fSig(p+3,0x100,"'textCOMM'")-12;
-								if(p_ > -12) p = p_-hksz;
-							}
 						}
-						break; //not gonna parse what vari-read gives me
-					case "MasterV5":
-						bclock = X.I16(p+12,_LE)*rough;
-						bnum = X.I8(p+14);
-						btempo = X.F32(p+15,_LE).toFixed(0);
-						break;
-					case "Event V5":
-						var evtn = X.U32(p+12,_LE);
-						hksz = 4;
-						for(e=0; e < evtn; e++) { //hksz is broken in this chunk so it's like this
-							for(i=0; i < 5; i++) { hksz++; if(X.U8(p+11+hksz) < 0x80) break }
-							hksz += 2;
-							for(i=0; i < 5; i++) { hksz++; if(X.U8(p+11+hksz) < 0x80) break }
-						}
-						break;
-					case "textNAME":
-						t = X.SC(p+12,hksz,"Shift_JIS"); break;
-					case "textCOMM":
-						c = addEllipsis(X.SC(p+12,hksz,"Shift_JIS"),0xA0); break;
-					case "END=====": case "pxtoneND":
-						bEnd = true; break
-				}
-				p += 12+hksz
+					}
+					break; //not gonna parse what vari-read gives me
+				case "MasterV5": //x5x
+					if(hksz != 0xF) bad = bad.addIfNone('!badv5fmt');
+					bclock = X.I16(p+12)*rough;
+					bnum = X.I8(p+14);
+					btempo = X.F32(p+15).toFixed(0);
+					lmeas = (X.I32(p+0x17)/(bnum*bclock)).toFixed(0);
+//_l2r('px',p+15+12,'So, the last measure is '+lmeas+' at tempo '+btempo);
+					break;
+				case "Event V5":
+					var e, evtn = X.U32(p+12,_LE);
+					q = p+11;
+					for(e=0; e < evtn; e++) { //hksz is broken in this chunk so it's like this, and yes it is slow
+						for(i=0; i < 5; i++) { if(X.U8(++q) < 0x80) break }
+						q += 2;
+						for(i=0; i < 5; i++) { if(X.U8(++q) < 0x80) break }
+					}
+					hksz = 4+q-p-11;
+					break;
+				case "textNAME":
+					t = X.SC(p+12,hksz,"Shift_JIS"); break;
+				case "textCOMM":
+					c = addEllipsis(X.SC(p+12,hksz,"Shift_JIS"),0xA0); break;
+				case "assiWOIC": ch++; break;
+				case "END=====": case "pxtoneND":
+					bEnd = true; break
 			}
+			p += 12+hksz;
+		}
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad, '/');
+		if(X.isVerbose()) {
 			if(t != "no name") sOption(t);  sOptionT(c);
 			if(bclock+btempo+bnum > 0)
-				sOption("btempo:"+btempo+" bclock:"+bclock+" bnum:"+bnum);
+				sOption('ch:'+ch+" bpm:"+btempo+" bclock:"+bclock+" bnum:"+bnum);
 			sOption(outSz(p),"sz:")
 		}
 	}
@@ -3797,37 +3818,45 @@ function detect() {
 		else sName = "RealSID programmatic chiptune (.SID, .RSID)";
 		v2 = X.U16(4,_BE);
 		sVersion = "v"+Hex(v2);
-		bad = 0;
+		bad = '';
 		x = X.U16(0x0E,_BE);
-		if(x<1 || x>256) bad = 1;
+		if(!isWithin(x, 1,256)) bad = bad.addIfNone('!badsubsongs');
 		else if(x > 1) sOption(x,"×");
 		startSong = X.U16(0x10,_BE);
-		if(startSong > x) bad = 2;
+		if(startSong > x) bad = bad.addIfNone('!badstartsong');
 		dataOfs = X.U16(0x06,_BE);
-		if((v2==1 && dataOfs!=0x0076) || (v2==2 && dataOfs!=0x007C))
-			bad = 3;
+		if((v2 == 1 && dataOfs != 0x0076) || (v2 == 2 && dataOfs != 0x007C))
+			bad = bad.addIfNone('!baddatap');
 		loadAddr = X.U16(0x08,_BE);
-		if(v1=="R" && loadAddr>0 && (loadAddr<0x07E8)) bad = 4;
+		if(v1=="R" && isWithin(loadAddr, 1,0x07E7)) bad = bad.addIfNone('!badloadp');
 		initAddr = X.U16(0x0A,_BE);
-		if(v1=="R" &&
-		   ( initAddr<0x07E8 || (0xA000<=initAddr && initAddr<0xC000) || 0xD000<=initAddr))
-			bad = 5;
+		if(v1=="R" && !isWithinRanges(initAddr, [[0x7E8,0x9FFF], [0xC000,0xCFFF]]))
+			bad = bad.addIfNone('!badinitp');
 		flags = X.U16(0x76,_BE);
-		if(v1=="R" && ((flags&2) >> 1) && initAddr>0)
-			bad = 6;
-		switch((flags&0x30)>>4) {
-			case 1: sVersion += "/6581"; break;
-			case 2: sVersion += "/8580"; break;
-			case 3: sVersion += "/6581&8580"; break;
-			default: sVersion += "/unk.chip"
+		if(v1=="R" && ((flags >> 1) & 1) && initAddr > 0)
+			bad = bad.addIfNone('!badinitp2');
+		sidn = 1;
+		if(v2 == 0x4E) sidn += (dataOfs-0x7C) >> 1; else {
+			if(v2 >= 3 && !((a2=X.U8(0x7A))&1) && !isWithinRanges(a2, [[0,0x41],[0x80,0xDF]])) sidn++;
+			if(v2 >= 4 && !((a3=X.U8(0x7B))&1) && a2 != a3 && !isWithinRanges(a3, [[0,0x41],[0x80,0xDF]])) sidn++;
 		}
-		switch((flags&0x0C)>>2) {
+		var sidt = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0]; //upto 16SID
+		switch((flags >> 4) & 3) { case 1: sidt[0] = 1; break; case 2: sidt[0] = 2; break; case 3: sidt[0] = 3; break }
+		if(v2 >= 3) switch((flags >> 6) & 3) {
+			case 1: sidt[1] = 1; break; case 2: sidt[1] = 2; break; case 3: sidt[1] = 3; break; default: sidt[1] = sidt[0] }
+		if(v2 == 0x4E) for(i=2,q=0x7C; i < sidn; i++,q+=2) switch((X.U16(q,_BE) >> 4) & 3) {
+			case 1: sidt[i] = 1; break; case 2: sidt[i] = 2; break; case 3: sidt[i] = 3; break; default: sidt[i] = sidt[0]
+		} else  if(v2 >= 4) switch((flags >> 8) & 3) {
+			case 1: sidt[2] = 1; break; case 2: sidt[2] = 2; break; case 3: sidt[2] = 3; break; default: sidt[2] = sidt[0] }
+		if(sidn > 1) sVersion += "/"+sidn+"SID";
+		sidtt = [0, 0, 0, 0]; //count different chips
+		for(i=0; i < sidn; i++) sidtt[sidt[i]]++;
+		for(i=0; i < 4; i++) if(sidtt[i]) sVersion += ' #'+['unk','6581','8580','6581&8580'][i] + (sidtt[i]>1? '×'+sidtt[i]:'');
+		switch((flags & 0x0C) >> 2) {
 			case 1: sVersion += "/PAL"; break;
 			case 2: sVersion += "/NTSC"; break;
 			case 3: sVersion += "/PAL&NTSC"; break;
 		}
-		sidn = (dataOfs-0x7C)/2+1;
-		if(sidn > 1) sVersion += "/"+sidn+"SID";
 		if(bad > 0) sVersion += "/malformed"+bad;
 		if(X.isVerbose()) {
 			t = X.SC(0x16,0x20,'CP1252'); if(t == "<?>") t = ""; sOptionT(t);
@@ -7579,7 +7608,7 @@ if(!bDetected && isMoonBlaster()) {
 	drumkit = X.SA(ofs+0x140,8).trim();
 	if(drumkit != 'NONE') sVersion = sVersion.appendS('+'+drumkit+'.MBK','/');
 	if(X.isVerbose()) {
-		sOption(X.SA(ofs+0xCF,40));
+		sOption(X.SA(ofs+0xCF,40).trim());
 		sOption('tempo0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' unpsz:'+unpsz+' sz:'+outSz(sz))
 	}
 }
@@ -8903,103 +8932,72 @@ function isCustomMade() {
 	if(X.Sz() < 3000) return false;
 	if(X.c("6000.... 6000") || X.c("4EF9.... ....4EF9")
 	  || X.c("4EB9.... ....4EF9")) {
-		a1 = 8; var found = false;
+		p = 8; var found = false;
 		do {
-			if(X.c("42280030 42280031 42280032",a1)) found = true;
-			a1 += 2
-		} while(!found && a1 < 0x198);
+			if(X.c("42280030 42280031 42280032",p)) found = true;
+			p += 2
+		} while(!found && p < 0x198);
 	}
 	if(!found) return false;
 	else if(!X.isVerbose()) return true;
 	//otherwise let's dig in for smp, synthsmp, and subsongs!
-	a0 = d5 = 0; d7 = 0x800; org = 0; smpi = 0; songst = 0;
+	p = q = d0 = d5 = 0; d7 = 0x800; org = 0; smpi = 0; songst = 0;
 	bad = false;
-	L = "lp"; //it's even more mind-boggling if rewritten in if..else
-	i_lp: while(d7) {
-		switch(L) {
-		case "lp": // @d366
-			if(!X.c("D04149FA",a0)) { L = "2"; break }
-			d0 = X.I16(a0+4,_BE); a1 = a0+d0+4;
-			Table = a1; L = "lp_c"; break;
-		case "2": // play / ptntab  @d37e
-			if(X.c("48E7F8FC",a0)) { L = "2.0"; break }
-			if(!X.c("48E7FFFE",a0)) { L = "3"; break }
-		case "2.0": // @d38e
+	while(d7 && p < X.Sz()) {
+		if((c=X.U32(p,_BE)) === 0xD04149FA) { /*lp @d366*/
+			d0 = X.I16(p+4,_BE); q = p+d0+4;
+			Table = q;
+		}
+		else if([0x48E7F8FC, 0x48E7FFFE].includes(c)) { /*play/ptntab @d37e; 2.0 @d38e*/
 			d6 = a3;
-			if(!d6 || org) d6 = 20;
-			else {
-				a1 = a0-a3; /*play-oldplay*/ d5 -= a1; /*nowadr-dx*/ org = d5
+			if(!d6 || org) d6 = 20;  else { q = p-a3; /*play-oldplay*/ d5 -= q; /*nowadr-dx*/ org = d5 }
+			while(d6-- >= 0) { /* 2.lp */
+				t = X.U16(p,_BE); p += 2; if(t === 0x41FA) { d0 = X.I16(p,_BE)/*2.2: @d3ae*/; songst = q = p+d0; break }
 			}
-			while(d6 >= 0) { // 2.lp
-				t = X.U16(a0,_BE); a0 += 2;
-				if(t === 0x41FA) {
-					d0 = X.I16(a0,_BE); // 2.2: @d3ae
-					songst = a1 = a0+d0; break // from 2.lp
-				}
-				d6--
-			}
-			L = "lp_c"; break;
-		case "3": // @d3bc
-			if(!X.c("E94847F0",a0)) { L = "4"; break } //ptoff
-			d1 = X.I16(a0+4,_BE); L = "lp_c"; break;
-		case "4": // @ d3cc
-			if(!X.c("00BFD500",a0)) { L = "6"; break} //oldplay
-			tmrval = (X.U8(a0-1) << 8) + X.U8(a0+7);
+		}
+		else /*3 @d3bc*/ if(c === 0xE94847F0) /*ptoff*/ { d1 = X.I16(p+4,_BE) }
+		else /*4 @d3cc*/ if(c === 0x00BFD500) { /*oldplay*/
+			tmrval = (X.U8(p-1) << 8) + X.U8(p+7);
 //_log("tmrval:"+Hex(tmrval));
 			//tmrval = d0;
-			if(X.c("4E71",a0+20)) { L = "lp_c"; break }
-			if(X.c("21FC",a0+28)) a3 = X.U32(a0+30,_BE);
-			else if(X.c("C000",a0+32)) a3 = X.U32(a0+32,_BE);
-			else a3 = X.U32(a0+22,_BE);
-			L = "lp_c"; break;
-		case "6": // @ d410
-			if(!X.c("42A8001C",a0)) { L = "7"; break } //smpinfo
-			d0 = X.I16(a0+6,_BE); smpi = a1 = a0+d0+6;
-			L = "lp_c"; break;
-		case "7":
-			if(X.c("E44843FA",a0)) { L = "7.1"; break } //oldvoc1
-			if(!X.c("E448207B",a0)) { L = "8"; break } //oldvoc1
-		case "7.1": // @d438
-			d6 = a4; if(!d6) { L = "lp_c"; break }
-			d0 = X.I16(a0+4,_BE); // @d43c
-			a4 -= X.I32(a0+d0+4,_BE); //voc0-oldvoc0
-			if(!org) { d5 -= a4; org = d5 }
-			L = "lp_c"; break;
-		case "8": // @d44e
-			if(X.c("48E700F0",a0)) { //voc0
-				d0 = X.I16(a0+6,_BE); // @d456
-				a4 = a0+d0+6;
+			if(!X.c("4E71",p+20)) {
+				if(X.c("21FC",p+28)) a3 = X.U32(p+30,_BE);
+				else if(X.c("C000",p+32)) a3 = X.U32(p+32,_BE);
+				else a3 = X.U32(p+22,_BE);
 			}
-		case "lp_c": // @d45e
-			a0 += 2; if(X.c("1AC01940",a0)) break; // -> ex
-			d7--; L = "lp"
 		}
-	}
-	songst += d1; // ex @d46c
-	a1 = songst;
-	x = 0;
-	while(1) { //Find
-		if(X.c("DFF0A0",a1+1)) break;
-		if(a1 > X.Sz()) { bad = true; return true }
-		x++; a1 += 16
-	}
+		else /*6 @d410*/ if(c === 0x42A8001C) /*smpinfo*/ { d0 = X.I16(p+6,_BE); smpi = q = p+d0+6; }
+		else if([0xE44843FA, 0xE448207B].includes(c)) { /*oldvoc1 7.1 @d438*/
+			if(a4) {
+				d0 = X.I16(p+4,_BE); // @d43c
+				a4 -= X.I32(p+d0+4,_BE); //voc0-oldvoc0
+				if(!org) { d5 -= a4; org = d5 }
+			}
+		}
+		else /*8 @d44e*/ if(c === 0x48E700F0) /*voc0*/ { d0 = X.I16(p+6,_BE); /* @d456*/; a4 = p+d0+6; }
 
-	a1 = smpi; smp = synsmp = 0;
-	while(!X.U32(a1+28,_BE)) {
-		a2 = X.U32(a1,_BE)-org;
-		a24 = X.U16(a2+4,_BE);
-		if(a24 === 2 || a24 === 16) smp++; else synsmp++;
-		a1 += 32
+		/*lp_c @d45e*/
+		p += 2; if(c === 0x1AC01940) break; /* -> @ex, because p is unused there */
+		d7--;
+	}
+	songst += d1; // @ex @d46c
+	for(x=0,p=songst+1; p < X.Sz(); x++,p+=16) /*Find*/ if(X.c("DFF0A0",p)) break;
+	if(p > X.Sz()) { bad = true; return true }
+
+	smp = synsmp = 0;
+	for(p=smpi; !X.U32(p+28,_BE); p+=0x20) {
+		a2 = X.U32(p,_BE)-org; a24 = X.U16(a2+4,_BE);
+		if(a24 === 2 || a24 === 16) smp++;  else synsmp++;
 	}
 	return true
 }
 
-if(!bDetected && X.isDeepScan() && isCustomMade()) {
+if(!bDetected && isCustomMade()) {
 	sName = "Ivo Zoer & Ron Klaren's CustomMade module (.CM)"; bDetected = 1;
 	if(X.isVerbose()) {
 		if(x > 1) sOption(x,"×");
-		sOption("smp+syn:"+smp+"+"+synsmp+" timer:"+tmrval)
-		//" Origin:"+Hex(org)+" SongsTab:"+Hex(songst)+" SamplesInfo:"+Hex(smpi)+" Table:"+Hex(Table))
+		//sOption("Origin:"+Hex(org)+" SongsTab:"+Hex(songst)+" SamplesInfo:"+Hex(smpi)+" Table:"+Hex(Table))
+		sOption("smp:"+smp+" syn:"+synsmp+" timer:"+tmrval)
 	}
 }
 
@@ -11558,7 +11556,7 @@ function re(p,t) { if(debug>-1)_l2r('mdx',p,t); return false }
 
 		if(X.isDeepScan()) for(q=oldchn,stop=false; !stop && q != chn && q < m; ) {
 
-//re(q,'>> '+MDXCmdStr(k-1,q)); // !! the heavy logger of music data here. Much fun, much debug info
+//_log(''+Hex(q)+' >> '+MDXCmdStr(k-1,q)); // !! the heavy logger of music data here. Much fun, much debug info
 
 			visited[q] = 1; if(q > mp) mp = q;
 			var c = X.U8(q++);
@@ -11637,7 +11635,7 @@ function re(p,t) { if(debug>-1)_l2r('mdx',p,t); return false }
 		vdsavl.sort(function(a,b){return a-b});
 //re(p,'vdfound:'+outArray(vdsavl,16))
 		if(vds.length) bad += '!missingInst'+outArray(vds,16);
-		sz = mp
+		sz = mp+27;
 	}
 	sz = X.isDeepScan()? mp: -1; if(vd == X.Sz()) sz = vd;
 	return true;
@@ -12653,11 +12651,37 @@ function isTMC() {
 	return true
 }
 if(!bDetected && isTMC()) {
-	sName = "Marcin 'Jaskier' Lewandowski's Theta Music Composer (.TMC,.TM4,.TM8)"; sVersion = 'v1.x'; bDetected = 1;
+	sName = "Marcin 'Jaskier' Lewandowski's Theta Music Composer module (.TMC,.TM4,.TM8)"; sVersion = 'v1.x'; bDetected = 1;
 	if(ic) sVersion = sVersion.appendS('malformed!'+ic+'ptns','/');
 	if(X.isVerbose()) {
 		sOption(decAnsi(6,0x1E,CPATASCII,Chars0to1FATASCII_PL)); //Polish is prevalent, so...
 		sOption('spd0:'+spd0+' ticks:'+ticks+' ord:'+ord+' ptn:'+(pt!=ptn?pt+'/':'')+ptn+' ins:'+ins+' sz:'+outSz(bin[0]))
+	}
+}
+
+
+function isRMT() {
+	function rt(p,m) { if(debug>1)_l2r('rmt',p,m); return false }
+	//ref http://atariki.krap.pl/index.php/RMT_%28format_pliku%29 & http://atariki.krap.pl/index.php/Rmt
+	if((bin = parseAtariBinary(0))[0] < 0x100) return rt('!binsz');
+	base = X.U16(2);
+	p = bin[1][0][0]; ch = X.U8(p+3)-0x30;
+	if(!X.c("'RMT'",p) || ![4,8].includes(ch)) return;
+	var trklen = X.U8(p+4); if(!trklen) trklen = 256;
+	spd0 = X.U8(p+5);  if(!spd) return; ticks = X.U8(p+6); if(!ticks) return;  v = X.U8(p+7);
+	var instp = p+X.U16(p+8)-base, trktlp = p+X.U16(p+0xA)-base, trkthp = p+X.U16(p+0xC)-base,
+	trklstp = p+X.U16(p+0xE)-base;
+//_l2r('rmt',p,'instp='+Hex(instp)+' trktlp='+Hex(trktlp)+' trkthp='+Hex(trkthp)+' trklstp='+Hex(trklstp));
+	if(instp > X.Sz() || trktlp < instp || trkthp < trktlp || trklstp < trkthp
+		|| trktlp > X.Sz() || trkthp > X.Sz() || trklstp > X.Sz()) return;
+	//TODO extract more data
+	return true
+}
+if(!bDetected && isRMT()) {
+	sName = "Radik 'Raster' Štěrba's Raster Music Tracker module (.RMT)"; sVersion = 'v'+v; bDetected = 1;
+	if(X.isVerbose()) {
+		if(bin[1].length > 1) sOption('metadata present'); //TODO; don't have sample files
+		sOption('ch:'+ch+' spd0:'+spd0+' ticks:'+ticks+' sz:'+outSz(bin[0]));
 	}
 }
 
@@ -12723,6 +12747,29 @@ if(!bDetected && isPollyTracker()) {
 	if(X.isVerbose() && X.isDeepScan()) {
 		sOptionT(info); sOptionT(composer,'by:');
 		sOption('tempo:'+Hex(tempo)+' ord:'+ord+' ptn:'+ptn+' smp:'+smp+' notes:'+notes+' unpsz:'+unpsz+' sz:'+outSz(sz))
+	}
+}
+
+
+function isSidMUS() {
+	//ref NostalgicPlayer Source/Ports/LibSidPlayFp/SidTune/Mus.cs :: Detect, TryLoad
+	// & https://github.com/MyDeveloperThoughts/ComputeSidPlayerC64Source/blob/main/notes/musFileFormat.md
+	if(X.Sz() < 27) return;
+	const HLT = 0x014F;
+	var loadaddr = X.U16(0), len1 = X.U16(2), len2 = X.U16(4), len3 = X.U16(6);
+	var v1p = 8+len1, v2p = v1p+len2, v3p = v2p+len3;
+	if(v3p > X.Sz() || (v1p & 1) || (v2p & 1) || (v3p & 1)) return;
+	if(!X.c("014F",v1p-2) || !X.c("014F",v2p-2) || !X.c("014F",v3p-2)) return; // voices must HLT at the end
+	sz = v3p; t = "";
+	if(X.Sz() > v3p && (p=X.fSig(v3p,0x1000,"00")-v3p+1) > 0) {
+		t = decAnsi(v3p,p,CPFullCPETshifted,true).trim(); sz += p
+	}
+	return true
+}
+if(!bDetected && isSidMUS()) {
+	sName = "COMPUTE!'s Enhanced SidPlayer tune (.MUS+.STR+.WDS)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption((t.length?'"'+addEllipsis(t,0x100,0xA0)+'"':'').append('sz:'+outSz(sz)));
 	}
 }
 
@@ -12935,7 +12982,7 @@ if(debug>1)_logIt('@'+Hex(p)+': '+Hex(w))
 // loresfx.adl: 250 bytes | 250 words     | 250 words    | @4E2h
 // v3:   250 words          | 500 words         | 500 words     | @9C4h
 
-if(debug>0)_logIt('  v'+nV+' ofs:'+ofs+'/'+Hex(ofs))
+//if(debug>0)_logIt('  v'+nV+' ofs:'+ofs+'/'+Hex(ofs))
 	// test prog offsets: start with the first 150
 	if(nV < 4) {
 		nprog = 150; //for v1
@@ -13404,66 +13451,15 @@ if(X.isHeuristicScan()) { //parallel block
 			t = X.U8(p); if(isWithinRanges(t, rangesb01) || isWithin(t, 0xA5,0xB1)) ic++;
 			t = X.U8(p+1); if(isWithinRanges(t, rangesb01) || isWithin(t, 0x92,0xA7)) ic++;
 			t = X.U8(p+2); if(t >= 0xE1 || isWithinRanges(t, rangesb2)) ic++;
-			// t = X.U8(p+2); if(t >= 0xE1 || isWithin(t, 0x1B,0x1C) || isWithin(t, 0x21,0x2F)
-			// 	|| isWithin(t, 0x34,0x3E) || isWithin(t, 0x41,0x47) || isWithin(t, 0x49,0x54)
-			// 	|| isWithin(t, 0x5A,0x5E) || isWithin(t, 0x66,0x72) || isWithin(t, 0x75,0x7F)
-			// 	|| isWithin(t, 0x81,0x87) || isWithin(t, 0x89,0xBF) || isWithin(t, 0xC9,0xCF)
-			// 	|| isWithin(t, 0xD1,0xDF)) ic++;
 			t = X.U8(p+3); if(t >= 0xD1 || isWithinRanges(t, rangesb3)) ic++;
-			// t = X.U8(p+3); if(t >= 0xD1 || isWithin(t, 0x2B,0x2E) || isWithin(t, 0x36,0x3E)
-			// 	|| isWithin(t, 0x45,0x4C) || isWithin(t, 0x51,0x57) || isWithin(t, 0x59,0x67)
-			// 	|| isWithin(t, 0x69,0x6C) || isWithin(t, 0x6E,0x71) || isWithin(t, 0x76,0x80)
-			// 	|| isWithin(t, 0x88,0x8F) || isWithin(t, 0x9D,0xAF) || isWithin(t, 0xB1,0xBF)
-			// 	|| isWithin(t, 0xC1,0xC9) || isWithin(t, 0xCB,0xCF)) ic++;
 			t = X.U8(p+4); if(isWithinRanges(t, rangesb4)) ic++;
-			// t = X.U8(p+4); if(isWithin(t, 1,5) || isWithin(t, 7,0x10) || isWithin(t, 0x15,0x1E)
-			// 	|| isWithin(t, 0x27,0x2C) || isWithin(t, 0x39,0x3E) || isWithin(t, 0x45,0x4F)
-			// 	|| isWithin(t, 0x57,0x5F) || isWithin(t, 0x69,0x6D) || isWithin(t, 0x8A,0x8E)
-			// 	|| isWithin(t, 0x9A,0x9F) || isWithin(t, 0xAC,0xB0) || isWithin(t, 0xB9,0xBF)
-			// 	|| isWithin(t, 0xC7,0xD1) || isWithin(t, 0xD7,0xDF) || isWithin(t, 0xE8,0xEF)
-			// 	|| isWithin(t, 0xFA,0xFD)) ic++;
 			t = X.U8(p+5); if(isWithinRanges(t, rangesb5)) ic++;
-			// t = X.U8(p+5); if(isWithin(t, 1,0xF) || isWithin(t, 0x19,0x1E) || isWithin(t, 0x27,0x2E)
-			// 	|| isWithin(t, 0x37,0x3F) || isWithin(t, 0x49,0x4F) || isWithin(t, 0x58,0x5F)
-			// 	|| isWithin(t, 0x6A,0x6E) || isWithin(t, 0x78,0x7F) || isWithin(t, 0x89,0x8F)
-			// 	|| isWithin(t, 0x9A,0x9F) || isWithin(t, 0xAC,0xAE) || isWithin(t, 0xBA,0xC6)
-			// 	|| isWithin(t, 0xC9,0xD2) || isWithin(t, 0xD5,0xE3) || isWithin(t, 0xEA,0xEE)
-			// 	|| isWithin(t, 0xFA,0xFC)) ic++;
 			t = X.U8(p+6); if(isWithinRanges(t, rangesb6)) ic++;
-			// t = X.U8(p+6); if(isWithin(t, 0xA,0xE) || isWithin(t, 0x1B,0x1E) || isWithin(t, 0x24,0x26)
-			// 	|| isWithin(t, 0x37,0x3A) || isWithin(t, 0x3C,0x3F) || isWithin(t, 0x49,0x4E)
-			// 	|| isWithin(t, 0x5A,0x60) || isWithin(t, 0x6B,0x6E) || isWithin(t, 0x7C,0x7E)
-			// 	|| isWithin(t, 0x80,0x83) || isWithin(t, 0x8A,0x90) || isWithin(t, 0x9A,0xA1)
-			// 	|| isWithin(t, 0xA7,0xAF) || isWithin(t, 0xB1,0xC6) || isWithin(t, 0xC8,0xCD)
-			// 	|| isWithin(t, 0xCF,0xDC) || isWithin(t, 0xDE,0xE0) || isWithin(t, 0xE2,0xE6)
-			// 	|| isWithin(t, 0xE8,0xED)) ic++;
 			t = X.U8(p+7); if(isWithinRanges(t, rangesb7)) ic++;
-			// t = X.U8(p+7); if(isWithin(t, 0xC,0xE) || isWithin(t, 0x19,0x1E) || isWithin(t, 0x27,0x2E)
-			// 	|| isWithin(t, 0x39,0x41) || isWithin(t, 0x59,0x5E) || isWithin(t, 0x6A,0x6E)
-			// 	|| isWithin(t, 0x79,0x7F) || isWithin(t, 0x8A,0x95) || isWithin(t, 0x9A,0xA5)
-			// 	|| isWithin(t, 0xAB,0xC6)	|| isWithin(t, 0xCA,0xCD) || isWithin(t, 0xD1,0xDE)
-			// 	|| isWithin(t, 0xE0,0xED)) ic++;
 			t = X.U8(p+8); if(t >= 0xF7 || isWithinRanges(t, rangesb8)) ic++;
-			// t = X.U8(p+8); if(t >= 0xF7 || isWithin(t, 0x12,0x15) || isWithin(t, 0x17,0x1F)
-			// 	|| isWithin(t, 0x23,0x36) || isWithin(t, 0x38,0x3F) || isWithin(t, 0x41,0x4D)
-			// 	|| isWithin(t, 0x4F,0x51) || isWithin(t, 0x5A,0x60) || isWithin(t, 0x62,0x68)
-			// 	|| isWithin(t, 0x6A,0x6D) || isWithin(t, 0x6F,0x7E) || isWithin(t, 0x80,0x93)
-			// 	|| isWithin(t, 0x95,0xF5)) ic++;
 			t = X.U8(p+9); if(t >= 0xB3 || isWithinRanges(t, rangesb9)) ic++;
-			// t = X.U8(p+9); if(t >= 0xB3 || isWithin(t, 0x10,0x17) || isWithin(t, 0x19,0x40)
-			// 	|| isWithin(t, 0x42,0x60) || isWithin(t, 0x65,0x68) || isWithin(t, 0x6A,0x76)
-			// 	|| isWithin(t, 0x7A,0x90) || isWithin(t, 0x92,0xB1)) ic++;
 			t = X.U8(p+0xA); if(t >= 0x9A || isWithinRanges(t, rangesbA)) ic++;
-			// t = X.U8(p+0xA); if(t >= 0x9A || isWithin(t, 0x10,0x1C) || isWithin(t, 0x21,0x2F)
-			// 	|| isWithin(t, 0x31,0x42) || isWithin(t, 0x49,0x54) || isWithin(t, 0x56,0x5D)
-			// 	|| isWithin(t, 0x60,0x6D) || isWithin(t, 0x6F,0x72) || isWithin(t, 0x74,0x88)
-			// 	|| isWithin(t, 0x78A,0x98)) ic++;
 			t = X.U8(p+0xB); if(isWithinRanges(t, rangesbB)) ic++;
-			// t = X.U8(p+0xB); if(isWithin(t, 0xA,0xF) || isWithin(t, 0x12,0x1F) || isWithin(t, 0x21,0x2F)
-			// 	|| isWithin(t, 0x31,0x36) || isWithin(t, 0x38,0x3F) || isWithin(t, 0x45,0x56)
-			// 	|| isWithin(t, 0x58,0x5F) || isWithin(t, 0x61,0x66) || isWithin(t, 0x68,0x6F)
-			// 	|| isWithin(t, 0x78,0x7F) || isWithin(t, 0x81,0x96) || isWithin(t, 0x9A,0xEF)
-			// 	|| isWithin(t, 0xF1,0xFE)) ic++;
 			if(ic > 2) return
 		}
 		//test the orderlist:
@@ -13478,7 +13474,7 @@ if(X.isHeuristicScan()) { //parallel block
 			else if((t & 0x80) && t <= 0xB1) { //løøps
 				t &= 0x3F; t += 0x600;
 //_logIt('@'+Hex(p)+' -=loop=-')
-				if(t > 0x632 || X.U8(t) > 0xB1 || t == p) { if(debug>0)_logIt('@'+Hex(p)+', t:'+Hex(t)+', funnay '+Hex(X.U8(t))); return; }
+				if(t > 0x632 || X.U8(t) > 0xB1 || t == p) { if(debug>0)_logIt('@'+Hex(p)+', t:'+Hex(t)+' :: '+Hex(X.U8(t))); return; }
 				else p = 0x600+t-1;
 			}
 			else if(t & 0x80) ic++; else { if(ptn < t) ptn = t;  ord++ }
@@ -13536,7 +13532,7 @@ if(X.isHeuristicScan()) { //parallel block
 		}
 		return true
 	}
-	if(isFMX()) _setResult("~audio","K.Ohshima's FMX chiptune (.FMX)",'',X.isVerbose?'ch:'+ch:'');
+	if(isFMX()) _setResult("~audio","K.Ohshima's FMX chiptune (.FMX)",'',X.isVerbose()?'ch:'+ch:'');
 
 
 

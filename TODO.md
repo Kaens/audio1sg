@@ -82,7 +82,6 @@ This is where you can contribute the most! (sorted by extension)
  - Master Tracker Adlib `.MTR` (size)
  - DOOM music (`.MUS` `\x1A`) (info)
  - MVS `.MUS` (info, size)
- - Sidplayer `.MUS`
  - MVX `.MVM` (find out what it is, info, size)
  - MXMplay `.MXM` (more info, size)
  - MaxTrax `.MXTX` (info, size)
