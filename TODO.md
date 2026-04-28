@@ -86,6 +86,7 @@ This is where you can contribute the most! (sorted by extension)
  - MXMplay `.MXM` (more info, size)
  - MaxTrax `.MXTX` (info, size)
  - Nerd Tracker II `.NED` (info, size)
+ - Load_nru `.NRU`
  - Startrekker AM's `.NT` info files
  - NoiseTrekker/ProTrekker `.NTK` & `.PTK` (info, size, tighten)
  - NovoTrade Packer `.NTP` (tigthen, info, size)
@@ -132,6 +133,7 @@ This is where you can contribute the most! (sorted by extension)
  - Sound Programming Language `.SPL` (info, size)
  - Stonetracker `.SPM` (tighten/fix, info, size)
  - .DMM, `.SQD` - test patterns!
+ - SoundSmith/MegaTracker Load_ss `.SS`
  - Speedy System `.SS` (info, size)
  - Sound Tracker (Pro, II) `.ST1` & `.ST11` & `.STP` (info, size)
  - Stereo Sidplayer `.STR`
