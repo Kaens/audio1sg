@@ -2683,6 +2683,15 @@ function detect() {
 		if(X.isVerbose())
 			sOption(outSz(X.U16(4)),'sz:')
 	}
+	else if(X.Sz() >= 16391 && X.c('FE0080FFBF0080') && X.c('898A8B8C8D8E8F',0x4000)) {
+		sName = "MSX MUS chiptune (.MUS)"; bDetected = 1;
+		if(X.isVerbose()) {
+			sOptionT(X.SA(0x3F8B,8));
+			sOptionT(X.SC(0x3FAD,0x28,'Shift_JIS'));
+			sOptionT(X.SC(0x3FD6,0x28,'Shift_JIS'),'by: ')
+			sOption('sz:'+outSz(16391))
+		}
+}
 	else if(X.c("'MXM'00") && isWithin(X.U32(4),1,256) && X.U32(8) < X.U32(4)
 	  && isWithin(X.U32(0xC),1,255) && X.U32(0x10)) {
 		// from https://www.cubic.org/source/mxmplay-1.6.zip / xm2mxm.cpp
@@ -6108,6 +6117,7 @@ function isProtrackerMOD() {
 	var isStarTrekker = isGenericMCh = isMdKd = maybeWOW = isHMNT = isInconexia = isNoiseTracker
 	  = setMODVBlankTiming = hasLongSmp = hasEmptySmpwVol = hasRepLen0 = false;
 	var maybeAS = 0, ibtrsh = 40; //typical threshold for invalid bytes (in samples); _FRAGILE is 1
+//	if(/OggS/.test(X.SA(0,4))) ibtrsh -= 20;
 
 	//test signatures
 	if(/(M\.K\.|M!K!|PATT|NSMS|LARD)/.test(s)) {
@@ -12347,24 +12357,41 @@ if(!bDetected && isiXalanceUnp()) {
 
 
 function isOPX(o) {
-	var p = o+0x7E;
 	if(X.c("200D0A1A",o+0x7A)) {
 		if(!X.c("0D0A",o+0x35) || !X.c("0D0A",o+0x6C)) return; //obligatory line breaks?
 	} else if(!X.c("20202020",o+0x7A)) return; //wiped out with spaces!
 	for(i=0; i < 0x35; i++) if(X.U8(o+i) < 0x20) return;
-	if(X.U8(p+1) > 2 || X.U8(p+3) > 0x3F || X.U8(p+4) > 6 || X.U8(p+6) > 5 || X.U8(p+7) > 0x21 || X.U8(p+8) > 1
-		|| X.U8(p+9) > 0x4F || X.U8(p+10) || X.U8(p+12) > 1 || X.U8(p+14) > 3 || X.U8(p+16) > 3 || X.U8(p+18) > 3) return;
+	if(X.U8(o+0x7F) > 2 || X.U8(o+0x81) > 0x3F || X.U8(o+0x82) > 6 || X.U8(o+0x84) > 5
+	  || X.U8(o+0x85) > 0x21 || (nv=X.U8(o+0x86)) > 1 || X.U8(o+0x87) > 0x4F || X.U8(o+0x88)
+	  || X.U8(o+0x89) < 5 || X.U8(o+0x8A) > 1 || X.U8(o+0x8B) < 0x0A || X.U8(o+0x8C) > 3
+	  || X.U8(o+0x8D) < 0xF || X.U8(o+0x8E) > 3 || X.U8(o+0x8F) < 0x11 || X.U8(o+0x90) > 3
+	  || X.U8(o+0x91) < 6 || X.U8(o+0x92) > 4 || X.U8(o+0x93) < 0xD ||  X.U8(o+0x94) > 0xC) return;
 	return true
 }
 if(!bDetected) { var isopx = -1;
 	if(isOPX(0)) isopx = 0; else if(isOPX(0xC00)) isopx = 0xC00;
 	if(isopx >= 0) {
-		sName = "MSX Performer OPX chiptune (.OPX)"; bDetected = 1;
+		sName = "MSX Performer OPX chiptune (.OPX)"; sVersion = ['v1','v2'][nv]; bDetected = 1;
 		if(X.isVerbose()) {
 			//if(isopx > 0) sOption('+'+Hex(isopx));
 			if(X.U8(0) != 4) sOption(addEllipsis(X.SC(0,0x7B,'SJIS')));
 			else if(X.U8(isopx) != 4) sOption(addEllipsis(X.SC(isopx,0x7B,'SJIS')));
 		}
+	}
+}
+
+
+function isMSXMGS() { // MGS Driver
+	if(!X.c("'MGS'")
+	 || ![0x33,0x41].includes(X.U8(3)) || ![0x30,0x31].includes(X.U8(4)) || !isWithin(X.U8(5),0x30,0x39)
+	  || ![0x0A,0x0D].includes(X.U8(6))) return;
+	if((t=X.fSig(7,0x100,'0D0A1A00')) < 0) return;
+	return true
+}
+if(!bDetected && isMSXMGS()) {
+	sName = 'Ain/GIGAMIX MGSDRV chiptune (.MGS)'; sVersion = 'v.'+X.SA(3,3); bDetected = 1;
+	if(X.isVerbose()) {
+		sOptionT(X.SC(7,t-7,'Shift_JIS'));
 	}
 }
 
@@ -12379,6 +12406,108 @@ if(!bDetected) { var isopx = -1;
 //
 // Some are in dire need of amending, and they're set to go after the other detections,
 // so you won't miss the good matches because of these and will hopefully spend less time waiting for detects
+
+
+function isMSXBGM() {
+	if(X.Sz() < 100 || X.U8(0) != 0xFE
+	  || ![0,0x10,0x15,0x2D,0x30,0x37,0xB7,0xB8].includes(X.U8(1))
+	  || ![0,0x10,0x15,0x25,0x2D,0x30,0x37,0xB7,0xB8].includes(X.U8(5))
+	  // || (X.U8(2) < 0xA5 && ![0,0x30,0x40,0x80].includes(X.U8(2)))
+	  // || (X.U8(6) < 0xA5 && ![0,0x30,0x40,0x80].includes(X.U8(6)))
+	) return;
+	var base = X.U16(1), len = 1+X.U16(3)-base, p = 7+X.U16(5)-base, m = p+17*2,
+		y = 20; //y for yes it's a .bgm - confidence
+	sz = 7+len;
+//_l2r('bgm',p,'base:'+Hex(base)+' sz:'+outSz(sz))
+	if(!isWithin(sz, 80,16384)) y -= 10;
+	if(X.Sz() < sz) y -= 15; else y += 10;
+	lp = X.U8(p++); notes = 0;
+	var chp = [] /*channel flows*/, blkp = [] /*bytecode blocks*/, full=X.isDeepScan();
+	if(!isWithin(lp, 1,8)) y -= 5;
+	// metadata added in the kinrou5 framework — doubles as a magic, yay! Why BTO? Well...
+	// 勤労規格: (c) 1995/96/97 by 黒田圭一/Kuroda Keiichi / BTO(MuSICA Lab)
+	info = extra = '';
+	if(X.c("'BTO'",0x50)) {
+		y += 30;
+		for(xp=7+X.U16(0x5B)-X.U16(0x59), i=0; xp+i < X.Sz() && i < 0x100 && X.U8(xp+i); i++);
+		info = X.SC(xp,i,'Shift_JIS');
+		for(xp=7+X.U16(0x5D)-X.U16(0x59), i=0; xp+i < X.Sz() && i < 0x100 && X.U8(xp+i); i++);
+		extra = X.SC(xp,i,'Shift_JIS');
+	}
+
+	// 17 channel pointers
+	for(i=ch=0; i < 17 && y > 0; i++,p+=2) {
+		t = X.U16(p); if(!t) continue; t += 7-base; ch++;
+		if(!isWithin(t, m,sz-1)) { if(debug)_l2r('bgm',p,'ptr '+Hex(t)+' out of range'); y -= 15 } else y += 3; chp.push([t,i]);
+	}
+	if(!ch || y <= 0) return; m = Math.max(m,chp.length*7);
+if(debug)_l2r('bgm',p,'ch ptrs:'+outArray(chp,16)+', '+y+'%, m='+Hex(m));
+
+	// per-channel orderlist, pointers
+	for(i=0; i < chp.length && y > 0 && (full || y < 100); i++) {
+		p = chp[i][0]; var chc = 0 /*channel's block counter*/;
+if(debug)_l2r('bgm',p,'testing channel '+i+'...')
+		for(t=X.U16(p); t && y > 0 && p < sz; chc++) {
+			if(!t) { p += 2; continue }
+			t += 7-base;
+if(debug)_l2r('bgm',p,'  testing ptr:'+Hex(t))
+			if(!isWithin(t, m,sz-1)) y -= 15;
+			else { if(!blkp.includes([t,chp[i][1]])) blkp.push([t,chp[i][1]]); y += 10 }
+			if(!X.U8(p+2)) y--;
+			p += 3; t = X.U16(p);
+		}
+		if(!chc) y -= 15;
+if(debug)_l2r('bgm',p,'after channel '+i+': +'+blkp.length+' ord, '+y+'%')
+
+	}
+	if(p > sz || y <= 0) return;
+
+	// actual music data parser
+	if(full || y < 100) for(i=0; i < blkp.length && y > 0 && (full || y < 100) && p < sz; i++) {
+		var ix13 = ix12 = vibds = port = ix20 = 0;
+		p = blkp[i][0]; if(X.U8(p-1) == 0xFF) y += 10;
+if(debug)_l2r('bgm',p, ' testing block '+i+', '+y+'%...');
+		if(full || y < 100) while(y > 0 && (full || y < 100) && p < sz) {
+			c = X.U8(p++); if(c == 0xFF) break;
+			if(c <= 0x5F) { //note, duration
+				x = X.U8(p++); if(!x) y--; else y++;
+				if(c) notes++;
+				if(c >= 0x5E) y -= 10; //the freq table doesn't go that high!
+			}
+			else if(c <= 0x7F) {} //just volume settings, can't check anything
+			else if(c == 0x80) { if(!(ix13 & 2)) y--; else y++; ix13 &= ~2 } //suspicious if resetting a reset bit 1
+			else if(c == 0x81) { if(ix13 & 2) y--; else y++; ix13 |= 2 } //same for setting a set bit 1
+			else if(c == 0x82) { p++ } //2-byte nop
+			else if(c == 0x83) {
+				x = X.U16(p)-base+7;
+				if(blkp[i][1] <= 8) { if(!isWithin(x, m,sz-8)) y -= 15 } //sets OPLL/FM instrument def
+				else if(blkp[i][1] <= 11) { if(!isWithin(x, m,sz-6)) y -= 15 } //sets PSG voice/env data
+				else { if(!isWithin(x, m,sz-4)) y -= 15 } //sets SCC wf/vol; writes to wf RAM
+				y += 10; p += 2
+			}
+			else if(c == 0x84) { if(!(ix12 & 0x20)) y--; else y++; ix12 &= ~0x20 } //reset bit 5
+			else if(c == 0x85) { if(ix12 & 0x20) y--; else y++; ix12 |= 0x20 } //set bit 5
+			else if(c == 0x86) { ix12 = (ix12&0xF0) | (X.U8(p++)&0xF); y++ } //set the lower nibble of ix12
+			else if(c == 0x87) { x = X.I8(p++); if(isWithin(x, -64,64)) y++; else y-- } //detune
+			else if(c == 0x88) { x = X.U8(p++); if(!port && vibds == x) y--; else y++; port = 0; vibds = x } // set vibrato depth/speed
+			else if(c == 0x89) { x = X.U8(p++); port = x } // set portamento/pitch slide speed
+			else if(c == 0x8A) { } //1-byte nop
+			else if(c == 0x8B) { p++ } // set vibrato delay/rate
+			else if(c == 0x8C) { p += 2 } //direct cur.chip reg write; ideally, a place to test if correct registers are being sent, but...
+			else if(c == 0x8D) { } //calls LABEL11, duration/length calc helper
+			else if(c == 0xC0) { p += 2 } //calls LABEL11, duration/length calc helper
+			else if(c == 0xC1) { } //???calls LABEL11, duration/length calc helper???
+			else y -= 30; // non-existent commands!
+		}		
+	} //-music data parser
+	return p <= sz && y > 0
+}
+if(!bDetected && isMSXBGM()) {
+	sName = "ASCII Corp./アスキー Yoshida 'Soram' Tetsuma's MuSICA chiptune (.BGM,.BGR)"; bDetected = 1;
+	if(X.isVerbose()) {
+		sOption(info); sOption(extra);
+		sOption('ch:'+ch+(X.isDeepScan()?' notes:'+notes:'')+' sz:'+outSz(sz)) }
+}
 
 
 function isImagesMusicSystem() { //goes before Soundtracker .STK for speed
@@ -13586,7 +13715,7 @@ if(X.isHeuristicScan()) { //parallel block
 		if(X.Sz() < 0x160) return;
 		_gyminfo = parseMDGYM(0, X.isDeepScan()? BCParseToEoF: BCParseToReasonable);
 if(debug>0)_logIt('gym?'+outArray(_gyminfo,16))
-		if(_gyminfo[0] < 0) return;
+		if(!_gyminfo || _gyminfo[0] < 0) return;
 		return true
 	}
 	if(isGYM()) _setResult("~audio", "Sega Genesis/Mega Drive YM2612 chiptune (.GYM)", "headerless",
@@ -13599,7 +13728,7 @@ if(debug>0){ tmr = new CheckpointTimer(); tmr.init(300); }
 		_cyminfo = parseYM2151RegLog(0, X.isDeepScan()? BCParseToEoF: BCParseToReasonable);
 if(debug>0)tmr.next('OPM (.cym) parsed');
 if(debug>0)_logIt('cym?'+outArray(_cyminfo,16));
-		if(_cyminfo[0] < 0) return;
+		if(!_cyminfo || _cyminfo[0] < 0) return;
 		return true
 	}
 	if(!X.isOverlay() && isOPMLog()) _setResult("~audio","YM2151 OPM/Callus chiptune (.CYM)","headerless",
