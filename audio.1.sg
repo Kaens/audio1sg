@@ -2313,6 +2313,99 @@ function detect() {
 		if(X.isVerbose())
 			sOption(X.SA(4,0x12))
 	}
+	else if(X.c("'MBMS'10") && (v=X.U8(5)) <= 2 && X.Sz() > 6+812) {
+		//ref https://gitlab.com/torihino/roboplay/-/blob/master/players/src/mfm.c?ref_type=heads ← load_song_data
+		sName = "R.Schrijvers & M.Delorme's MoonBlaster for MoonSound FM module (.MFM)";
+		bDetected = 1;
+		switch(v) {
+		case 0: sVersion = 'edit_mode'; break;
+		case 1: sVersion = 'user_mode'; break;
+		case 2: sVersion = 'raw_mode'
+		}
+		bad = ''; p = 6; poss = []; posu = []; // positions and unique positons
+		if(v != 1) { poss = X.readBytes(p,220); p += 220 }
+		ord = X.U8(p)+1; lp = X.U8(p+1); tempo0 = X.U8(p+554); hz50 = X.U8(p+555);
+		title = X.SC(p+718,50,'CP1250').trim(); wk = X.SC(p+804,8,'CP1250').trim(); p += 812;
+		if(wk != 'NONE') sVersion = sVersion.appendS('+'+wk+'.MWK','/');
+		sVersion += hz50? '@50Hz#OPL4': '@60Hz#OPL4';
+		if(v == 1) { poss = X.readBytes(p,ord); p += ord }
+		for(ptn=i=0; i < poss.length; i++) { if(poss[i] >= ptn) ptn = poss[i]+1; if(!posu.includes(ptn)) posu.push(ptn) }
+		if(ptn > 80 || posu.length > 79) bad = bad.addIfNone('!badptnno');
+		if(v == 1) p += ptn*2; else if(v == 0) p += 80*2; // skip pattern addresses
+		seg = 0;
+		if(v == 2) { seg++; p += 0x4000; ptnc = 40 }
+		else { ptnsz = X.U16(p); ptnc = X.U8(p+2); p += 3 }
+		while(ptnc && seg < 3) {
+			p += ptnsz; if(v != 2) { ptnsz = X.U16(p); ptnc = X.U16(p+2); p += 3; seg++ }
+			if(p > X.Sz()) bad = bad.addIfNone('!short');
+			if(!ptnsz) break
+		}
+		if(v == 0) p += 1040; // instr metadata
+
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+		if(X.isVerbose()) {
+			sOption(title);
+			sOption('tempo0:'+tempo0+' ord:'+ord
+			  +' ptn:'+(posu.length<ptn?posu.length+'/':'')+ptn
+			  +' seg:'+(seg+1)+ ' sz:'+outSz(p));
+		}
+	}
+	else if(X.c("'MBMS'10") && [7,8].includes(v=X.U8(5)) && X.Sz() > 284) {
+		//ref https://gitlab.com/torihino/roboplay/-/blob/master/players/src/mwm.c ← load_song_data
+		sName = "R.Schrijvers & M.Delorme's MoonBlaster for MoonSound Wave module (.MWM+.MWK)";
+		bDetected = 1;
+		switch(v) {
+		case 7: sVersion = 'edit_mode#OPL4'; break;
+		case 8: sVersion = 'user_mode#OPL4'
+		}
+		bad = ''; p = 6; poss = []; posu = []; // positions and unique positons
+		if(v != 8) { poss = X.readBytes(p,220); p += 220 }
+		ord = X.U8(p)+1; lp = X.U8(p+1); tempo0 = X.U8(p+26);
+		title = X.SC(p+220,50,'CP1250').trim(); wk = X.SC(p+270,8,'CP1250').trim(); p += 278;
+		if(wk != 'NONE') sVersion = sVersion.appendS('+'+wk+'.MWK','/');
+		if(v == 8) { poss = X.readBytes(p,ord); p += ord }
+		for(ptn=i=0; i < poss.length; i++) { if(poss[i] >= ptn) ptn = poss[i]+1; if(!posu.includes(ptn)) posu.push(ptn) }
+		if(ptn > 80 || posu.length > 79) bad = bad.addIfNone('!badptnno');
+		if(v == 8) p += ptn*2; else p += 80*2; // skip pattern addresses
+		seg = 0;
+		ptnsz = X.U16(p); ptnc = X.U8(p+2); p += 3;
+		while(ptnc && seg < 3) {
+			p += ptnsz; if(v != 2) { ptnsz = X.U16(p); ptnc = X.U16(p+2); p += 3; seg++ }
+			if(p > X.Sz()) bad = bad.addIfNone('!short');
+			if(!ptnsz) break
+		}
+
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad,'/');
+		if(X.isVerbose()) {
+			sOption(title);
+			sOption('tempo0:'+tempo0+' ord:'+ord
+			  +' ptn:'+(posu.length<ptn?posu.length+'/':'')+ptn
+			  +' seg:'+(seg+1)+ ' sz:'+outSz(p));
+		}
+	}
+	else if(X.c("'MBMS'10") && [0xC,0xD].includes(v=X.U8(5)) && isWithin(X.U24(6), 1,0x200000)) {
+		//ref https://gitlab.com/torihino/roboplay/-/blob/master/players/src/mwm.c ← load_wave_kit
+		sName = "R.Schrijvers & M.Delorme's MoonBlaster Wave for MoonSound wave kit (.MWK)";
+		bDetected = 1;
+		switch(v) {
+		case 0xC: sVersion = 'edit_mode'; break;
+		case 0xD: sVersion = 'user_mode'
+		}
+		p = 6;
+		smpsz = X.U24(p)+6; smp = X.U8(p+3); tones = X.readBytes(p+4,64);
+		p += 68 + smp*25; // skip the above and own_patches
+		if(v == 0xC) p += smp*16; // sample names; display? It's like "Own Wave 01" boring though
+		for(i=0; i < 64 && p < X.Sz(); i++) {
+			if(tones[i] & 1) {
+				if(v == 0xC) p += 16; //tone name, like "Tone 01", display?
+				len = X.U16(p+11); p += 13;
+				if(!(tones[i] & 0x20)) p += len;
+			}
+		}
+		if(X.isVerbose()) {
+			sOption('smp:'+smp+' sz:'+outSz(p));
+		}
+	}
 	else if(X.c("D040D0404EFB")) {
 		sName = "Mark Cooksey's module (.MC)"; sVersion = "new"; bDetected = 1
 	}
@@ -7610,48 +7703,48 @@ if(!bDetected && isGMC()) {
 }
 
 
-function isMoonBlaster() {
+function isMoonBlaster1() {
 	//ref https://www.msx.org/wiki/Moonblaster_file_format
 	//TODO check for the sanity of more values passed to MSX-AUDIO, like instr/vol
-	if(X.Sz() < 0x179) return false;
-	ord = X.U8(0); ofs = unpsz = 0;
-	if(ord > 220 && ord < 255) return false; //not sure if the manual is right about 220 being the maximum
+	if(X.Sz() < 0x179) return;
+	if(isWithin(ord=X.U8(0), 221,254)) return; //not sure if the manual is right about 220 being the maximum
+	ofs = unpsz = 0;
 	if(ord == 255) { ofs = 1; ord = 200 } //a subformat. Always 200 positions, 01-filled; all offsets are +1
 	else ord++;
-	for(i=0; i < 0x20; i++) if(X.U8(0xA3+ofs+i) > 0x16) { /*_log('MBM: instr/vol error');*/ return false }
-	tmp0 = X.U8(ofs+0xCD); if(!tmp0) { /*_log('MBM: tempo = 0 error');*/ return false }
+	for(i=0; i < 0x20; i++) if(X.U8(0xA3+ofs+i) > 0x16) { /*_log('MBM: instr/vol error');*/ return }
+	tmp0 = X.U8(ofs+0xCD); if(!tmp0) { /*_log('MBM: tempo = 0 error');*/ return }
 	p = ofs+0x178+ord; ptn = -1; for(i=ofs+0x178; i < p; i++) { t = X.U8(i); if(t > ptn) ptn = t }
 	// Start pattern number is 1, no need to ptn++. Funnily, the manual says patterns start from 0
-	if(ptn < 1) return false;
+	if(ptn < 1) return;
 	ptnp = p+ofs; ptn1 = oldp = X.U16(ptnp);
-	if(ptn1 > X.Sz()) { /*_log('MBM: ptn1 @'+Hex(ptn1)+">"+Hex(X.Sz()));*/ return false }
+	if(ptn1 > X.Sz()) { /*_log('MBM: ptn1 @'+Hex(ptn1)+">"+Hex(X.Sz()));*/ return }
 	for(i=0; p < X.Sz() && i < ptn; i++) {
 		p = X.U16(ptnp+i*2);
 		if(!i) unpsz = p; // patterns should start from the current unpsz
 		if(p < ptnp+i*2 || p > X.Sz()) {
-			/*_log('MBM: ptn ptr['+Hex(i)+'] error @'+Hex(ptnp+i*2)+': '+Hex(p));*/ return false }
-		if(i && p-oldp > 0x100) { /*_log('MBM: ptn too large @'+Hex(ptnp+i*2));*/ return false }
+			/*_log('MBM: ptn ptr['+Hex(i)+'] error @'+Hex(ptnp+i*2)+': '+Hex(p));*/ return }
+		if(i && p-oldp > 0x100) { /*_log('MBM: ptn too large @'+Hex(ptnp+i*2));*/ return }
 		oldp = p;
 	}
 	if(!ofs) { p = ptnp+i*2;
-		if((unpsz != p || p > X.Sz())) { /*_log('MBM: pattern offset error: p='+Hex(p));*/ return false }
+		if((unpsz != p || p > X.Sz())) { /*_log('MBM: pattern offset error: p='+Hex(p));*/ return }
 	} else p = ptn1
 	//decruncher: going over all the patterns at once
 	while(p < X.Sz()) { c = X.U8(p++);
 		if(!c) break; else if(c <= 0xF2) unpsz++; else /*decrunching 0's*/ unpsz += c-0xF2;
 	}
-	if(!isWithin(p, 0x178,0x3DC0)) return false;
+	if(!isWithin(p, 0x178,0x3DC0)) return;
 	sz = p;
 	return true
 }
-if(!bDetected && isMoonBlaster()) {
+if(!bDetected && isMoonBlaster1()) {
 	//MUS is "FST-song", MBM is song, MBK is drumkit, MBV is voice-e, MBB is voice-b, MBS is samples
-	sName = "Remco Schrijvers et al.'s MSX MoonBlaster for MoonSound module (.MBM)";
-	bDetected = 1; if(ofs) sVersion = '200-pos.ver.';
-	drumkit = X.SA(ofs+0x140,8).trim();
+	sName = "R.Schrijvers & M.Delorme's MoonBlaster module (.MBM)";
+	if(ofs) sVersion = 'v1.x/edit_mode#OPL'; else sVersion = 'v1.x/user_mode#OPL'; bDetected = 1;
+	drumkit = X.SC(ofs+0x140,8,'CP1250').trim();
 	if(drumkit != 'NONE') sVersion = sVersion.appendS('+'+drumkit+'.MBK','/');
 	if(X.isVerbose()) {
-		sOption(X.SA(ofs+0xCF,40).trim());
+		sOption(X.SC(ofs+0xCF,40,'CP1250').trim());
 		sOption('tempo0:'+tmp0+' ord:'+ord+' ptn:'+ptn+' unpsz:'+unpsz+' sz:'+outSz(sz))
 	}
 }
@@ -12409,51 +12502,51 @@ if(!bDetected && isMSXMGS()) {
 
 
 function isMSXBGM() {
-	if(X.Sz() < 100 || X.U8(0) != 0xFE
-	  || ![0,0x10,0x15,0x2D,0x30,0x37,0xB7,0xB8].includes(X.U8(1))
-	  || ![0,0x10,0x15,0x25,0x2D,0x30,0x37,0xB7,0xB8].includes(X.U8(5))
-	  // || (X.U8(2) < 0xA5 && ![0,0x30,0x40,0x80].includes(X.U8(2)))
-	  // || (X.U8(6) < 0xA5 && ![0,0x30,0x40,0x80].includes(X.U8(6)))
-	) return;
-	var base = X.U16(1), len = 1+X.U16(3)-base, p = 7+X.U16(5)-base, m = p+17*2,
+	if(X.Sz() < 100 || X.U8(0) != 0xFE ) return;
+	var base = X.U16(1); if(!isWithin(base, 0x4000, 0xFF80)) return;
+	sz = 8+X.U16(3)-base;
+	var p = 7+X.U16(5)-base, m = p+17*2, M = Math.min(X.Sz(), sz), // entrypoint, min/max pointers
 		y = 20; //y for yes it's a .bgm - confidence
-	sz = 7+len;
-//_l2r('bgm',p,'base:'+Hex(base)+' sz:'+outSz(sz))
+	if(p < 0 || p > X.Sz() || p > sz) return;
+	 if (sz <= m || m >= X.Sz()) return;
+//if(debug)_l2r('bgm',p,'base:'+Hex(base)+' sz:'+outSz(sz))
 	if(!isWithin(sz, 80,16384)) y -= 10;
 	if(X.Sz() < sz) y -= 15; else y += 10;
+//if(debug)_l2r('bgm',p,'loop='+X.U8(p))
 	lp = X.U8(p++); notes = 0;
-	var chp = [] /*channel flows*/, blkp = [] /*bytecode blocks*/, full=X.isDeepScan();
-	if(!isWithin(lp, 1,8)) y -= 5;
+	var chp = [] /*channel flows*/, blkp = [] /*bytecode blocks*/, full = X.isDeepScan();
+	if(lp > 1) y -= 20; else y += 5;
 	// metadata added in the kinrou5 framework — doubles as a magic, yay! Why BTO? Well...
 	// 勤労規格: (c) 1995/96/97 by 黒田圭一/Kuroda Keiichi / BTO(MuSICA Lab)
 	info = extra = '';
 	if(X.c("'BTO'",0x50)) {
 		y += 30;
-		for(xp=7+X.U16(0x5B)-X.U16(0x59), i=0; xp+i < X.Sz() && i < 0x100 && X.U8(xp+i); i++);
+		for(xp=7+X.U16(0x5B)-X.U16(0x59), i=0; xp+i < M && i < 0x100 && X.U8(xp+i); i++);
 		info = X.SC(xp,i,'Shift_JIS');
-		for(xp=7+X.U16(0x5D)-X.U16(0x59), i=0; xp+i < X.Sz() && i < 0x100 && X.U8(xp+i); i++);
+		for(xp=7+X.U16(0x5D)-X.U16(0x59), i=0; xp+i < M && i < 0x100 && X.U8(xp+i); i++);
 		extra = X.SC(xp,i,'Shift_JIS');
 	}
 
 	// 17 channel pointers
 	for(i=ch=0; i < 17 && y > 0; i++,p+=2) {
 		t = X.U16(p); if(!t) continue; t += 7-base; ch++;
-		if(!isWithin(t, m,sz-1)) { if(debug)_l2r('bgm',p,'ptr '+Hex(t)+' out of range'); y -= 15 } else y += 3; chp.push([t,i]);
+		if(!isWithin(t, m,M-1)) { if(debug)_l2r('bgm',p,'ptr '+Hex(t)+' out of range'); y -= 15 } else y += 3; chp.push([t,i]);
 	}
-	if(!ch || y <= 0) return; m = Math.max(m,chp.length*7);
+	if(!ch || y <= 0) return; m = Math.max(m,p+ch*4);
 if(debug)_l2r('bgm',p,'ch ptrs:'+outArray(chp,16)+', '+y+'%, m='+Hex(m));
 
 	// per-channel orderlist, pointers
-	for(i=0; i < chp.length && y > 0 && (full || y < 100); i++) {
+	for(i=0; i < ch && y > 0 && (full || y < 100); i++) {
 		p = chp[i][0]; var chc = 0 /*channel's block counter*/;
 if(debug)_l2r('bgm',p,'testing channel '+i+'...')
-		for(t=X.U16(p); t && y > 0 && p < sz; chc++) {
-			if(!t) { p += 2; continue }
+		for(t=X.U16(p); t && y > 0 && p < M; chc++) {
+			if(!t) { p += 2; break }
 			t += 7-base;
 if(debug)_l2r('bgm',p,'  testing ptr:'+Hex(t))
-			if(!isWithin(t, m,sz-1)) y -= 15;
+			if(!isWithin(t, m,M-1)) y -= 15;
+			if(X.U8(t-1) == 0xFF) y += 10;
 			else { if(!blkp.includes([t,chp[i][1]])) blkp.push([t,chp[i][1]]); y += 10 }
-			if(!X.U8(p+2)) y--;
+			if(!X.U8(p+2)) y -= 10;
 			p += 3; t = X.U16(p);
 		}
 		if(!chc) y -= 15;
@@ -12463,9 +12556,9 @@ if(debug)_l2r('bgm',p,'after channel '+i+': +'+blkp.length+' ord, '+y+'%')
 	if(p > sz || y <= 0) return;
 
 	// actual music data parser
-	if(full || y < 100) for(i=0; i < blkp.length && y > 0 && (full || y < 100) && p < sz; i++) {
+	if(full || y < 100) for(i=0; i < blkp.length && y > 0 && (full || y < 100) && p < M; i++) {
+		p = blkp[i][0];
 		var ix13 = ix12 = vibds = port = ix20 = 0;
-		p = blkp[i][0]; if(X.U8(p-1) == 0xFF) y += 10;
 if(debug)_l2r('bgm',p, ' testing block '+i+', '+y+'%...');
 		if(full || y < 100) while(y > 0 && (full || y < 100) && p < sz) {
 			c = X.U8(p++); if(c == 0xFF) break;
@@ -12480,9 +12573,9 @@ if(debug)_l2r('bgm',p, ' testing block '+i+', '+y+'%...');
 			else if(c == 0x82) { p++ } //2-byte nop
 			else if(c == 0x83) {
 				x = X.U16(p)-base+7;
-				if(blkp[i][1] <= 8) { if(!isWithin(x, m,sz-8)) y -= 15 } //sets OPLL/FM instrument def
-				else if(blkp[i][1] <= 11) { if(!isWithin(x, m,sz-6)) y -= 15 } //sets PSG voice/env data
-				else { if(!isWithin(x, m,sz-4)) y -= 15 } //sets SCC wf/vol; writes to wf RAM
+				if(blkp[i][1] <= 8) { if(!isWithin(x, m,M-8)) y -= 15 } //sets OPLL/FM instrument def
+				else if(blkp[i][1] <= 11) { if(!isWithin(x, m,M-6)) y -= 15 } //sets PSG voice/env data
+				else { if(!isWithin(x, m,M-4)) y -= 15 } //sets SCC wf/vol; writes to wf RAM
 				y += 10; p += 2
 			}
 			else if(c == 0x84) { if(!(ix12 & 0x20)) y--; else y++; ix12 &= ~0x20 } //reset bit 5
@@ -12500,7 +12593,7 @@ if(debug)_l2r('bgm',p, ' testing block '+i+', '+y+'%...');
 			else y -= 30; // non-existent commands!
 		}		
 	} //-music data parser
-	return p <= sz && y > 0
+	return p <= M && y > 0
 }
 if(!bDetected && isMSXBGM()) {
 	sName = "ASCII Corp./アスキー Yoshida 'Soram' Tetsuma's MuSICA chiptune (.BGM,.BGR)"; bDetected = 1;
