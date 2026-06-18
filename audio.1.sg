@@ -1071,14 +1071,14 @@ function detect() {
 		sVersion = "v"+X.U8(0x10);
 		if(X.isVerbose()) {
 			switch(X.U8(0x11)) { //TODO add more new chip versions
-			case 0x01: sVersion += "#YMU759"; ch = 17; break;
+			case 0x01: sVersion += "#YMU759_MA-2"; ch = 17; break;
 			case 0x02: sVersion += "#Genesis (10ch)"; ch = 10; break;
 			case 0x03: sVersion += "#SMS (4ch)"; ch = 4; break;
 			case 0x04: sVersion += "#GameBoy (4ch)"; ch = 4; break;
 			case 0x05: sVersion += "#PCEngine (6ch)"; ch = 6; break;
 			case 0x06: sVersion += "#NES (5ch)"; ch = 5; break;
 			case 0x07: case 0x47: sVersion += "#C64 (3ch)"; ch = 3; break;
-			case 0x08: sVersion += "#YM2151 (13ch)"; ch = 13; break;
+			case 0x08: sVersion += "#YM2151_OPM (13ch)"; ch = 13; break;
 			default: ch = 4 //just 'cause
 			}
 			sOption(X.UCSD(0x12));
@@ -1832,8 +1832,8 @@ function detect() {
 					case 0x05: chips[i] = "PC Engine (6ch)"; break;
 					case 0x06: chips[i] = "NES (5ch)"; break;
 					case 0x07: chips[i] = "C64 (8580) (3ch)"; break;
-					case 0x08: chips[i] = "Arcade (YM2151+SegaPCM) (13ch)"; break;
-					case 0x09: chips[i] = "Neo Geo CD (YM2610) (13ch)"; break;
+					case 0x08: chips[i] = "Arcade (YM2151 (OPM)+SegaPCM) (13ch)"; break;
+					case 0x09: chips[i] = "Neo Geo CD (YM2610 (OPNB)) (13ch)"; break;
 					case 0x42: chips[i] = "Genesis extended (13ch)"; break;
 					case 0x43: chips[i] = "SN76489 (SMS) + YM2413 (OPLL) (13ch comp.)"; break;
 					case 0x46: chips[i] = "NES+VRC7 (11ch)"; break;
@@ -1841,8 +1841,8 @@ function detect() {
 					case 0x49: chips[i] = "Neo Geo CD extended (16ch)"; break;
 					case 0x80: chips[i] = "AY-3-8910 (3ch)"; break;
 					case 0x81: chips[i] = "Amiga (4ch)"; break;
-					case 0x82: chips[i] = "YM2151 (8ch)"; break;
-					case 0x83: chips[i] = "YM2612 (6ch)"; break;
+					case 0x82: chips[i] = "YM2151 (OPM) (8ch)"; break;
+					case 0x83: chips[i] = "YM2612 (OPN2) (6ch)"; break;
 					case 0x84: chips[i] = "TIA (2ch)"; break;
 					case 0x85: chips[i] = "VIC-20 (4ch)"; break;
 					case 0x86: chips[i] = "PET (1ch)"; break;
@@ -1852,7 +1852,7 @@ function detect() {
 					case 0x8A: chips[i] = "FDS (1ch)"; break;
 					case 0x8B: chips[i] = "MMC5 (3ch)"; break;
 					case 0x8C: chips[i] = "Namco 163 (8ch)"; break;
-					case 0x8D: chips[i] = "YM2203 (6ch)"; break;
+					case 0x8D: chips[i] = "YM2203 (OPN) (6ch)"; break;
 					case 0x8E: chips[i] = "YM2608 (16ch)"; break;
 					case 0x8F: chips[i] = "YM3526 (OPL) (9ch)"; break;
 					case 0x90: chips[i] = "YM3812 (OPL2) (9ch)"; break;
@@ -1863,52 +1863,52 @@ function detect() {
 					case 0x95: chips[i] = "RF5C68 (8ch)"; break;
 					case 0x96: chips[i] = "WonderSwan (4ch)"; break;
 					case 0x97: chips[i] = "Philips SAA1099 (6ch)"; break;
-					case 0x98: chips[i] = "OPZ (YM2414) (8ch)"; break;
+					case 0x98: chips[i] = "YM2414 (OPZ) (8ch)"; break;
 					case 0x99: chips[i] = "Pokémon Mini (1ch)"; break;
 					case 0x9A: chips[i] = "AY8930 (3ch)"; break;
 					case 0x9B: chips[i] = "SegaPCM (16ch)"; break;
 					case 0x9C: chips[i] = "Virtual Boy (6ch)"; break;
 					case 0x9D: chips[i] = "VRC7 (6ch)"; break;
-					case 0x9E: chips[i] = "YM2610B (16ch)"; break;
+					case 0x9E: chips[i] = "YM2610B (NB-B) (16ch)"; break;
 					case 0x9F: chips[i] = "ZX Spectrum (beeper) (6ch)"; break;
-					case 0xA0: chips[i] = "YM2612 extended (9ch)"; break;
+					case 0xA0: chips[i] = "YM2612 (OPN2) extended (9ch)"; break;
 					case 0xA1: chips[i] = "Konami SCC (5ch)"; break;
-					case 0xA2: chips[i] = "OPL drums (YM3526) (11ch)"; break;
-					case 0xA3: chips[i] = "OPL2 drums (YM3812) (11ch)"; break;
-					case 0xA4: chips[i] = "OPL3 drums (YMF262) (20ch)"; break;
-					case 0xA5: chips[i] = "Neo Geo (YM2610) (14ch)"; break;
-					case 0xA6: chips[i] = "Neo Geo extended (YM2610) (17ch)"; break;
-					case 0xA7: chips[i] = "OPLL drums (YM2413) (11ch)"; break;
+					case 0xA2: chips[i] = "YM3526 (OPL) drums (11ch)"; break;
+					case 0xA3: chips[i] = "YM3812 (OPL2) drums (11ch)"; break;
+					case 0xA4: chips[i] = "YMF262 (OPL3) drums (20ch)"; break;
+					case 0xA5: chips[i] = "Neo Geo (YM2610 (OPNB)) (14ch)"; break;
+					case 0xA6: chips[i] = "Neo Geo extended (YM2610 (OPNB)) (17ch)"; break;
+					case 0xA7: chips[i] = "OPLL drums (YM2413 (OPLL)) (11ch)"; break;
 					case 0xA8: chips[i] = "Atari Lynx (4ch)"; break;
 					case 0xA9: chips[i] = "SegaPCM (DefleMask compat.) (5ch)"; break;
 					case 0xAA: chips[i] = "MSM6295 (4ch)"; break;
 					case 0xAB: chips[i] = "MSM6258 (1ch)"; break;
 					case 0xAC: chips[i] = "Commander X16 (VERA) (17ch)"; break;
 					case 0xAD: chips[i] = "Bubble System WSG (2ch)"; break;
-					case 0xAE: chips[i] = "OPL4 (YMF278B) (42ch)"; break;
-					case 0xAF: chips[i] = "OPL4 drums (YMF278B) (44ch)"; break;
+					case 0xAE: chips[i] = "YMF278B (OPL4) (42ch)"; break;
+					case 0xAF: chips[i] = "YMF278B (OPL4) drums (44ch)"; break;
 					case 0xB0: chips[i] = "Seta/Allumer X1-010 (16ch)"; break;
 					case 0xB1: chips[i] = "Ensoniq ES5506 (32ch)"; break;
-					case 0xB2: chips[i] = "Yamaha Y8950 (10ch)"; break;
-					case 0xB3: chips[i] = "Yamaha Y8950 drums (12ch)"; break;
+					case 0xB2: chips[i] = "Y8950 (MSX-AUDIO) (10ch)"; break;
+					case 0xB3: chips[i] = "Y8950 (MSX-AUDIO) drums (12ch)"; break;
 					case 0xB4: chips[i] = "Konami SCC+ (5ch)"; break;
 					case 0xB5: chips[i] = "tildearrow Sound Unit (8ch)"; break;
-					case 0xB6: chips[i] = "YM2203 extended (9ch)"; break;
-					case 0xB7: chips[i] = "YM2608 extended (19ch)"; break;
-					case 0xB8: chips[i] = "YMZ280B (8ch)"; break;
+					case 0xB6: chips[i] = "YM2203 (OPN) extended (9ch)"; break;
+					case 0xB7: chips[i] = "YM2608 (OPNA) extended (19ch)"; break;
+					case 0xB8: chips[i] = "YMZ280B (PCMD8) (8ch)"; break;
 					case 0xB9: chips[i] = "Namco WSG (3ch)"; break;
 					case 0xBA: chips[i] = "Namco 15xx (8ch)"; break;
 					case 0xBB: chips[i] = "Namco CUS30 (8ch)"; break;
 					case 0xBC: chips[i] = "MSM5232 (8ch)"; break;
-					case 0xBD: chips[i] = "YM2612 extra features extended (11ch)"; break;
-					case 0xBE: chips[i] = "YM2612 extra features (7ch)"; break;
+					case 0xBD: chips[i] = "YM2612 (OPN2) extra features extended (11ch)"; break;
+					case 0xBE: chips[i] = "YM2612 (OPN2) extra features (7ch)"; break;
 					case 0xBF: chips[i] = "T6W28 (4ch)"; break;
 					case 0xC0: chips[i] = "PCM DAC (1ch)"; break;
-					case 0xC1: chips[i] = "YM2612 CSM (10ch)"; break;
+					case 0xC1: chips[i] = "YM2612 (OPN2) CSM (10ch)"; break;
 					case 0xC2: chips[i] = "Neo Geo CSM (YM2610) (18ch)"; break;
-					case 0xC3: chips[i] = "YM2203 CSM (10ch)"; break;
-					case 0xC4: chips[i] = "YM2608 CSM (20ch)"; break;
-					case 0xC5: chips[i] = "YM2610B CSM (20ch)"; break;
+					case 0xC3: chips[i] = "YM2203 (OPN) CSM (10ch)"; break;
+					case 0xC4: chips[i] = "YM2608 (OPNA) CSM (20ch)"; break;
+					case 0xC5: chips[i] = "YM2610B (NB-B) CSM (20ch)"; break;
 					case 0xC6: chips[i] = "K007232 (2ch)"; break;
 					case 0xC7: chips[i] = "GA20 (4ch)"; break;
 					case 0xC8: chips[i] = "SM8521 (4ch)"; break;
@@ -1931,9 +1931,9 @@ function detect() {
 					case 0xDA: chips[i] = "SCSP (32ch)"; break;
 					case 0xDB: chips[i] = "YMF271 (OPX) (48ch)"; break;
 					case 0xDC: chips[i] = "RF5C400 (32ch)"; break;
-					case 0xDD: chips[i] = "YM2612 XGM (9ch)"; break;
-					case 0xDE: chips[i] = "YM2610B extended (19ch)"; break;
-					case 0xDF: chips[i] = "YM2612 XGM extended (13ch)"; break;
+					case 0xDD: chips[i] = "YM2612 (OPN2) XGM (9ch)"; break;
+					case 0xDE: chips[i] = "YM2610B (NB-B) extended (19ch)"; break;
+					case 0xDF: chips[i] = "YM2612 (OPN2) XGM extended (13ch)"; break;
 					case 0xE0: chips[i] = "QSound (19ch)"; break;
 					case 0xE1: chips[i] = "PS1 (24ch)"; break;
 					case 0xE2: chips[i] = "C64 (6581)+PCM (4ch)"; break;
@@ -4694,75 +4694,78 @@ function detect() {
 		sName = "Patrick Meng's Symphonie module (.SYMMOD)"; //fmt[MENG_SYMPHONIE_SYMMOD]
 		bDetected = 1;
 		sVersion = "v"+X.U32(4,_BE);
+		p = 8; title = bad = ''; bpm = -1; done = extsmp = pro = false; ch = ord = ptn = ins = smp = 0;
+		while (p < X.Sz()) {
+			hkhd = X.I32(p,_BE); hksz = 4;
+//if(debug){hkhx = Hex(X.U32(p,_BE)); _l2r('symmod',p,hkhd+' / '+hkhx)}
+			if(done) /*|| charStat(hkhd).indexOf('allasc') < 0)*/ break;
+			p += 0x04; //chunk header = 4xtype (the following will change by chunk type)
+			switch (hkhd) {
+				case -16:
+					pklen = X.U32(p,_BE); hksz += pklen; o = 4; //InfoText RLE-COMPRESSED... doesn't seem to happen at all
+					if(pklen >= 10 && X.c(p+o, "'PACK'FFFF")) if(!X.isDeepScan()) { p = -1; break } else {
+//_l2r('symmod',p,'Packed infotext')
+						o += 6; unplen = X.U32(p+o, _BE); o += 4;
+						maxlen = pklen-10; if(0xFFFFFFFF/170 >= maxlen) maxlen *= 170; else maxlen = 0xFFFFFFFF;
+						if(unplen > maxlen) unplen = maxlen;
+						rledone = false; ofs = 0; left = unplen;
+						while(!rledone && o < Math.min(hksz, pklen)) {
+							tp = X.I8(p+o); o++;
+							switch(tp) {
+							case 0: // as-is
+								l = X.U8(p+o); o++;
+								if(left >= l && o+l <= pklen) { t += X.SA(p+o, l); o += l; left -= l; }
+								else rledone = true;
+								break;
+							case 1: // repeat dword
+								l = X.U8(p+o); o++; dw = X.SA(p+o, 4); o += 4;
+								if(left >= l*4 && o < pklen) { left -= l*4; while(l--) t += dw; }
+								else rledone = true;
+								break;
+							case 2: // repeat dword twice
+								dw = X.SA(p+o,4); o += 4;
+								if(left >= l*4 && o < pklen) { unp += dw+dw; left -= 8; }
+								else rledone = true;
+								break;
+							case 3: // 0s
+								l = X.U8(p+o); o++; if(left >= l) left-=l;
+								// t += '\0'.repeat(l); // or just skip
+								else rledone = true;
+								break;
+							case -1: rledone = true; break;
+							default: rledone = true; bad = bad.addIfNone('!badrleid'); break;
+							}//switch
+						}
+						title = t;
+					} else //if no RLE sig:
+					title = X.SC(p+o,hksz,'CP1252'); break;
+				case -1: ch = X.I32(p,_BE); break; //NumChannels
+				case -2: ord = X.I32(p,_BE);
+					if(ord > 1024) { ord = 1024; bad = bad.addIfNone("!badtrklen") }
+					break; //TrackLength
+				case -3: case -4: case -5: break;
+				case -7: extsmp = true; break; //ExternalSamples
+				case 10: case 11: case 12: pro = true; break; //Sample Boost/Detune/Phase
+				case -6: bpm = Math.round(1.24 * Math.min(X.I32(p,_BE), 800)); break; //Tempo
+				case -10: hksz += X.I32(p,_BE);
+					if(X.c(p+8, "'PACK'FFFF")) _l2r('symmod',p,'ordsz:'+(X.U32(p+14,_BE)>>6)); break;
+				case -11: hksz += X.I32(p,_BE); break;
+				case -12: hksz = 0; break; //EmptySample: no payload
+				case -13: case -14: case -15: hksz += X.I32(p,_BE); break;
+				case -17: case -18: smp++; hksz += X.I32(p,_BE); break;
+				case -19: case -20: case -21: hksz += X.I32(p,_BE); break;
+				default:
+					done = true; bad = bad.addIfNone('!badchunkno');
+					if(debug)_l2r('symmod',p,hkhd+"/"+hkhx+" ("+Hex(hksz,8)+"): ?!?!?!?!?!");
+			}
+			p += hksz;
+		}
 		if(X.isVerbose()) {
-			p=8;
-			title=''; bpm='?'; done=false; ch=0; len=0; extsmp=false; pro=false;
-			while (p < X.Sz()) {
-				hkhd = X.I32(p,_BE); hkhx = Hex(X.U32(p,_BE)); hksz = 4;
-//_l2r('symmod',p,hkhd+' / '+hkhx)
-				if(done || charStat(hkhd).indexOf('allasc') < 0) break;
-				p += 0x04; //chunk header = 4xtype (the following will change by chunk type)
-				switch (hkhd) {
-					case -16:
-						pklen=X.U32(p,_BE); hksz+=pklen; o=4; //InfoText RLE-COMPRESSED YO
-						if(pklen>=10 && X.c(p+o,"'PACK'FFFF")) if(!X.isDeepScan()) { p = 0; break } else {
-							o+=6; unplen = X.U32(p+o,_BE); o+=4;
-							maxlen = pklen-10; if(0xFFFFFFFF/170 >= maxlen) maxlen *= 170; else maxlen = 0xFFFFFFFF;
-							if(unplen > maxlen) unplen = maxlen;
-							done = false; ofs = 0; left = unplen;
-							while(!done && o < hksz) {
-								tp = X.I8(p+o); o++;
-								switch(tp) {
-								case 0:
-									l = X.U8(p+o); o++;
-									if(left >= l) {
-										t += X.SA(p+o,l);
-										o += l; left -= l;
-									} else done=true;
-									break;
-								case 1:
-									l = X.U8(p+o); o++;
-									dw = X.SA(p+o,4); o += 4;
-									if(left >= l*4 && o < pklen) {
-										left -= l*4;
-										while(l--) t += dw;
-									} else done = true;
-									break;
-								case 2:
-									dw = X.SA(p+o,4); o += 4;
-									if(left >= l*4 && o<pklen) {
-										unp += dw+dw;
-										left -= 8;
-									} else done = true;
-									break;
-								case 3:
-									l = X.U8(p+o); o++;
-									if(left >= l) left-=l;
-									else done = true;
-									break;
-								case -1: done = true; break;
-								default: sVersion += "/malformed"; done = true; break;
-								}//switch
-							}
-						} else //if no RLE sig:
-						title = X.SC(p+o,hksz,'CP1252'); break;
-					case -1: ch = X.I32(p,_BE); break; //NumChannels
-					case -2: len = X.I32(p,_BE); if(len > 1024) len = "malformed"; break; //TrackLength
-					case -3: case -4: case -5: break;
-					case -7: extsmp = true; break; //ExternalSamples
-					case 10: case 11: case 12: pro=true; break; //Sample Boost/Detune/Phase
-					case -6: bpm = Math.round(1.24*Math.min(X.I32(p,_BE),800)); break; //Tempo
-					case -12: hksz = 0; break; //EmptySample
-					case -10: case -11: case -13: case -14: case -15: case -17: case -18:
-					case -19: case -20: case -21: hksz+=X.I32(p,_BE); break;
-					default: _l2r('symmod',p,hkhd+"/"+hkhx+" ("+Hex(hksz,8)+"): ?!?!?!?!?!");
-				}
-				p += hksz;
-			}
-			sOption(title);
-			sOption('ch:'+ch+' bpm:'+bpm+' len:'+len+(done?'sz:'+outSz(p):''));
+			sOption(addEllipsis(title,0xF0,0xE0),'msg:"\n','"');
+			sOption('ch:'+ch+(bpm > 0?' bpm:'+bpm:'')+' ord:'+ord+' smp:'+smp+' sz:'+outSz(p));
 			if(extsmp) sOption("extsmp"); if(pro) sVersion+="/Pro"
-			}
+		}
+		if(bad.length) sVersion = sVersion.appendS('malformed'+bad, '/')
 	}
 
 	else if(X.c("'Synth'") && !X.c("'esi'",5)) {
@@ -5172,7 +5175,7 @@ function detect() {
 			rate = X.U32(0x24);
 			if(nV > 100) if(!rate) rate = 'n/a'; else
 				if(rate == 50) rate += 'Hz(PAL)'; else if(rate == 60) rate += 'Hz(NTSC)'; else rate += 'Hz';
-			chips = [[0xC,'SN76489',0], [0x10,'YM2413',0], [0x2C,'YM2612',110], [0x30,'YM2151',110],
+			chips = [[0xC,'SN76489',0], [0x10,'YM2413',0], [0x2C,'YM2612',110], [0x30,'YM2151_OPM',110],
 				[0x38,'SegaPCM',151], [0x40,'RF5C68',151], [0x44,'YM2203',151], [0x48,'YM2608',151],
 				[0x4C,'YM2610/B',151], [0x50,'YM3812',151], [0x54,'YM3526',151], [0x58,'Y8950',151],
 				[0x5C,'YMF262',151], [0x60,'YM278B',151], [0x64,'YMF271',151], [0x68,'YMZ280B',151],
@@ -7882,7 +7885,7 @@ function isGlobalTracker() {
 	return true
 }
 if(!bDetected && isGlobalTracker()) {
-	sName = "Doctor Max/Global Corp.'s' Global Tracker module (.GTR)";//fmt[DOCTORMAX_GLOBALTRACKER_GTR]
+	sName = "Doctor Max/Global Corp.'s Global Tracker module (.GTR)";//fmt[DOCTORMAX_GLOBALTRACKER_GTR]
 	bDetected = 1;
 	sVersion = 'v'+(X.U8(4)>>4)+'.'+(X.U8(4)&0xF);
 	if(X.isVerbose()) {
@@ -14155,7 +14158,7 @@ if(debug>0)_logIt('gym?'+outArray(_gyminfo,16))
 		return true
 	}
 	if(isGYM()) {
-		sname = "Sega Genesis/Mega Drive YM2612 chiptune (.GYM)"; //fmt[YM2612REGLOG_GYM]
+		sname = "Sega Genesis/Mega Drive YM2612 (OPN2) chiptune (.GYM)"; //fmt[YM2612REGLOG_GYM]
 		_setResult("~audio", sname, "headerless",
 			X.isDeepScan() ? "notes:" + _gyminfo[0] + " sz:"+outSz(_gyminfo[1]) : "");
 	}
@@ -14171,7 +14174,7 @@ if(debug>0)_logIt('cym?'+outArray(_cyminfo,16));
 		return true
 	}
 	if(!X.isOverlay() && isOPMLog()) {
-		sname = "YM2151 OPM/Callus chiptune (.CYM)"; //fmt[YM2151OPMREGLOG_CYM]
+		sname = "YM2151 (OPM)/Callus chiptune (.CYM)"; //fmt[YM2151OPMREGLOG_CYM]
 		_setResult("~audio",sname,"headerless",
 			X.isDeepScan() ? "notes:" + _cyminfo[0] + " sz:"+outSz(_cyminfo[1]) : "");
 	}
@@ -14187,7 +14190,7 @@ if(debug>0)_logIt('cym?'+outArray(_cyminfo,16));
 		return true
 	}
 	if(!X.isOverlay() && isAdlibLog()) {
-		sname = "YM3812/OPL2/Ad Lib chiptune"; //fmt[YM3812OPL2REGLOG]
+		sname = "YM3812 (OPL2)/Ad Lib chiptune"; //fmt[YM3812OPL2REGLOG]
 		_setResult("~audio",sname,"headerless",
 			X.isDeepScan() ? "notes:" + _opl2info[0] + " sz:"+outSz(_opl2info[1]) : "")
 	}
